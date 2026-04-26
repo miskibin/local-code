@@ -7,8 +7,7 @@ from app.db import init_db
 from app.observability import setup_logging
 from app.routes.chat import router as chat_router
 from app.routes.tools import router as tools_router
-from app.graphs.main_agent import build_agent, build_ollama_llm
-from app.tool_registry import discover_tools
+from app.graphs.main_agent import build_ollama_llm
 
 
 @asynccontextmanager
@@ -18,13 +17,9 @@ async def lifespan(app: FastAPI):
     await init_db()
 
     async with AsyncSqliteSaver.from_conn_string(settings.checkpoint_db_path) as saver:
-        llm = build_ollama_llm(settings)
-        local_tools = discover_tools()
-        app.state.local_tools = local_tools
+        app.state.llm = build_ollama_llm(settings)
+        app.state.checkpointer = saver
         app.state.mcp_tools = []
-        app.state.graph = build_agent(
-            llm=llm, tools=local_tools, checkpointer=saver,
-        )
         yield
 
 

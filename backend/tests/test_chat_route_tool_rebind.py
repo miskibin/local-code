@@ -1,0 +1,59 @@
+import pytest
+from httpx import ASGITransport, AsyncClient
+from langchain_core.tools import tool
+
+
+@tool
+def chat_stub_tool(x: int) -> int:
+    """stub"""
+    return x
+
+
+@pytest.mark.asyncio
+async def test_chat_skips_disabled_tool(monkeypatch):
+    """When a tool flag is False, the agent rebuild for that turn must not include it."""
+    from app.main import create_app
+    from app.db import init_db, async_session
+    from app.models import ToolFlag
+    from app import tool_registry
+
+    monkeypatch.setattr(tool_registry, "discover_tools", lambda: [chat_stub_tool])
+
+    captured: list[list] = []
+
+    def fake_build_agent(*, llm, tools, checkpointer, subagents=None):
+        captured.append([t.name for t in tools])
+        from app.graphs.main_agent import build_agent as real
+        return real(llm=llm, tools=tools, checkpointer=checkpointer, subagents=subagents)
+
+    monkeypatch.setattr("app.routes.chat.build_agent_for_turn", fake_build_agent)
+
+    app = create_app()
+    await init_db()
+    async with async_session() as s:
+        s.add(ToolFlag(name="chat_stub_tool", enabled=False))
+        await s.commit()
+
+    # Pre-attach a fake LLM + checkpointer via app.state
+    from langchain_core.language_models.fake_chat_models import FakeListChatModel
+    from langgraph.checkpoint.memory import InMemorySaver
+
+    class _FakeChatWithTools(FakeListChatModel):
+        def bind_tools(self, tools, **kwargs):
+            return self
+
+    app.state.llm = _FakeChatWithTools(responses=["ok"])
+    app.state.checkpointer = InMemorySaver()
+
+    payload = {"id": "t1", "messages": [{"id": "u1", "role": "user", "parts": [{"type": "text", "text": "hi"}]}]}
+    transport = ASGITransport(app=app)
+    try:
+        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+            await ac.post("/chat", json=payload)
+
+        assert captured and captured[0] == []  # tool was filtered out
+    finally:
+        from sqlmodel import delete
+        async with async_session() as s:
+            await s.execute(delete(ToolFlag).where(ToolFlag.name == "chat_stub_tool"))
+            await s.commit()

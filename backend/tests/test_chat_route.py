@@ -11,15 +11,14 @@ class _FakeChatWithTools(FakeListChatModel):
 @pytest.mark.asyncio
 async def test_chat_route_returns_sse_with_protocol_header():
     from app.main import create_app
-    from app.graphs.main_agent import build_agent
+    from app.db import init_db
     from langgraph.checkpoint.memory import InMemorySaver
 
     app = create_app()
-    app.state.graph = build_agent(
-        llm=_FakeChatWithTools(responses=["yo"]),
-        tools=[],
-        checkpointer=InMemorySaver(),
-    )
+    await init_db()
+    app.state.llm = _FakeChatWithTools(responses=["yo"])
+    app.state.checkpointer = InMemorySaver()
+    app.state.mcp_tools = []
 
     payload = {
         "id": "thread-x",
