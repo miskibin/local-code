@@ -1,9 +1,5 @@
 import pytest
 
-pytestmark = pytest.mark.skip(
-    reason="Deno unavailable in CI/local - sandbox tool requires Deno"
-)
-
 
 @pytest.mark.asyncio
 async def test_python_exec_runs_simple_code():
