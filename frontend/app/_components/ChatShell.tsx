@@ -8,7 +8,6 @@ import { ArtifactModal } from "./ArtifactModal"
 import { ChatView } from "./ChatView"
 import { SearchDialog } from "./SearchDialog"
 import { Sidebar } from "./Sidebar"
-import { DEMO_SUBAGENT_STEPS } from "./sampleData"
 
 export function ChatShell() {
   const [collapsed, setCollapsed] = useState(false)
@@ -110,15 +109,6 @@ export function ChatShell() {
     }
   }
 
-  const isDemo = activeSessionId === "demo-subagent"
-  const seedSteps = isDemo ? DEMO_SUBAGENT_STEPS : undefined
-  const demoUserText = isDemo
-    ? "Get me a Q1 sales breakdown by region — delegate to the SQL analyst."
-    : undefined
-  const demoAssistantText = isDemo
-    ? "Done — full breakdown above. Want me to send the Data Scientist next to chart this?"
-    : undefined
-
   return (
     <main
       className="flex h-dvh w-full overflow-hidden"
@@ -143,9 +133,6 @@ export function ChatShell() {
         savedArtifacts={savedMap}
         onSaveArtifact={onSaveArtifact}
         onOpenArtifact={setOpenArtifact}
-        seedSteps={seedSteps}
-        demoUserText={demoUserText}
-        demoAssistantText={demoAssistantText}
       />
       <SearchDialog
         open={searchOpen}

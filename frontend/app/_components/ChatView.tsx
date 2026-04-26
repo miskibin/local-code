@@ -8,13 +8,7 @@ import { api, CHAT_URL } from "@/lib/api";
 
 const DEFAULT_MODEL =
   process.env.NEXT_PUBLIC_OLLAMA_MODEL ?? "gemma4:e4b";
-import type {
-  Artifact,
-  AssistantStep,
-  SubagentStep,
-  Todo,
-  ToolStep,
-} from "@/lib/types";
+import type { Artifact, SubagentStep, Todo, ToolStep } from "@/lib/types";
 import { Composer } from "./Composer";
 import { EmptyState } from "./EmptyState";
 import {
@@ -290,19 +284,6 @@ function partsToText(parts: AnyPart[]): string {
     .join("");
 }
 
-function mergeSeedSteps(
-  blocks: ContentBlock[],
-  isLast: boolean,
-  seedSteps: AssistantStep[] | undefined,
-): ContentBlock[] {
-  const fromParts = blocks.some((b) => b.type === "step");
-  if (fromParts || !isLast || !seedSteps?.length) return blocks;
-  return [
-    ...seedSteps.map((s) => ({ type: "step" as const, step: s })),
-    ...blocks,
-  ];
-}
-
 export const __testing__ = { partsToContentBlocks, extractArtifactIds };
 
 type Props = {
@@ -311,10 +292,6 @@ type Props = {
   savedArtifacts: Record<string, boolean>;
   onSaveArtifact: (a: Artifact) => Promise<void> | void;
   onOpenArtifact: (a: Artifact) => void;
-  seedSteps?: AssistantStep[];
-  seedArtifacts?: Artifact[];
-  demoUserText?: string;
-  demoAssistantText?: string;
 };
 
 export function ChatView({
@@ -323,10 +300,6 @@ export function ChatView({
   savedArtifacts,
   onSaveArtifact,
   onOpenArtifact,
-  seedSteps,
-  seedArtifacts,
-  demoUserText,
-  demoAssistantText,
 }: Props) {
   const [selectedModel, setSelectedModel] = useState<string>(DEFAULT_MODEL);
   const transport = useMemo(
@@ -366,7 +339,6 @@ export function ChatView({
       onError: (e) => toast.error(e.message ?? "Stream error"),
     });
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
-  const [demoSeen, setDemoSeen] = useState(false);
   const [artifactCache, setArtifactCache] = useState<Record<string, Artifact>>(
     {},
   );
@@ -378,10 +350,6 @@ export function ChatView({
   useEffect(() => {
     setExpanded({});
     sentFirstRef.current = false;
-    if (sessionId === "demo-subagent") {
-      setMessages([]);
-      return;
-    }
     let cancelled = false;
     api
       .getMessages(sessionId)
@@ -453,11 +421,9 @@ export function ChatView({
   const toggleStep = (key: string) =>
     setExpanded((p) => ({ ...p, [key]: !p[key] }));
 
-  const showDemo = !!demoUserText && messages.length === 0;
-  const isEmpty = messages.length === 0 && !demoSeen && !showDemo;
+  const isEmpty = messages.length === 0;
 
   const send = (text: string) => {
-    setDemoSeen(true);
     sendMessage({ text });
   };
 
@@ -487,30 +453,6 @@ export function ChatView({
         <div className="mx-auto w-full max-w-5xl px-6 pb-12 pt-8">
           {isEmpty ? (
             <EmptyState onPick={send} />
-          ) : showDemo ? (
-            <div>
-              <UserMessage text={demoUserText!} />
-              <AssistantMessage
-                msg={{
-                  id: "demo-assistant",
-                  contentBlocks: [
-                    ...(seedSteps ?? []).map((s) => ({
-                      type: "step" as const,
-                      step: s,
-                    })),
-                    { type: "text" as const, text: demoAssistantText ?? "" },
-                  ],
-                  artifacts: seedArtifacts,
-                }}
-                expanded={expanded}
-                toggleStep={toggleStep}
-                isLast={true}
-                streaming={false}
-                savedArtifacts={savedArtifacts}
-                onSaveArtifact={(a) => void onSaveArtifact(a)}
-                onOpenArtifact={onOpenArtifact}
-              />
-            </div>
           ) : (
             <div>
               {messages.map((m) => {
@@ -530,11 +472,7 @@ export function ChatView({
                   );
                 }
                 const isLast = m.id === lastAssistantId;
-                const contentBlocks = mergeSeedSteps(
-                  partsToContentBlocks(parts),
-                  isLast,
-                  seedSteps,
-                );
+                const contentBlocks = partsToContentBlocks(parts);
                 const liveArtifacts = extractArtifactIds(parts)
                   .map((id) => artifactCache[id])
                   .filter((a): a is Artifact => !!a);
@@ -542,11 +480,7 @@ export function ChatView({
                   id: m.id,
                   contentBlocks,
                   artifacts:
-                    liveArtifacts.length > 0
-                      ? liveArtifacts
-                      : isLast
-                        ? seedArtifacts
-                        : undefined,
+                    liveArtifacts.length > 0 ? liveArtifacts : undefined,
                 };
                 return (
                   <AssistantMessage

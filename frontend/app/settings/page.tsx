@@ -3,10 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  AlertCircle,
   ArrowLeft,
-  CheckCircle2,
-  Cpu,
   Database,
   Folder,
   Globe,
@@ -22,8 +19,6 @@ import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
 import type { MCPServer, Tool } from "@/lib/types";
 import { AddServerDialog } from "../_components/AddServerDialog";
-
-const MODEL_NAME = process.env.NEXT_PUBLIC_OLLAMA_MODEL ?? "gemma4:e4b";
 
 export default function SettingsPage() {
   const [tab, setTab] = useState("mcp");
@@ -66,9 +61,6 @@ export default function SettingsPage() {
             <TabsTrigger value="tools" className="justify-start gap-2.5 px-2.5 py-2">
               <Wrench className="h-3.5 w-3.5" /> Tools
             </TabsTrigger>
-            <TabsTrigger value="model" className="justify-start gap-2.5 px-2.5 py-2">
-              <Cpu className="h-3.5 w-3.5" /> Model
-            </TabsTrigger>
           </TabsList>
         </div>
         <div className="lc-scroll flex-1 overflow-y-auto px-10 py-8">
@@ -78,9 +70,6 @@ export default function SettingsPage() {
             </TabsContent>
             <TabsContent value="tools">
               <ToolsTab />
-            </TabsContent>
-            <TabsContent value="model">
-              <ModelTab />
             </TabsContent>
           </div>
         </div>
@@ -386,122 +375,6 @@ function ToolsTab() {
             No tools discovered.
           </div>
         )}
-      </div>
-    </>
-  );
-}
-
-function ModelTab() {
-  const fields = [
-    { k: "Model", v: MODEL_NAME, mono: true },
-    { k: "Provider", v: "Local (Ollama)" },
-    { k: "Parameters", v: "9.6B (E4B)" },
-    { k: "Context window", v: "128k tokens" },
-    { k: "Quantization", v: "Q4_K_M", mono: true },
-    { k: "Endpoint", v: "http://localhost:11434", mono: true },
-  ];
-  return (
-    <>
-      <SectionHeader
-        title="Model"
-        desc="The local model the agent uses. All inference runs on-device via Ollama."
-      />
-      <div
-        className="mb-6 overflow-hidden rounded-xl"
-        style={{ border: "1px solid var(--border)", background: "#fff" }}
-      >
-        <div
-          className="flex items-center gap-3.5 px-4 py-3.5"
-          style={{ background: "var(--accent-soft)" }}
-        >
-          <div
-            className="grid h-9 w-9 flex-shrink-0 place-items-center rounded-lg"
-            style={{
-              background: "#fff",
-              border: "1px solid var(--accent)",
-              color: "var(--accent-ink)",
-            }}
-          >
-            <Cpu className="h-4 w-4" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <span
-                className="text-[14px] font-medium"
-                style={{ fontFamily: "var(--font-mono)", color: "var(--ink)" }}
-              >
-                {MODEL_NAME}
-              </span>
-              <span
-                className="rounded uppercase"
-                style={{
-                  fontSize: 10,
-                  padding: "1px 6px",
-                  background: "#fff",
-                  color: "var(--accent-ink)",
-                  fontWeight: 500,
-                  letterSpacing: ".02em",
-                  border: "1px solid var(--accent)",
-                }}
-              >
-                Recommended
-              </span>
-            </div>
-            <div className="mt-1 text-xs" style={{ color: "var(--ink-2)" }}>
-              Native tools · 128k context · 9.6 GB
-            </div>
-          </div>
-          <CheckCircle2 className="h-5 w-5" style={{ color: "var(--accent)" }} />
-        </div>
-      </div>
-
-      <h3
-        className="mb-2.5 uppercase"
-        style={{
-          fontSize: 13,
-          fontWeight: 600,
-          color: "var(--ink-2)",
-          letterSpacing: ".04em",
-        }}
-      >
-        Active model details
-      </h3>
-      <div
-        className="overflow-hidden rounded-xl"
-        style={{ border: "1px solid var(--border)", background: "#fff" }}
-      >
-        {fields.map((f, i) => (
-          <div
-            key={f.k}
-            className="flex items-center justify-between px-5 py-2.5 text-[13px]"
-            style={{ borderTop: i === 0 ? 0 : "1px solid var(--border)" }}
-          >
-            <span style={{ color: "var(--ink-2)" }}>{f.k}</span>
-            <span
-              style={{
-                fontFamily: f.mono ? "var(--font-mono)" : "inherit",
-                color: "var(--ink)",
-              }}
-            >
-              {f.v}
-            </span>
-          </div>
-        ))}
-      </div>
-
-      <div
-        className="mt-6 flex items-start gap-2 rounded-lg p-3"
-        style={{
-          background: "var(--amber-soft)",
-          border: "1px solid #fde68a",
-          color: "var(--amber)",
-        }}
-      >
-        <AlertCircle className="h-4 w-4 flex-shrink-0" />
-        <div className="text-xs">
-          Model selection is read from <code style={{ fontFamily: "var(--font-mono)" }}>OLLAMA_MODEL</code>.
-          Switching models requires updating the backend config and restart.
-        </div>
       </div>
     </>
   );

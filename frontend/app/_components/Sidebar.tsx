@@ -116,61 +116,20 @@ export function Sidebar({
         <SectionHead
           open={chatsOpen}
           onToggle={() => setChatsOpen((o) => !o)}
-          count={sessions.length + 1}
+          count={sessions.length}
         >
           Chats
         </SectionHead>
-        {chatsOpen && (
-          <>
-            <button
-              onClick={() => onSelect("demo-subagent")}
-              title="SQL Analyst demo"
-              className="mb-px block w-full truncate rounded-md py-1.5 pr-2.5 pl-2.5 text-left"
-              style={{
-                background:
-                  activeId === "demo-subagent" ? "var(--hover)" : "transparent",
-                color: "var(--ink)",
-                border: 0,
-                fontSize: 13.5,
-                cursor: "pointer",
-              }}
-              onMouseEnter={(e) => {
-                if (activeId !== "demo-subagent")
-                  e.currentTarget.style.background = "var(--hover)"
-              }}
-              onMouseLeave={(e) => {
-                if (activeId !== "demo-subagent")
-                  e.currentTarget.style.background = "transparent"
-              }}
-            >
-              <span className="inline-flex items-center gap-2">
-                <span
-                  className="text-[10px] uppercase"
-                  style={{
-                    color: "var(--accent-ink)",
-                    background: "var(--accent-soft)",
-                    padding: "1px 5px",
-                    borderRadius: 4,
-                    fontWeight: 500,
-                    letterSpacing: ".04em",
-                  }}
-                >
-                  Demo
-                </span>
-                <span>SQL Analyst — Q1 breakdown</span>
-              </span>
-            </button>
-            {sessions.map((s) => (
-              <ChatRow
-                key={s.id}
-                session={s}
-                active={s.id === activeId}
-                onSelect={() => onSelect(s.id)}
-                onDelete={() => onDeleteSession(s.id)}
-              />
-            ))}
-          </>
-        )}
+        {chatsOpen &&
+          sessions.map((s) => (
+            <ChatRow
+              key={s.id}
+              session={s}
+              active={s.id === activeId}
+              onSelect={() => onSelect(s.id)}
+              onDelete={() => onDeleteSession(s.id)}
+            />
+          ))}
 
         <div className="h-3.5" />
 

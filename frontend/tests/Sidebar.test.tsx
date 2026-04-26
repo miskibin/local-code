@@ -18,10 +18,9 @@ describe("Sidebar", () => {
     onDeleteArtifact: vi.fn(),
   };
 
-  it("renders chats and demo entry", () => {
+  it("renders chat rows", () => {
     render(<Sidebar {...baseProps} />);
     expect(screen.getByText("Plan trip")).toBeInTheDocument();
-    expect(screen.getByText(/SQL Analyst/i)).toBeInTheDocument();
   });
 
   it("calls onNew when New chat clicked", async () => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUp, Mic, Plus, Square, Wrench } from "lucide-react";
+import { ArrowUp, Plus, Square, Wrench } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { ModelPicker } from "./ModelPicker";
 
@@ -85,9 +85,6 @@ export function Composer({
             <ModelPicker value={model} onChange={onModelChange} />
           </div>
           <div className="flex items-center gap-1">
-            <ToolbarBtn title="Voice">
-              <Mic className="h-4 w-4" />
-            </ToolbarBtn>
             {streaming ? (
               <button
                 onClick={onStop}
