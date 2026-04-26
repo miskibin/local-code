@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { nanoid } from "nanoid"
 import { toast } from "sonner"
 import { api } from "@/lib/api"
+import { decodeTaskRun } from "@/lib/tasks"
 import type { Artifact, Session } from "@/lib/types"
 import { ArtifactModal } from "./ArtifactModal"
 import { ChatView } from "./ChatView"
@@ -13,21 +14,6 @@ import { Sidebar } from "./Sidebar"
 import { ThemeToggle } from "./ThemeToggle"
 
 type PendingTaskRun = { task_id: string; variables: Record<string, unknown> }
-
-function decodeTaskRun(raw: string | null): PendingTaskRun | null {
-  if (!raw) return null
-  try {
-    const decoded = JSON.parse(decodeURIComponent(atob(raw)))
-    if (typeof decoded?.task_id !== "string") return null
-    const vars =
-      decoded.variables && typeof decoded.variables === "object"
-        ? (decoded.variables as Record<string, unknown>)
-        : {}
-    return { task_id: decoded.task_id, variables: vars }
-  } catch {
-    return null
-  }
-}
 
 export function ChatShell() {
   const router = useRouter()

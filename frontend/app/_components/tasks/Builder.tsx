@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation"
 import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 import { api } from "@/lib/api"
+import { navigateToTaskRunUrl } from "@/lib/tasks"
 import type { SavedTask, TaskRunVariables } from "@/lib/types"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -90,11 +91,8 @@ export function Builder({ taskId }: { taskId: string }) {
 
   const onRun = (vars: TaskRunVariables) => {
     if (!task) return
-    const payload = btoa(
-      encodeURIComponent(JSON.stringify({ task_id: task.id, variables: vars }))
-    )
     setRunOpen(false)
-    router.push(`/?taskRun=${payload}`)
+    navigateToTaskRunUrl(router, task.id, vars)
   }
 
   if (loading) {

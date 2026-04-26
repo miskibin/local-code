@@ -137,12 +137,6 @@ export type TaskVariable = {
 export type TaskStepKind = "tool" | "code" | "subagent" | "prompt";
 export type TaskStepOutputKind = "rows" | "text" | "chart" | "json" | "file";
 
-export type TaskStepInput = {
-  name: string;
-  source: "var" | "step";
-  ref: string;
-};
-
 export type TaskStep = {
   id: string;
   kind: TaskStepKind;
@@ -155,7 +149,6 @@ export type TaskStep = {
   prompt?: string | null;
   output_name: string;
   output_kind: TaskStepOutputKind;
-  inputs: TaskStepInput[];
 };
 
 export type SavedTask = {

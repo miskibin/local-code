@@ -18,8 +18,9 @@ from sqlmodel import select
 
 from app.db import async_session
 from app.models import SavedArtifact
+from app.tasks import coerce_lc_content
 from app.tasks.schemas import TaskDTO, TaskStep, TaskVariable
-from app.tasks.storage import create_task
+from app.tasks.storage import create_task, to_dto
 
 GENERATOR_SYSTEM = """You convert a finished agent run into a reusable Task.
 
@@ -97,23 +98,10 @@ OUTPUT — STRICT JSON, NO commentary, NO markdown fences. Shape:
         "server"?: str, "tool"?: str, "args_template"?: object,
         "code"?: str, "subagent"?: str, "prompt"?: str,
         "output_name": str,
-        "output_kind": "rows"|"text"|"chart"|"json"|"file",
-        "inputs": [{"name": str, "source": "var"|"step", "ref": str}]
+        "output_kind": "rows"|"text"|"chart"|"json"|"file"
       }]
     }
 """
-
-
-def _coerce_text(content: Any) -> str:
-    if isinstance(content, str):
-        return content
-    if isinstance(content, list):
-        out = []
-        for c in content:
-            if isinstance(c, dict) and c.get("type") == "text":
-                out.append(str(c.get("text", "")))
-        return "".join(out)
-    return ""
 
 
 def _extract_run_trace(messages: list[Any]) -> dict[str, Any]:
@@ -124,11 +112,11 @@ def _extract_run_trace(messages: list[Any]) -> dict[str, Any]:
 
     for m in messages:
         if isinstance(m, HumanMessage) or getattr(m, "type", None) == "human":
-            text = _coerce_text(m.content)
+            text = coerce_lc_content(m.content)
             if text:
                 user_prompt = text
         if isinstance(m, AIMessage) or getattr(m, "type", None) == "ai":
-            text = _coerce_text(m.content)
+            text = coerce_lc_content(m.content)
             if text:
                 final_text = text
             for tc in getattr(m, "tool_calls", None) or []:
@@ -147,7 +135,7 @@ def _extract_run_trace(messages: list[Any]) -> dict[str, Any]:
             entry = pending.get(cid) if cid else None
             if entry is None:
                 continue
-            text = _coerce_text(m.content)
+            text = coerce_lc_content(m.content)
             if getattr(m, "status", None) == "error":
                 entry["error"] = text
             else:
@@ -209,7 +197,6 @@ def _ensure_step_ids(steps: list[dict[str, Any]]) -> list[dict[str, Any]]:
         step.setdefault("title", step["id"])
         step.setdefault("output_name", "output")
         step.setdefault("output_kind", "text")
-        step.setdefault("inputs", [])
         out.append(step)
     return out
 
@@ -240,7 +227,7 @@ async def generate_task_from_run(
             HumanMessage(content=user_msg),
         ]
     )
-    raw = _coerce_text(getattr(response, "content", response))
+    raw = coerce_lc_content(getattr(response, "content", response))
     logger.debug(f"generator raw output (first 500): {raw[:500]}")
     parsed = _parse_task_json(raw)
 
@@ -255,15 +242,4 @@ async def generate_task_from_run(
     )
     row = await create_task(dto)
     logger.info(f"task generated id={row.id} steps={len(dto.steps)} vars={len(dto.variables)}")
-    return TaskDTO.model_validate(
-        {
-            "id": row.id,
-            "title": row.title,
-            "description": row.description,
-            "source_session_id": row.source_session_id,
-            "variables": row.variables,
-            "steps": row.steps,
-            "created_at": row.created_at,
-            "updated_at": row.updated_at,
-        }
-    )
+    return to_dto(row)

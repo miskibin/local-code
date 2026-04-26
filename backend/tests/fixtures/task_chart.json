@@ -20,10 +20,7 @@
       "subagent": "sql-agent",
       "prompt": "Query the {{var.database_name}} DB for the top 10 customers by total spend. Return the result as a table artifact.",
       "output_name": "spenders_text",
-      "output_kind": "text",
-      "inputs": [
-        { "name": "database_name", "source": "var", "ref": "database_name" }
-      ]
+      "output_kind": "text"
     },
     {
       "id": "s2",
@@ -31,10 +28,7 @@
       "title": "Echo artifact id from prior step",
       "code": "out({'artifact_id': '{{s1.artifact_id}}'})",
       "output_name": "echo",
-      "output_kind": "json",
-      "inputs": [
-        { "name": "artifact_id", "source": "step", "ref": "s1.artifact_id" }
-      ]
+      "output_kind": "json"
     }
   ],
   "created_at": null,

@@ -4,16 +4,14 @@ from loguru import logger
 from sqlmodel import select
 
 from app import tool_registry
-from app.config import get_settings
 from app.db import async_session
 from app.graphs.main_agent import (
     build_agent as build_agent_for_turn,
 )
 from app.graphs.main_agent import (
-    build_gemini_llm,
-    build_ollama_llm,
     default_subagents,
 )
+from app.llm import resolve_llm
 from app.models import ToolFlag
 from app.schemas.chat import ChatRequest
 from app.streaming import stream_chat
@@ -21,18 +19,6 @@ from app.tasks.runner import persist_run_messages, run_task
 from app.tasks.storage import get_task
 
 router = APIRouter()
-
-
-def _resolve_llm(state, model: str):
-    llm = state.llm_cache.get(model)
-    if llm is None:
-        settings = get_settings()
-        if model.startswith("gemini"):
-            llm = build_gemini_llm(settings, model=model)
-        else:
-            llm = build_ollama_llm(settings, model=model)
-        state.llm_cache[model] = llm
-    return llm
 
 
 async def _flags() -> dict[str, bool]:
@@ -51,7 +37,7 @@ _STREAM_HEADERS = {
 @router.post("/chat")
 async def chat(req: ChatRequest, request: Request):
     state = request.app.state
-    llm = _resolve_llm(state, req.model)
+    llm = resolve_llm(state, req.model)
     logger.info(
         f"/chat thread={req.id} reset={req.reset} msgs={len(req.messages)} "
         f"model={req.model} task_run={bool(req.task_run)}"
@@ -108,9 +94,5 @@ async def chat(req: ChatRequest, request: Request):
             session_id=req.id,
         ),
         media_type="text/event-stream",
-        headers={
-            "x-vercel-ai-ui-message-stream": "v1",
-            "Cache-Control": "no-cache, no-transform",
-            "X-Accel-Buffering": "no",
-        },
+        headers=_STREAM_HEADERS,
     )
