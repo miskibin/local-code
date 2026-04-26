@@ -1,13 +1,17 @@
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 from sqlalchemy import Column, JSON
 from sqlmodel import Field, SQLModel
 
 
+def _now_utc() -> datetime:
+    return datetime.now(UTC)
+
+
 class ChatSession(SQLModel, table=True):
     id: str = Field(primary_key=True)
     title: str = ""
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_now_utc)
 
 
 class ChatMessage(SQLModel, table=True):
@@ -15,7 +19,7 @@ class ChatMessage(SQLModel, table=True):
     session_id: str = Field(foreign_key="chatsession.id", index=True)
     role: str
     content: str
-    created_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=_now_utc)
 
 
 class MCPServerConfig(SQLModel, table=True):
