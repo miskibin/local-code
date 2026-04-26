@@ -20,7 +20,9 @@ export function Composer({
     const ta = taRef.current;
     if (!ta) return;
     ta.style.height = "auto";
-    ta.style.height = Math.min(ta.scrollHeight, 200) + "px";
+    const capped = ta.scrollHeight > 200;
+    ta.style.height = (capped ? 200 : ta.scrollHeight) + "px";
+    ta.style.overflowY = capped ? "auto" : "hidden";
   }, [text]);
 
   const submit = () => {

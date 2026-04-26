@@ -224,55 +224,6 @@ async def test_dispatcher_links_subagent_inner_tools_via_provider_metadata():
 
 
 @pytest.mark.asyncio
-async def test_stream_emits_output_error_for_failed_tool_message():
-    """ToolMessage with status='error' must emit a tool-output-error SSE event
-    so the frontend can transition the tool card to a Failed state instead of
-    spinning forever."""
-    from app.streaming import stream_chat
-
-    items = [
-        (
-            AIMessage(
-                content="",
-                tool_calls=[
-                    {
-                        "id": "call_err",
-                        "name": "web_fetch",
-                        "args": {"url": "https://www.tripadvisor.com/x"},
-                    }
-                ],
-            ),
-            {"langgraph_node": "model"},
-        ),
-        (
-            ToolMessage(
-                content="HTTPStatusError: 403 Forbidden",
-                tool_call_id="call_err",
-                name="web_fetch",
-                status="error",
-            ),
-            {"langgraph_node": "tools"},
-        ),
-    ]
-    events = []
-    async for line in stream_chat(
-        graph=_FakeGraph(items), thread_id="t1", lc_messages=[("user", "go")]
-    ):
-        events.append(line)
-    parsed = [
-        json.loads(e.removeprefix("data: ").strip())
-        for e in events
-        if e.startswith("data: {")
-    ]
-    types = [e["type"] for e in parsed]
-    assert "tool-output-error" in types
-    assert "tool-output-available" not in types
-    err = next(e for e in parsed if e["type"] == "tool-output-error")
-    assert err["toolCallId"] == "call_err"
-    assert err["errorText"] == "HTTPStatusError: 403 Forbidden"
-
-
-@pytest.mark.asyncio
 async def test_stream_emits_tool_events_when_only_tool_message():
     from app.streaming import stream_chat
 

@@ -245,6 +245,7 @@ body[data-app="local-chat"] {
     outline: 0;
     width: 100%;
     padding: 0;
+    overflow-y: hidden;
 }
 [data-app="local-chat"] textarea.lc-composer::placeholder { color: var(--ink-3); }
 

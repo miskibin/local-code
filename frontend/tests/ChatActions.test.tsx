@@ -30,6 +30,11 @@ vi.mock("ai", () => ({
   },
 }));
 
+vi.mock("@/lib/api", () => ({
+  api: { getMessages: () => new Promise(() => {}) },
+  CHAT_URL: "http://test/chat",
+}));
+
 import { ChatView } from "@/app/_components/ChatView";
 
 const baseProps = {

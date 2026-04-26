@@ -100,17 +100,6 @@ async def stream_chat(
             evt["providerMetadata"] = md
         return sse(evt)
 
-    def _output_error(cid: str, error_text: str, namespace: tuple) -> str:
-        evt: dict = {
-            "type": "tool-output-error",
-            "toolCallId": cid,
-            "errorText": error_text,
-        }
-        md = _provider_md(namespace)
-        if md:
-            evt["providerMetadata"] = md
-        return sse(evt)
-
     try:
         async for event in graph.astream(
             {"messages": lc_messages},
@@ -197,11 +186,7 @@ async def stream_chat(
                     yield _input_available(cid, name, parsed, namespace)
                     announced_input.add(cid)
                 if cid:
-                    output = _coerce_output(chunk.content)
-                    if getattr(chunk, "status", None) == "error":
-                        yield _output_error(cid, str(output), namespace)
-                    else:
-                        yield _output_available(cid, output, namespace)
+                    yield _output_available(cid, _coerce_output(chunk.content), namespace)
                     if is_top_level and cid == current_dispatch_id:
                         current_dispatch_id = None
     except Exception as e:
