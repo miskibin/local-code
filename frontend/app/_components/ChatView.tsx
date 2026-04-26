@@ -496,11 +496,11 @@ export function ChatView({
     if (text) sendMessage({ text })
   }
 
-  const handleSaveAsTask = async (assistantId: string) => {
+  const handleSaveAsTask = async () => {
     if (generatingTask) return
     setGeneratingTask(true)
     try {
-      const task = await api.generateTask(sessionId, selectedModel, assistantId)
+      const task = await api.generateTask(sessionId, selectedModel)
       router.push(`/tasks/${task.id}`)
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Failed to generate task")
@@ -590,7 +590,7 @@ export function ChatView({
                       streaming ? undefined : () => handleRegenerate(m.id)
                     }
                     onSaveAsTask={
-                      streaming ? undefined : () => void handleSaveAsTask(m.id)
+                      streaming ? undefined : () => void handleSaveAsTask()
                     }
                     saveAsTaskBusy={generatingTask}
                   />

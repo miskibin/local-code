@@ -114,12 +114,11 @@ export const api = {
     jsonFetch<SavedTask>(`/tasks/${encodeURIComponent(id)}/export`),
   importTask: (task: SavedTask) =>
     jsonFetch<SavedTask>("/tasks/import", { method: "POST", json: task }),
-  generateTask: (sessionId: string, model: string, messageId?: string) =>
+  generateTask: (sessionId: string, model: string) =>
     jsonFetch<SavedTask>("/tasks/generate", {
       method: "POST",
       json: {
         session_id: sessionId,
-        message_id: messageId ?? null,
         model,
       },
     }),

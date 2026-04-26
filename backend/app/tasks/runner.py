@@ -14,6 +14,7 @@ import json
 import re
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
+from types import SimpleNamespace
 from typing import Any
 from uuid import uuid4
 
@@ -32,6 +33,7 @@ from app.db import async_session
 from app.graphs.main_agent import default_subagents
 from app.models import ChatMessage, ChatSession, SavedTask
 from app.streaming import sse
+from app.tasks import coerce_lc_content
 from app.tasks.schemas import TaskDTO, TaskStep
 from app.tasks.storage import to_dto
 from app.tasks.substitution import SubstitutionError, substitute
@@ -58,10 +60,6 @@ def _extract_subagent_outputs(text: str) -> dict[str, Any]:
         if cols:
             extra["columns"] = cols
     return extra
-
-
-def _now() -> datetime:
-    return datetime.now(UTC)
 
 
 async def _all_tools(state) -> list[BaseTool]:
@@ -114,20 +112,6 @@ def _emit_artifact(step_id: str, row) -> str:
     )
 
 
-def _coerce_summary(content: Any) -> str:
-    if isinstance(content, str):
-        return content
-    if isinstance(content, list):
-        parts = []
-        for c in content:
-            if isinstance(c, dict) and c.get("type") == "text":
-                parts.append(str(c.get("text", "")))
-            else:
-                parts.append(str(c))
-        return "".join(parts)
-    return str(content)
-
-
 async def _run_tool_step(
     step: TaskStep,
     args: dict[str, Any],
@@ -149,7 +133,7 @@ async def _run_tool_step(
         summary, artifact = raw
     else:
         summary = raw
-    summary_text = _coerce_summary(summary)
+    summary_text = coerce_lc_content(summary)
     if isinstance(artifact, dict) and artifact and not artifact.get("id"):
         row = await persist_tool_artifact(artifact=artifact, session_id=session_id)
         artifact = {**artifact, "id": row.id}
@@ -190,7 +174,7 @@ async def _run_prompt_step(
     if not prompt:
         raise ValueError(f"step {step.id}: prompt required for kind=prompt")
     response = await llm.ainvoke([HumanMessage(content=prompt)])
-    text = _coerce_summary(getattr(response, "content", response))
+    text = coerce_lc_content(getattr(response, "content", response))
     return text, {step.output_name: text}
 
 
@@ -216,7 +200,7 @@ async def _run_subagent_step(
     for _ in range(4):  # cap subagent ReAct loop to keep tasks deterministic-ish
         response = await chain.ainvoke(messages)
         messages.append(response)
-        text = _coerce_summary(getattr(response, "content", response))
+        text = coerce_lc_content(getattr(response, "content", response))
         last_text = text or last_text
         tool_calls = getattr(response, "tool_calls", None) or []
         if not tool_calls:
@@ -234,7 +218,9 @@ async def _run_subagent_step(
                 tool_text, _ = raw
             else:
                 tool_text = raw
-            messages.append(ToolMessage(content=_coerce_summary(tool_text), tool_call_id=tc["id"]))
+            messages.append(
+                ToolMessage(content=coerce_lc_content(tool_text), tool_call_id=tc["id"])
+            )
     outputs = {step.output_name: last_text, **_extract_subagent_outputs(last_text)}
     return last_text, outputs
 
@@ -271,9 +257,7 @@ async def run_task(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits woul
             args_template = step.args_template or {}
             resolved_args = substitute(args_template, variables, outputs) if args_template else {}
             resolved_code = substitute(step.code, variables, outputs) if step.code else None
-            resolved_prompt = (
-                substitute(step.prompt, variables, outputs) if step.prompt else None
-            )
+            resolved_prompt = substitute(step.prompt, variables, outputs) if step.prompt else None
 
             display_input: dict[str, Any] = {"kind": step.kind, "title": step.title}
             if step.kind == "tool":
@@ -323,16 +307,16 @@ async def run_task(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits woul
 
             for value in step_outputs.values():
                 if isinstance(value, dict) and value.get("id") and value.get("kind"):
-
-                    class _Row:
-                        def __init__(self, d: dict[str, Any]) -> None:
-                            self.id = d["id"]
-                            self.kind = d.get("kind", "text")
-                            self.title = d.get("title", "Artifact")
-                            self.summary = d.get("summary", "")
-                            self.updated_at = _now()
-
-                    yield _emit_artifact(step_id, _Row(value))
+                    yield _emit_artifact(
+                        step_id,
+                        SimpleNamespace(
+                            id=value["id"],
+                            kind=value.get("kind", "text"),
+                            title=value.get("title", "Artifact"),
+                            summary=value.get("summary", ""),
+                            updated_at=datetime.now(UTC),
+                        ),
+                    )
 
         except SubstitutionError as e:
             failed = True

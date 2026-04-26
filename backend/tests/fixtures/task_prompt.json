@@ -33,8 +33,7 @@
       "title": "Request Detailed CLI Requirements",
       "prompt": "Recommend Rust or Go for a CLI that does {{var.cli_purpose}}. Team comfort: {{var.team_expertise}}. Priorities: {{var.main_priorities}}. Reply in two sentences.",
       "output_name": "recommendation",
-      "output_kind": "text",
-      "inputs": []
+      "output_kind": "text"
     }
   ],
   "created_at": null,

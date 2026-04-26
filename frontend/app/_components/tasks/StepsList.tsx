@@ -40,7 +40,6 @@ function makeStep(kind: TaskStepKind, index: number): TaskStep {
     prompt: kind === "subagent" || kind === "prompt" ? "" : null,
     output_name: "output",
     output_kind: "text",
-    inputs: [],
   };
 }
 

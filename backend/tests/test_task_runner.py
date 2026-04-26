@@ -1,16 +1,12 @@
-import json
-from types import SimpleNamespace
-
 import pytest
 from langchain_core.language_models.fake_chat_models import FakeListChatModel
 from langchain_core.tools import tool
-from sqlmodel import delete
 
-from app.db import async_session, init_db
 from app.models import SavedArtifact, SavedTask
 from app.tasks.runner import run_task
 from app.tasks.schemas import TaskDTO, TaskStep, TaskVariable
 from app.tasks.storage import upsert_task
+from tests.conftest import parse_sse_events, reset_task_tables
 
 
 @tool
@@ -19,21 +15,8 @@ def echo_tool(text: str) -> str:
     return f"echo:{text}"
 
 
-def _state():
-    # MCP registry has `.tools` returning a list. Plain SimpleNamespace works.
-    registry = SimpleNamespace(tools=[])
-    return SimpleNamespace(mcp_registry=registry)
-
-
 async def _collect(stream) -> list[dict]:
-    out: list[dict] = []
-    async for line in stream:
-        if line.startswith("data: ") and "[DONE]" not in line:
-            try:
-                out.append(json.loads(line.removeprefix("data: ").strip()))
-            except json.JSONDecodeError:
-                continue
-    return out
+    return parse_sse_events([line async for line in stream])
 
 
 async def _persist_task(*, steps: list[TaskStep], variables: list[TaskVariable]):
@@ -47,12 +30,8 @@ async def _persist_task(*, steps: list[TaskStep], variables: list[TaskVariable])
 
 
 @pytest.mark.asyncio
-async def test_runner_executes_tool_step_with_substitution(monkeypatch):
-    await init_db()
-    async with async_session() as s:
-        await s.execute(delete(SavedTask))
-        await s.execute(delete(SavedArtifact))
-        await s.commit()
+async def test_runner_executes_tool_step_with_substitution(monkeypatch, stub_state):
+    await reset_task_tables(SavedTask, SavedArtifact)
 
     monkeypatch.setattr("app.tasks.runner.tool_registry.discover_tools", lambda: [echo_tool])
 
@@ -75,7 +54,7 @@ async def test_runner_executes_tool_step_with_substitution(monkeypatch):
         run_task(
             task,
             {"who": "world"},
-            state=_state(),
+            state=stub_state,
             session_id="run-sess-1",
             llm=FakeListChatModel(responses=["unused"]),
         )
@@ -90,11 +69,8 @@ async def test_runner_executes_tool_step_with_substitution(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_runner_runs_prompt_step_via_llm():
-    await init_db()
-    async with async_session() as s:
-        await s.execute(delete(SavedTask))
-        await s.commit()
+async def test_runner_runs_prompt_step_via_llm(stub_state):
+    await reset_task_tables(SavedTask)
 
     task = await _persist_task(
         steps=[
@@ -113,7 +89,7 @@ async def test_runner_runs_prompt_step_via_llm():
         run_task(
             task,
             {"topic": "indices"},
-            state=_state(),
+            state=stub_state,
             session_id="run-sess-prompt",
             llm=FakeListChatModel(responses=["Indices speed up reads."]),
         )
@@ -123,11 +99,8 @@ async def test_runner_runs_prompt_step_via_llm():
 
 
 @pytest.mark.asyncio
-async def test_runner_subagent_step_exposes_artifact_id_for_chaining(monkeypatch):
-    await init_db()
-    async with async_session() as s:
-        await s.execute(delete(SavedTask))
-        await s.commit()
+async def test_runner_subagent_step_exposes_artifact_id_for_chaining(monkeypatch, stub_state):
+    await reset_task_tables(SavedTask)
 
     @tool
     def chart_stub(artifact_id: str) -> str:
@@ -169,7 +142,7 @@ async def test_runner_subagent_step_exposes_artifact_id_for_chaining(monkeypatch
         run_task(
             task,
             {},
-            state=_state(),
+            state=stub_state,
             session_id="run-chain",
             llm=FakeListChatModel(responses=[fake_response]),
         )
@@ -183,11 +156,8 @@ async def test_runner_subagent_step_exposes_artifact_id_for_chaining(monkeypatch
 
 
 @pytest.mark.asyncio
-async def test_runner_halts_on_missing_variable(monkeypatch):
-    await init_db()
-    async with async_session() as s:
-        await s.execute(delete(SavedTask))
-        await s.commit()
+async def test_runner_halts_on_missing_variable(monkeypatch, stub_state):
+    await reset_task_tables(SavedTask)
 
     monkeypatch.setattr("app.tasks.runner.tool_registry.discover_tools", lambda: [echo_tool])
 
@@ -219,7 +189,7 @@ async def test_runner_halts_on_missing_variable(monkeypatch):
         run_task(
             task,
             {},
-            state=_state(),
+            state=stub_state,
             session_id="run-sess-fail",
             llm=FakeListChatModel(responses=["x"]),
         )

@@ -14,6 +14,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
+import { navigateToTaskRunUrl } from "@/lib/tasks";
 import type { SavedTask, TaskListItem, TaskRunVariables } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { RunVarsModal } from "../_components/tasks/RunVarsModal";
@@ -94,13 +95,9 @@ export default function TasksPage() {
 
   const onRunSubmit = (vars: TaskRunVariables) => {
     if (!runTask) return;
-    const payload = btoa(
-      encodeURIComponent(
-        JSON.stringify({ task_id: runTask.id, variables: vars }),
-      ),
-    );
+    const taskId = runTask.id;
     setRunTask(null);
-    router.push(`/?taskRun=${payload}`);
+    navigateToTaskRunUrl(router, taskId, vars);
   };
 
   return (

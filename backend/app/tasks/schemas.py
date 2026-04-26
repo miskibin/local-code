@@ -16,12 +16,6 @@ class TaskVariable(BaseModel):
     required: bool = True
 
 
-class StepInputRef(BaseModel):
-    name: str
-    source: Literal["var", "step"]
-    ref: str
-
-
 class TaskStep(BaseModel):
     id: str
     kind: StepKind
@@ -34,7 +28,6 @@ class TaskStep(BaseModel):
     prompt: str | None = None
     output_name: str = "output"
     output_kind: OutputKind = "text"
-    inputs: list[StepInputRef] = Field(default_factory=list)
 
 
 class TaskDTO(BaseModel):
@@ -57,10 +50,4 @@ class TaskListItem(BaseModel):
 
 class GenerateTaskRequest(BaseModel):
     session_id: str
-    message_id: str | None = None
     model: str
-
-
-class TaskRunSpec(BaseModel):
-    task_id: str
-    variables: dict[str, Any] = Field(default_factory=dict)
