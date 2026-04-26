@@ -3,6 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.config import get_settings
 from app.db import init_db
+from app.observability import setup_logging
 
 
 @asynccontextmanager
@@ -13,6 +14,7 @@ async def lifespan(app: FastAPI):
 
 def create_app() -> FastAPI:
     settings = get_settings()
+    setup_logging(settings.log_level)
     app = FastAPI(lifespan=lifespan, title="Local Gemma 4 Agentic Harness")
     app.add_middleware(
         CORSMiddleware,
