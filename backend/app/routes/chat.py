@@ -6,7 +6,7 @@ from app.streaming import stream_chat
 from app.db import async_session
 from app.models import ToolFlag
 from app import tool_registry
-from app.graphs.main_agent import build_agent as build_agent_for_turn
+from app.graphs.main_agent import build_agent as build_agent_for_turn, default_subagents
 
 router = APIRouter()
 
@@ -27,10 +27,20 @@ async def chat(req: ChatRequest, request: Request):
         mcp_tools,
         flags,
     )
+    tools_by_name = {t.name: t for t in tools}
+    subagents = []
+    for spec in default_subagents():
+        resolved = dict(spec)
+        if "tools" in resolved:
+            resolved["tools"] = [
+                tools_by_name[n] for n in resolved["tools"] if n in tools_by_name
+            ]
+        subagents.append(resolved)
     graph = build_agent_for_turn(
         llm=state.llm,
         tools=tools,
         checkpointer=state.checkpointer,
+        subagents=subagents,
     )
     return StreamingResponse(
         stream_chat(graph=graph, thread_id=req.id, lc_messages=req.to_lc_messages()),

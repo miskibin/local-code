@@ -21,6 +21,17 @@ def build_agent(
     )
 
 
+def default_subagents() -> list[dict]:
+    return [
+        {
+            "name": "research-agent",
+            "description": "Use for in-depth research that needs its own context window.",
+            "system_prompt": "You are a thorough researcher. Use web_fetch liberally. Return a tight, sourced summary.",
+            "tools": ["web_fetch"],
+        },
+    ]
+
+
 def build_ollama_llm(settings) -> BaseChatModel:
     from langchain_ollama import ChatOllama
 
