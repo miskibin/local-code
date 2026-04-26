@@ -9,11 +9,16 @@ __pycache__/
 .mypy_cache/
 .ruff_cache/
 .coverage
+.coverage.*
+coverage/
 htmlcov/
+build/
 
 # Node
 node_modules/
 .next/
+.turbo/
+.turbopack/
 out/
 dist/
 *.log
