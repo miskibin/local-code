@@ -13,6 +13,8 @@ class ChatSession(SQLModel, table=True):
     id: str = Field(primary_key=True)
     title: str = ""
     created_at: datetime = Field(default_factory=_now_utc)
+    is_pinned: bool = Field(default=False, index=True)
+    pinned_at: datetime | None = None
 
 
 class ChatMessage(SQLModel, table=True):

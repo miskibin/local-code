@@ -99,11 +99,12 @@ async def chat(req: ChatRequest, request: Request):
         subagents=subagents,
     )
     logger.debug(f"agent built thread={req.id} subagents={[s.get('name') for s in subagents]}")
+    lc_messages = await req.to_lc_messages()
     return StreamingResponse(
         stream_chat(
             graph=graph,
             thread_id=req.id,
-            lc_messages=req.to_lc_messages(),
+            lc_messages=lc_messages,
             session_id=req.id,
         ),
         media_type="text/event-stream",

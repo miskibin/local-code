@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     app_db_url: str = "sqlite+aiosqlite:///./app.db"
     checkpoint_db_path: str = "./checkpoints.db"
     chinook_db_path: str = "./data/chinook.db"
+    uploads_dir: str = "./data/uploads"
 
     cors_origins: list[str] = ["http://localhost:3000"]
     log_level: str = "DEBUG"

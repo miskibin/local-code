@@ -107,6 +107,26 @@ export function ChatShell() {
     }
   }
 
+  const onRenameSession = async (id: string, title: string) => {
+    try {
+      await api.patchSession(id, { title })
+      await refreshSessions()
+    } catch (e) {
+      console.error("renameSession", e)
+      toast.error("Couldn't rename session", { description: String(e) })
+    }
+  }
+
+  const onTogglePinSession = async (id: string, pinned: boolean) => {
+    try {
+      await api.patchSession(id, { is_pinned: pinned })
+      await refreshSessions()
+    } catch (e) {
+      console.error("pinSession", e)
+      toast.error("Couldn't update pin", { description: String(e) })
+    }
+  }
+
   const onDeleteArtifact = async (id: string) => {
     try {
       await api.deleteArtifact(id)
@@ -166,6 +186,8 @@ export function ChatShell() {
         onNew={onNew}
         onSearch={() => setSearchOpen(true)}
         onDeleteSession={onDeleteSession}
+        onRenameSession={onRenameSession}
+        onTogglePinSession={onTogglePinSession}
         artifacts={savedArtifacts}
         onOpenArtifact={setOpenArtifact}
         onDeleteArtifact={onDeleteArtifact}

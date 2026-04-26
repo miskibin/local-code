@@ -1,6 +1,7 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlmodel import SQLModel
 
@@ -17,9 +18,28 @@ async def async_session() -> AsyncIterator[AsyncSession]:
         yield session
 
 
+_COLUMN_BACKFILLS = {
+    "chatsession": [
+        ("is_pinned", "BOOLEAN NOT NULL DEFAULT 0"),
+        ("pinned_at", "DATETIME"),
+    ],
+}
+
+
+async def _backfill_columns(conn) -> None:
+    for table, cols in _COLUMN_BACKFILLS.items():
+        existing = {
+            row[1] for row in (await conn.execute(text(f"PRAGMA table_info({table})"))).all()
+        }
+        for name, ddl in cols:
+            if name not in existing:
+                await conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}"))
+
+
 async def init_db() -> None:
     async with engine.begin() as conn:
         await conn.run_sync(SQLModel.metadata.create_all)
+        await _backfill_columns(conn)
 
 
 async def get_session() -> AsyncIterator[AsyncSession]:

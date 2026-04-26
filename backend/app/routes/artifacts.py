@@ -1,13 +1,18 @@
+import mimetypes
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Form, HTTPException, UploadFile
+from loguru import logger
 from pydantic import BaseModel, Field
 from sqlmodel import select
 
 from app.artifact_store import create_artifact, refresh_artifact
+from app.config import get_settings
 from app.db import async_session
 from app.models import SavedArtifact
+from app.services.table_summary import summarize_csv
 
 router = APIRouter()
 
@@ -100,6 +105,91 @@ async def refresh_artifact_route(aid: str):
         raise HTTPException(404, str(e)) from e
     except ValueError as e:
         raise HTTPException(400, str(e)) from e
+    return _to_dto(row)
+
+
+_TABLE_MIME = {"text/csv", "application/csv", "text/tab-separated-values"}
+_TABLE_EXT = {".csv", ".tsv"}
+_TEXT_PREFIXES = ("text/",)
+
+
+def _resolve_mime(filename: str | None, declared: str | None) -> str:
+    if declared and declared != "application/octet-stream":
+        return declared
+    if filename:
+        guess, _ = mimetypes.guess_type(filename)
+        if guess:
+            return guess
+    return "application/octet-stream"
+
+
+def _classify(filename: str, mime: str) -> str:
+    ext = Path(filename).suffix.lower()
+    if mime.startswith("image/"):
+        return "image"
+    if mime in _TABLE_MIME or ext in _TABLE_EXT:
+        return "table"
+    if mime.startswith(_TEXT_PREFIXES):
+        return "text"
+    return "unsupported"
+
+
+@router.post("/artifacts/upload", response_model=ArtifactDTO)
+async def upload_artifact(
+    file: UploadFile,
+    session_id: str | None = Form(default=None),
+):
+    name = file.filename or "upload"
+    mime = _resolve_mime(name, file.content_type)
+    kind = _classify(name, mime)
+    if kind == "unsupported":
+        raise HTTPException(415, f"unsupported upload type: {mime} ({name})")
+
+    settings = get_settings()
+    uploads_dir = Path(settings.uploads_dir)
+    uploads_dir.mkdir(parents=True, exist_ok=True)
+
+    body = await file.read()
+    size = len(body)
+    suffix = Path(name).suffix or ""
+
+    aid = f"art_{datetime.now(UTC).strftime('%Y%m%d%H%M%S%f')}"
+    path = uploads_dir / f"{aid}{suffix}"
+    path.write_bytes(body)
+
+    payload: dict[str, Any] = {"path": str(path), "mime": mime, "size": size, "filename": name}
+    summary = ""
+    title = name
+
+    if kind == "table":
+        try:
+            meta = summarize_csv(path, artifact_id=aid, title=name)
+        except Exception as e:
+            logger.exception("csv summary failed")
+            raise HTTPException(400, f"failed to parse table: {e}") from e
+        payload.update(meta)
+        summary = f"{meta['n_rows']} rows × {meta['n_cols']} cols"
+    elif kind == "image":
+        summary = f"image {mime}, {size} bytes"
+    else:  # text
+        try:
+            preview = body.decode("utf-8", errors="replace")[:500]
+        except Exception:
+            preview = ""
+        payload["text_preview"] = preview
+        summary = f"text {size} bytes"
+
+    row = await create_artifact(
+        kind=kind,
+        title=title,
+        payload=payload,
+        summary=summary,
+        source_kind="upload",
+        source_code=None,
+        session_id=session_id,
+        artifact_id=aid,
+    )
+    logger.info(f"upload artifact id={row.id} kind={kind} mime={mime} size={size}")
     return _to_dto(row)
 
 

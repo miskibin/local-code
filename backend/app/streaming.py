@@ -36,7 +36,7 @@ async def stream_chat(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits w
     *,
     graph,
     thread_id: str,
-    lc_messages: list[tuple[str, str]],
+    lc_messages: list,
     session_id: str | None = None,
 ) -> AsyncIterator[str]:
     msg_id = f"msg_{uuid4().hex}"

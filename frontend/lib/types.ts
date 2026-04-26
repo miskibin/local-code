@@ -1,12 +1,25 @@
 export type Session = {
   id: string;
   title: string;
+  is_pinned?: boolean;
+};
+
+export type SessionPatch = {
+  title?: string;
+  is_pinned?: boolean;
+};
+
+export type FilePart = {
+  type: "file";
+  artifactId: string;
+  mediaType: string;
+  name?: string;
 };
 
 export type StoredMessage = {
   id: string;
   role: "user" | "assistant";
-  parts: { type: "text"; text: string }[];
+  parts: ({ type: "text"; text: string } | FilePart)[];
 };
 
 export type Tool = {
@@ -46,18 +59,35 @@ export type ArtifactImagePayload = {
 };
 
 export type ArtifactTextPayload = {
-  text: string;
+  text?: string;
+  text_preview?: string;
   stderr?: string | null;
 };
 
-export type ArtifactSourceKind = "python" | "sql" | "text";
+export type ArtifactUploadPayload = {
+  path?: string;
+  mime?: string;
+  size?: number;
+  filename?: string;
+  summary_md?: string;
+  n_rows?: number;
+  n_cols?: number;
+  columns?: { name: string; dtype: string }[];
+  text_preview?: string;
+};
+
+export type ArtifactSourceKind = "python" | "sql" | "text" | "upload";
 
 export type Artifact = {
   id: string;
   session_id?: string | null;
   kind: "table" | "image" | "text";
   title: string;
-  payload: ArtifactTablePayload | ArtifactImagePayload | ArtifactTextPayload;
+  payload:
+    | ArtifactTablePayload
+    | ArtifactImagePayload
+    | ArtifactTextPayload
+    | ArtifactUploadPayload;
   summary?: string;
   source_kind?: ArtifactSourceKind | null;
   source_code?: string | null;

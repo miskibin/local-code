@@ -5,14 +5,24 @@ import {
   Cpu,
   Database,
   ListChecks,
+  MoreHorizontal,
   PanelLeft,
   Pencil,
+  Pin,
+  PinOff,
   Search,
   Settings,
   Trash2,
 } from "lucide-react"
 import Link from "next/link"
-import { useState } from "react"
+import { useEffect, useRef, useState } from "react"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import type { Artifact, Session } from "@/lib/types"
 
 type Props = {
@@ -24,6 +34,8 @@ type Props = {
   onNew: () => void
   onSearch: () => void
   onDeleteSession: (id: string) => void
+  onRenameSession: (id: string, title: string) => void
+  onTogglePinSession: (id: string, pinned: boolean) => void
   artifacts: Artifact[]
   onOpenArtifact: (a: Artifact) => void
   onDeleteArtifact: (id: string) => void
@@ -38,6 +50,8 @@ export function Sidebar({
   onNew,
   onSearch,
   onDeleteSession,
+  onRenameSession,
+  onTogglePinSession,
   artifacts,
   onOpenArtifact,
   onDeleteArtifact,
@@ -137,6 +151,8 @@ export function Sidebar({
               active={s.id === activeId}
               onSelect={() => onSelect(s.id)}
               onDelete={() => onDeleteSession(s.id)}
+              onRename={(title) => onRenameSession(s.id, title)}
+              onTogglePin={() => onTogglePinSession(s.id, !s.is_pinned)}
             />
           ))}
 
@@ -242,49 +258,145 @@ function ChatRow({
   active,
   onSelect,
   onDelete,
+  onRename,
+  onTogglePin,
 }: {
   session: Session
   active: boolean
   onSelect: () => void
   onDelete: () => void
+  onRename: (title: string) => void
+  onTogglePin: () => void
 }) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(session.title || "")
+  const inputRef = useRef<HTMLInputElement>(null)
+  const isPinned = !!session.is_pinned
+
+  useEffect(() => {
+    if (editing) {
+      inputRef.current?.focus()
+      inputRef.current?.select()
+    }
+  }, [editing])
+
+  const startEdit = () => {
+    setDraft(session.title || "")
+    setEditing(true)
+  }
+
+  const commit = () => {
+    setEditing(false)
+    const next = draft.trim()
+    if (next && next !== (session.title || "")) onRename(next)
+  }
+
+  const cancel = () => {
+    setEditing(false)
+    setDraft(session.title || "")
+  }
+
   return (
     <div className="group/row relative">
-      <button
-        onClick={onSelect}
-        title={session.title || "Untitled"}
-        className="mb-px block w-full truncate rounded-md py-1.5 pr-9 pl-2.5 text-left"
-        style={{
-          background: active ? "var(--hover)" : "transparent",
-          color: "var(--ink)",
-          border: 0,
-          fontSize: 13.5,
-          cursor: "pointer",
-        }}
-        onMouseEnter={(e) => {
-          if (!active) e.currentTarget.style.background = "var(--hover)"
-        }}
-        onMouseLeave={(e) => {
-          if (!active) e.currentTarget.style.background = "transparent"
-        }}
-      >
-        {session.title || "Untitled"}
-      </button>
-      <button
-        onClick={(e) => {
-          e.stopPropagation()
-          onDelete()
-        }}
-        title="Delete"
-        className="absolute top-1/2 right-1.5 -translate-y-1/2 rounded-md p-1 opacity-0 transition group-hover/row:opacity-100"
-        style={{
-          background: "transparent",
-          border: 0,
-          color: "var(--ink-3)",
-        }}
-      >
-        <Trash2 className="h-3.5 w-3.5" />
-      </button>
+      {editing ? (
+        <input
+          ref={inputRef}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault()
+              commit()
+            } else if (e.key === "Escape") {
+              e.preventDefault()
+              cancel()
+            }
+          }}
+          className="mb-px block w-full truncate rounded-md py-1.5 pr-9 pl-2.5 text-left outline-none"
+          style={{
+            background: "var(--hover)",
+            color: "var(--ink)",
+            border: "1px solid var(--accent)",
+            fontSize: 13.5,
+          }}
+        />
+      ) : (
+        <button
+          onClick={onSelect}
+          onDoubleClick={startEdit}
+          title={session.title || "Untitled"}
+          className="mb-px flex w-full items-center gap-1.5 truncate rounded-md py-1.5 pr-9 pl-2.5 text-left"
+          style={{
+            background: active ? "var(--hover)" : "transparent",
+            color: "var(--ink)",
+            border: 0,
+            fontSize: 13.5,
+            cursor: "pointer",
+          }}
+          onMouseEnter={(e) => {
+            if (!active) e.currentTarget.style.background = "var(--hover)"
+          }}
+          onMouseLeave={(e) => {
+            if (!active) e.currentTarget.style.background = "transparent"
+          }}
+        >
+          {isPinned && (
+            <Pin
+              className="h-3 w-3 flex-shrink-0"
+              style={{ color: "var(--accent)" }}
+            />
+          )}
+          <span className="flex-1 truncate">
+            {session.title || "Untitled"}
+          </span>
+        </button>
+      )}
+      {!editing && (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              onClick={(e) => e.stopPropagation()}
+              title="More"
+              className="absolute top-1/2 right-1.5 -translate-y-1/2 rounded-md p-1 opacity-0 transition group-hover/row:opacity-100 data-[state=open]:opacity-100"
+              style={{
+                background: "transparent",
+                border: 0,
+                color: "var(--ink-3)",
+              }}
+            >
+              <MoreHorizontal className="h-3.5 w-3.5" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-40">
+            <DropdownMenuItem onSelect={() => startEdit()}>
+              <Pencil className="h-3.5 w-3.5" />
+              <span>Rename</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => onTogglePin()}>
+              {isPinned ? (
+                <>
+                  <PinOff className="h-3.5 w-3.5" />
+                  <span>Unpin</span>
+                </>
+              ) : (
+                <>
+                  <Pin className="h-3.5 w-3.5" />
+                  <span>Pin</span>
+                </>
+              )}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              onSelect={() => onDelete()}
+              variant="destructive"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              <span>Delete</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
     </div>
   )
 }

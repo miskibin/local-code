@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Request
@@ -14,6 +15,12 @@ router = APIRouter()
 class SessionDTO(BaseModel):
     id: str
     title: str = ""
+    is_pinned: bool = False
+
+
+class SessionPatch(BaseModel):
+    title: str | None = None
+    is_pinned: bool | None = None
 
 
 class UIPart(BaseModel):
@@ -45,9 +52,19 @@ def _extract_text(content) -> str:
 async def list_sessions():
     async with async_session() as s:
         rows = (
-            await s.execute(select(ChatSession).order_by(ChatSession.created_at.desc()))
-        ).scalars().all()
-    return [SessionDTO(id=r.id, title=r.title) for r in rows]
+            (
+                await s.execute(
+                    select(ChatSession).order_by(
+                        ChatSession.is_pinned.desc(),
+                        ChatSession.pinned_at.desc().nullslast(),
+                        ChatSession.created_at.desc(),
+                    )
+                )
+            )
+            .scalars()
+            .all()
+        )
+    return [SessionDTO(id=r.id, title=r.title, is_pinned=bool(r.is_pinned)) for r in rows]
 
 
 @router.post("/sessions", response_model=SessionDTO)
@@ -58,6 +75,23 @@ async def create_session(dto: SessionDTO):
         s.add(ChatSession(id=dto.id, title=dto.title))
         await s.commit()
     return dto
+
+
+@router.patch("/sessions/{sid}", response_model=SessionDTO)
+async def patch_session(sid: str, patch: SessionPatch):
+    async with async_session() as s:
+        row = await s.get(ChatSession, sid)
+        if row is None:
+            raise HTTPException(404)
+        if patch.title is not None:
+            row.title = patch.title
+        if patch.is_pinned is not None:
+            row.is_pinned = patch.is_pinned
+            row.pinned_at = datetime.now(UTC) if patch.is_pinned else None
+        s.add(row)
+        await s.commit()
+        await s.refresh(row)
+    return SessionDTO(id=row.id, title=row.title, is_pinned=bool(row.is_pinned))
 
 
 @router.get("/sessions/{sid}/messages", response_model=list[UIMessage])
@@ -72,14 +106,14 @@ async def get_messages(sid: str, request: Request):
         role = "user" if m.type == "human" else "assistant" if m.type == "ai" else None
         if role is None:
             continue
-        text = _extract_text(m.content)
-        if not text:
+        text_content = _extract_text(m.content)
+        if not text_content:
             continue
         out.append(
             UIMessage(
                 id=getattr(m, "id", None) or f"m_{uuid4().hex}",
                 role=role,
-                parts=[UIPart(type="text", text=text)],
+                parts=[UIPart(type="text", text=text_content)],
             )
         )
     return out

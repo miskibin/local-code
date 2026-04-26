@@ -25,6 +25,12 @@ const MODELS = [
     desc: "Google · cloud",
     size: "—",
   },
+  {
+    id: "gemini-3-flash-preview",
+    name: "gemini-3-flash-preview",
+    desc: "Google · cloud",
+    size: "—",
+  },
 ]
 
 type ModelPickerProps = {

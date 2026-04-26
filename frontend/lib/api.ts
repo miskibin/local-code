@@ -3,6 +3,7 @@ import type {
   MCPServer,
   SavedTask,
   Session,
+  SessionPatch,
   StoredMessage,
   TaskListItem,
   Tool,
@@ -40,6 +41,11 @@ export const api = {
     jsonFetch<{ deleted: string }>(`/sessions/${encodeURIComponent(id)}`, {
       method: "DELETE",
     }),
+  patchSession: (id: string, patch: SessionPatch) =>
+    jsonFetch<Session>(`/sessions/${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      json: patch,
+    }),
   getMessages: (id: string) =>
     jsonFetch<StoredMessage[]>(
       `/sessions/${encodeURIComponent(id)}/messages`,
@@ -76,6 +82,20 @@ export const api = {
     jsonFetch<{ deleted: string }>(`/artifacts/${encodeURIComponent(id)}`, {
       method: "DELETE",
     }),
+  uploadArtifact: async (file: File, sessionId: string): Promise<Artifact> => {
+    const fd = new FormData();
+    fd.append("file", file, file.name);
+    fd.append("session_id", sessionId);
+    const r = await fetch(`${BACKEND}/artifacts/upload`, {
+      method: "POST",
+      body: fd,
+    });
+    if (!r.ok) {
+      const detail = await r.text().catch(() => "");
+      throw new Error(`upload failed: ${r.status} ${r.statusText} ${detail}`);
+    }
+    return (await r.json()) as Artifact;
+  },
 
   // Tasks
   listTasks: () => jsonFetch<TaskListItem[]>("/tasks"),
