@@ -3,26 +3,11 @@
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import { api, CHAT_URL } from "@/lib/api";
 
-const transport = new DefaultChatTransport({
-  api: CHAT_URL,
-  prepareSendMessagesRequest: ({ id, messages, body, trigger }) => ({
-    body: {
-      id,
-      messages: messages.map((m) => ({
-        id: m.id,
-        role: m.role,
-        parts: (m.parts ?? [])
-          .filter((p) => p.type === "text")
-          .map((p) => ({ type: "text", text: (p as { text: string }).text })),
-      })),
-      reset:
-        trigger === "regenerate-message" ||
-        (body as { reset?: boolean } | undefined)?.reset === true,
-    },
-  }),
-});
+const DEFAULT_MODEL =
+  process.env.NEXT_PUBLIC_OLLAMA_MODEL ?? "gemma4:e4b";
 import type {
   Artifact,
   AssistantStep,
@@ -48,9 +33,30 @@ export type AnyPart = {
   input?: unknown;
   output?: unknown;
   errorText?: string;
+  data?: unknown;
+  id?: string;
   callProviderMetadata?: Record<string, Record<string, unknown>>;
   resultProviderMetadata?: Record<string, Record<string, unknown>>;
 };
+
+export type ArtifactDataPart = {
+  toolCallId: string;
+  artifactId: string;
+  kind: "table" | "chart" | "text";
+  title: string;
+  summary: string;
+  updatedAt: string;
+};
+
+export function extractArtifactIds(parts: AnyPart[]): string[] {
+  const out: string[] = [];
+  for (const p of parts) {
+    if (p.type !== "data-artifact") continue;
+    const data = p.data as ArtifactDataPart | undefined;
+    if (data?.artifactId) out.push(data.artifactId);
+  }
+  return out;
+}
 
 function getParentToolCallId(p: AnyPart): string | null {
   const sub =
@@ -297,7 +303,7 @@ function mergeSeedSteps(
   ];
 }
 
-export const __testing__ = { partsToContentBlocks };
+export const __testing__ = { partsToContentBlocks, extractArtifactIds };
 
 type Props = {
   sessionId: string;
@@ -322,13 +328,48 @@ export function ChatView({
   demoUserText,
   demoAssistantText,
 }: Props) {
+  const [selectedModel, setSelectedModel] = useState<string>(DEFAULT_MODEL);
+  const transport = useMemo(
+    () =>
+      new DefaultChatTransport({
+        api: CHAT_URL,
+        prepareSendMessagesRequest: ({ id, messages, body, trigger }) => {
+          const b = body as
+            | { reset?: boolean; model?: string }
+            | undefined;
+          return {
+            body: {
+              id,
+              messages: messages.map((m) => ({
+                id: m.id,
+                role: m.role,
+                parts: (m.parts ?? [])
+                  .filter((p) => p.type === "text")
+                  .map((p) => ({
+                    type: "text",
+                    text: (p as { text: string }).text,
+                  })),
+              })),
+              reset:
+                trigger === "regenerate-message" || b?.reset === true,
+              model: b?.model ?? selectedModel,
+            },
+          };
+        },
+      }),
+    [selectedModel],
+  );
   const { messages, sendMessage, regenerate, setMessages, status, stop } =
     useChat({
       id: sessionId,
       transport,
+      onError: (e) => toast.error(e.message ?? "Stream error"),
     });
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const [demoSeen, setDemoSeen] = useState(false);
+  const [artifactCache, setArtifactCache] = useState<Record<string, Artifact>>(
+    {},
+  );
   const scrollRef = useRef<HTMLDivElement>(null);
   const sentFirstRef = useRef(false);
 
@@ -362,6 +403,38 @@ export function ChatView({
     if (!el) return;
     el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
   }, [messages]);
+
+  useEffect(() => {
+    const allIds = new Set<string>();
+    for (const m of messages) {
+      for (const id of extractArtifactIds((m.parts ?? []) as AnyPart[])) {
+        allIds.add(id);
+      }
+    }
+    const missing = Array.from(allIds).filter((id) => !artifactCache[id]);
+    if (missing.length === 0) return;
+    let cancelled = false;
+    Promise.all(
+      missing.map((id) =>
+        api.getArtifact(id).then(
+          (a) => [id, a] as const,
+          () => null,
+        ),
+      ),
+    ).then((results) => {
+      if (cancelled) return;
+      setArtifactCache((prev) => {
+        const next = { ...prev };
+        for (const r of results) {
+          if (r) next[r[0]] = r[1];
+        }
+        return next;
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [messages, artifactCache]);
 
   useEffect(() => {
     if (sentFirstRef.current) return;
@@ -462,10 +535,18 @@ export function ChatView({
                   isLast,
                   seedSteps,
                 );
+                const liveArtifacts = extractArtifactIds(parts)
+                  .map((id) => artifactCache[id])
+                  .filter((a): a is Artifact => !!a);
                 const msg: AssistantMsg = {
                   id: m.id,
                   contentBlocks,
-                  artifacts: isLast ? seedArtifacts : undefined,
+                  artifacts:
+                    liveArtifacts.length > 0
+                      ? liveArtifacts
+                      : isLast
+                        ? seedArtifacts
+                        : undefined,
                 };
                 return (
                   <AssistantMessage
@@ -503,6 +584,8 @@ export function ChatView({
           onSend={send}
           onStop={() => stop()}
           streaming={streaming}
+          model={selectedModel}
+          onModelChange={setSelectedModel}
         />
       </div>
     </div>

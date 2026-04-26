@@ -46,6 +46,16 @@ Frontend (`cd frontend`):
 - **Reuse before adding.** Look for existing logic to extract; duplicated logic across files = fix. Edit existing code over new branches.
 - **Performance + reliability first.** Predictable under load, restarts, reconnects, partial streams.
 
+## Quality gates
+
+Hooks run automatically on every Edit/Write — `ruff check --fix` + `ruff format` for `*.py`, `prettier --write` + `eslint --fix` for `*.ts`/`*.tsx`. `Stop` hook runs `ruff check .` over backend as a session-end sanity pass. Don't bypass.
+
+After non-trivial changes:
+> Have code-reviewer audit the changes since last commit
+
+Weekly hygiene (or before major refactors):
+> Use dup-finder to scan for duplication and dead code
+
 ## Conventions
 
 - Backend: loguru ([app/observability.py](backend/app/observability.py)); pydantic-settings ([app/config.py](backend/app/config.py), `.env`).

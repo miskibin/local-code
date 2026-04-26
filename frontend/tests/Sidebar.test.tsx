@@ -15,6 +15,7 @@ describe("Sidebar", () => {
     onDeleteSession: vi.fn(),
     artifacts: [],
     onOpenArtifact: vi.fn(),
+    onDeleteArtifact: vi.fn(),
     modelName: "gemma4:e4b",
   };
 

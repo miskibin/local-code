@@ -39,4 +39,10 @@ class SavedArtifact(SQLModel, table=True):
     kind: str
     title: str
     payload: dict[str, Any] = Field(sa_column=Column(JSON), default_factory=dict)
+    summary: str = ""
+    source_kind: str | None = None
+    source_code: str | None = None
+    parent_artifact_ids: list[str] = Field(sa_column=Column(JSON), default_factory=list)
+    payload_size: int = 0
     created_at: datetime = Field(default_factory=_now_utc)
+    updated_at: datetime = Field(default_factory=_now_utc)

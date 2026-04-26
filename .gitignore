@@ -27,6 +27,7 @@ dist/
 *.db
 *.db-shm
 *.db-wal
+!backend/data/chinook.db
 
 # Env
 .env

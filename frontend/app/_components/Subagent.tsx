@@ -1,9 +1,10 @@
-"use client";
+"use client"
 
-import { Bot, ChevronDown, Loader2 } from "lucide-react";
-import type { Artifact, SubagentStep } from "@/lib/types";
-import { ToolCall } from "./ToolCall";
-import { ArtifactCard } from "./Artifact";
+import { Bot, ChevronDown, Loader2 } from "lucide-react"
+import type { Artifact, SubagentStep } from "@/lib/types"
+import { Markdown } from "./Markdown"
+import { ToolCall } from "./ToolCall"
+import { ArtifactCard } from "./Artifact"
 
 export function Subagent({
   block,
@@ -15,24 +16,24 @@ export function Subagent({
   msgId,
   blockIdx,
 }: {
-  block: SubagentStep;
-  expanded: Record<string, boolean>;
-  toggleStep: (key: string) => void;
-  savedArtifacts: Record<string, boolean>;
-  onSaveArtifact: (a: Artifact) => void;
-  onOpenArtifact: (a: Artifact) => void;
-  msgId: string;
-  blockIdx: number;
+  block: SubagentStep
+  expanded: Record<string, boolean>
+  toggleStep: (key: string) => void
+  savedArtifacts: Record<string, boolean>
+  onSaveArtifact: (a: Artifact) => void
+  onOpenArtifact: (a: Artifact) => void
+  msgId: string
+  blockIdx: number
 }) {
-  const status = block.status ?? "done";
-  const collapseKey = `${msgId}-sa${blockIdx}-collapsed`;
-  const isCollapsed = !!expanded[collapseKey];
-  const toggleCollapsed = () => toggleStep(collapseKey);
+  const status = block.status ?? "done"
+  const collapseKey = `${msgId}-sa${blockIdx}-collapsed`
+  const isCollapsed = !!expanded[collapseKey]
+  const toggleCollapsed = () => toggleStep(collapseKey)
 
   return (
     <>
       <div
-        className="lc-reveal mb-3.5 mt-2.5 overflow-hidden rounded-xl"
+        className="lc-reveal mt-2.5 mb-3.5 overflow-hidden rounded-xl"
         style={{
           border: "1px solid var(--accent)",
           borderLeft: "3px solid var(--accent)",
@@ -57,7 +58,10 @@ export function Subagent({
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <span className="text-[13.5px] font-semibold" style={{ color: "var(--ink)" }}>
+              <span
+                className="text-[13.5px] font-semibold"
+                style={{ color: "var(--ink)" }}
+              >
                 {block.agent.name}
               </span>
               <span
@@ -75,17 +79,24 @@ export function Subagent({
                 Subagent
               </span>
               {status === "running" && (
-                <span className="inline-flex" style={{ color: "var(--accent-ink)" }}>
+                <span
+                  className="inline-flex"
+                  style={{ color: "var(--accent-ink)" }}
+                >
                   <Loader2 className="lc-spin h-3.5 w-3.5" />
                 </span>
               )}
               {status === "done" && block.steps && (
                 <span style={{ fontSize: 11.5, color: "var(--ink-3)" }}>
-                  · {block.steps.length} step{block.steps.length === 1 ? "" : "s"}
+                  · {block.steps.length} step
+                  {block.steps.length === 1 ? "" : "s"}
                 </span>
               )}
             </div>
-            <div className="mt-0.5" style={{ fontSize: 12, color: "var(--ink-2)" }}>
+            <div
+              className="mt-0.5"
+              style={{ fontSize: 12, color: "var(--ink-2)" }}
+            >
               {block.task}
             </div>
           </div>
@@ -115,7 +126,7 @@ export function Subagent({
             {block.steps && block.steps.length > 0 && (
               <div className="relative mt-1 pl-3.5">
                 <div
-                  className="absolute left-1 top-3.5 bottom-3.5 w-0.5"
+                  className="absolute top-3.5 bottom-3.5 left-1 w-0.5"
                   style={{ background: "var(--accent-soft)" }}
                 />
                 {block.steps.map((s, i) => (
@@ -131,7 +142,9 @@ export function Subagent({
                             : "var(--accent)",
                         border: "2px solid #fff",
                         boxShadow:
-                          s.status === "running" ? "0 0 0 2px var(--accent)" : "none",
+                          s.status === "running"
+                            ? "0 0 0 2px var(--accent)"
+                            : "none",
                       }}
                     />
                     <ToolCall
@@ -157,6 +170,26 @@ export function Subagent({
                   <span className="lc-dot" />
                 </span>
               </div>
+            )}
+
+            {block.summary && status === "done" && (
+              <details
+                className="mt-2 rounded-lg"
+                style={{ border: "1px solid var(--accent-soft)" }}
+              >
+                <summary
+                  className="cursor-pointer px-3 py-2 text-[12px] font-medium select-none"
+                  style={{ color: "var(--accent-ink)" }}
+                >
+                  Sub-agent reply
+                </summary>
+                <div
+                  className="px-3 pb-3"
+                  style={{ fontSize: 13, color: "var(--ink-2)" }}
+                >
+                  <Markdown text={block.summary} />
+                </div>
+              </details>
             )}
           </div>
         )}
@@ -185,12 +218,6 @@ export function Subagent({
           />
         </div>
       )}
-
-      {block.summary && status === "done" && (
-        <div className="mb-4 text-[14px]" style={{ color: "var(--ink)", lineHeight: 1.6 }}>
-          {block.summary}
-        </div>
-      )}
     </>
-  );
+  )
 }

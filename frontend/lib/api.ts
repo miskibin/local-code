@@ -56,8 +56,14 @@ export const api = {
 
   // Artifacts
   listArtifacts: () => jsonFetch<Artifact[]>("/artifacts"),
+  getArtifact: (id: string) =>
+    jsonFetch<Artifact>(`/artifacts/${encodeURIComponent(id)}`),
   saveArtifact: (a: Artifact) =>
     jsonFetch<Artifact>("/artifacts", { method: "POST", json: a }),
+  refreshArtifact: (id: string) =>
+    jsonFetch<Artifact>(`/artifacts/${encodeURIComponent(id)}/refresh`, {
+      method: "POST",
+    }),
   deleteArtifact: (id: string) =>
     jsonFetch<{ deleted: string }>(`/artifacts/${encodeURIComponent(id)}`, {
       method: "DELETE",

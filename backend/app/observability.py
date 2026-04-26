@@ -36,6 +36,14 @@ NOISY_LOGGERS = (
 
 
 def setup_logging(level: str = "INFO") -> None:
+    logger.remove()
+    logger.add(
+        sys.stderr,
+        level=level,
+        backtrace=False,
+        diagnose=False,
+        enqueue=False,
+    )
     root = logging.getLogger()
     root.handlers = [InterceptHandler()]
     root.setLevel(level)

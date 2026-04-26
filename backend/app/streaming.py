@@ -1,8 +1,11 @@
 import json
 from collections.abc import AsyncIterator
 from uuid import uuid4
+
 from langchain_core.messages import AIMessage, AIMessageChunk, ToolMessage
 from loguru import logger
+
+from app.artifact_store import get_artifact, persist_tool_artifact
 
 
 def sse(obj: dict) -> str:
@@ -34,6 +37,7 @@ async def stream_chat(
     graph,
     thread_id: str,
     lc_messages: list[tuple[str, str]],
+    session_id: str | None = None,
 ) -> AsyncIterator[str]:
     msg_id = f"msg_{uuid4().hex}"
     text_id = f"t_{uuid4().hex}"
@@ -207,6 +211,35 @@ async def stream_chat(
                         yield _output_error(cid, str(output), namespace)
                     else:
                         yield _output_available(cid, output, namespace)
+                        artifact = getattr(chunk, "artifact", None)
+                        if isinstance(artifact, dict) and artifact:
+                            artifact_id = artifact.get("id")
+                            if artifact_id:
+                                row = await get_artifact(artifact_id)
+                            else:
+                                row = await persist_tool_artifact(
+                                    artifact=artifact, session_id=session_id
+                                )
+                            if row is None:
+                                continue
+                            data: dict = {
+                                "toolCallId": cid,
+                                "artifactId": row.id,
+                                "kind": row.kind,
+                                "title": row.title,
+                                "summary": row.summary,
+                                "updatedAt": row.updated_at.isoformat(),
+                            }
+                            md = _provider_md(namespace)
+                            if md:
+                                data["providerMetadata"] = md
+                            yield sse(
+                                {
+                                    "type": "data-artifact",
+                                    "id": row.id,
+                                    "data": data,
+                                }
+                            )
                     if is_top_level and cid == current_dispatch_id:
                         logger.debug(f"dispatcher done cid={cid}")
                         current_dispatch_id = None

@@ -8,10 +8,14 @@ export function Composer({
   onSend,
   onStop,
   streaming,
+  model,
+  onModelChange,
 }: {
   onSend: (text: string) => void;
   onStop?: () => void;
   streaming: boolean;
+  model?: string;
+  onModelChange?: (m: string) => void;
 }) {
   const [text, setText] = useState("");
   const taRef = useRef<HTMLTextAreaElement>(null);
@@ -78,7 +82,7 @@ export function Composer({
               <Wrench className="h-3.5 w-3.5" />
               <span className="ml-1.5 text-[13px]">Tools</span>
             </ToolbarBtn>
-            <ModelPicker />
+            <ModelPicker value={model} onChange={onModelChange} />
           </div>
           <div className="flex items-center gap-1">
             <ToolbarBtn title="Voice">

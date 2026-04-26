@@ -1,4 +1,4 @@
-"use client";
+"use client"
 
 import {
   ChevronRight,
@@ -9,24 +9,25 @@ import {
   Search,
   Settings,
   Trash2,
-} from "lucide-react";
-import Link from "next/link";
-import { useState } from "react";
-import type { Artifact, Session } from "@/lib/types";
+} from "lucide-react"
+import Link from "next/link"
+import { useState } from "react"
+import type { Artifact, Session } from "@/lib/types"
 
 type Props = {
-  collapsed: boolean;
-  onToggle: () => void;
-  sessions: Session[];
-  activeId: string;
-  onSelect: (id: string) => void;
-  onNew: () => void;
-  onSearch: () => void;
-  onDeleteSession: (id: string) => void;
-  artifacts: Artifact[];
-  onOpenArtifact: (a: Artifact) => void;
-  modelName?: string;
-};
+  collapsed: boolean
+  onToggle: () => void
+  sessions: Session[]
+  activeId: string
+  onSelect: (id: string) => void
+  onNew: () => void
+  onSearch: () => void
+  onDeleteSession: (id: string) => void
+  artifacts: Artifact[]
+  onOpenArtifact: (a: Artifact) => void
+  onDeleteArtifact: (id: string) => void
+  modelName?: string
+}
 
 export function Sidebar({
   collapsed,
@@ -39,10 +40,11 @@ export function Sidebar({
   onDeleteSession,
   artifacts,
   onOpenArtifact,
+  onDeleteArtifact,
   modelName,
 }: Props) {
-  const [chatsOpen, setChatsOpen] = useState(true);
-  const [artifactsOpen, setArtifactsOpen] = useState(true);
+  const [chatsOpen, setChatsOpen] = useState(true)
+  const [artifactsOpen, setArtifactsOpen] = useState(true)
 
   if (collapsed) {
     return (
@@ -70,7 +72,7 @@ export function Sidebar({
           </SideIconBtn>
         </Link>
       </div>
-    );
+    )
   }
 
   return (
@@ -87,12 +89,16 @@ export function Sidebar({
           onClick={onToggle}
           title="Collapse sidebar"
           className="inline-flex items-center justify-center rounded-md p-1.5"
-          style={{ background: "transparent", border: 0, color: "var(--ink-2)" }}
+          style={{
+            background: "transparent",
+            border: 0,
+            color: "var(--ink-2)",
+          }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.background = "var(--hover)";
+            e.currentTarget.style.background = "var(--hover)"
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.background = "transparent";
+            e.currentTarget.style.background = "transparent"
           }}
         >
           <PanelLeft className="h-[17px] w-[17px]" />
@@ -121,7 +127,7 @@ export function Sidebar({
             <button
               onClick={() => onSelect("demo-subagent")}
               title="SQL Analyst demo"
-              className="mb-px block w-full truncate rounded-md py-1.5 pl-2.5 pr-2.5 text-left"
+              className="mb-px block w-full truncate rounded-md py-1.5 pr-2.5 pl-2.5 text-left"
               style={{
                 background:
                   activeId === "demo-subagent" ? "var(--hover)" : "transparent",
@@ -132,11 +138,11 @@ export function Sidebar({
               }}
               onMouseEnter={(e) => {
                 if (activeId !== "demo-subagent")
-                  e.currentTarget.style.background = "var(--hover)";
+                  e.currentTarget.style.background = "var(--hover)"
               }}
               onMouseLeave={(e) => {
                 if (activeId !== "demo-subagent")
-                  e.currentTarget.style.background = "transparent";
+                  e.currentTarget.style.background = "transparent"
               }}
             >
               <span className="inline-flex items-center gap-2">
@@ -187,33 +193,12 @@ export function Sidebar({
             </div>
           ) : (
             artifacts.map((a) => (
-              <button
+              <ArtifactRow
                 key={a.id}
-                onClick={() => onOpenArtifact(a)}
-                title={a.title}
-                className="mb-px flex w-full items-center gap-2 truncate rounded-md px-2.5 py-1.5 text-left"
-                style={{
-                  background: "transparent",
-                  border: 0,
-                  color: "var(--ink)",
-                  fontSize: 13,
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = "var(--hover)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = "transparent";
-                }}
-              >
-                <span className="inline-flex flex-shrink-0" style={{ color: "var(--accent)" }}>
-                  {a.kind === "table" ? (
-                    <Database className="h-3 w-3" />
-                  ) : (
-                    <Cpu className="h-3 w-3" />
-                  )}
-                </span>
-                <span className="flex-1 truncate">{a.title}</span>
-              </button>
+                artifact={a}
+                onOpen={() => onOpenArtifact(a)}
+                onDelete={() => onDeleteArtifact(a.id)}
+              />
             ))
           ))}
       </div>
@@ -250,49 +235,56 @@ export function Sidebar({
         </div>
       </div>
     </div>
-  );
+  )
 }
 
-function ChatRow({
-  session,
-  active,
-  onSelect,
+function ArtifactRow({
+  artifact,
+  onOpen,
   onDelete,
 }: {
-  session: Session;
-  active: boolean;
-  onSelect: () => void;
-  onDelete: () => void;
+  artifact: Artifact
+  onOpen: () => void
+  onDelete: () => void
 }) {
   return (
     <div className="group/row relative">
       <button
-        onClick={onSelect}
-        title={session.title || "Untitled"}
-        className="mb-px block w-full truncate rounded-md py-1.5 pl-2.5 pr-9 text-left"
+        onClick={onOpen}
+        title={artifact.title}
+        className="mb-px flex w-full items-center gap-2 truncate rounded-md py-1.5 pr-9 pl-2.5 text-left"
         style={{
-          background: active ? "var(--hover)" : "transparent",
-          color: "var(--ink)",
+          background: "transparent",
           border: 0,
-          fontSize: 13.5,
-          cursor: "pointer",
+          color: "var(--ink)",
+          fontSize: 13,
         }}
         onMouseEnter={(e) => {
-          if (!active) e.currentTarget.style.background = "var(--hover)";
+          e.currentTarget.style.background = "var(--hover)"
         }}
         onMouseLeave={(e) => {
-          if (!active) e.currentTarget.style.background = "transparent";
+          e.currentTarget.style.background = "transparent"
         }}
       >
-        {session.title || "Untitled"}
+        <span
+          className="inline-flex flex-shrink-0"
+          style={{ color: "var(--accent)" }}
+        >
+          {artifact.kind === "table" ? (
+            <Database className="h-3 w-3" />
+          ) : (
+            <Cpu className="h-3 w-3" />
+          )}
+        </span>
+        <span className="flex-1 truncate">{artifact.title}</span>
       </button>
       <button
         onClick={(e) => {
-          e.stopPropagation();
-          onDelete();
+          e.stopPropagation()
+          onDelete()
         }}
         title="Delete"
-        className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-md p-1 opacity-0 transition group-hover/row:opacity-100"
+        className="absolute top-1/2 right-1.5 -translate-y-1/2 rounded-md p-1 opacity-0 transition group-hover/row:opacity-100"
         style={{
           background: "transparent",
           border: 0,
@@ -302,7 +294,59 @@ function ChatRow({
         <Trash2 className="h-3.5 w-3.5" />
       </button>
     </div>
-  );
+  )
+}
+
+function ChatRow({
+  session,
+  active,
+  onSelect,
+  onDelete,
+}: {
+  session: Session
+  active: boolean
+  onSelect: () => void
+  onDelete: () => void
+}) {
+  return (
+    <div className="group/row relative">
+      <button
+        onClick={onSelect}
+        title={session.title || "Untitled"}
+        className="mb-px block w-full truncate rounded-md py-1.5 pr-9 pl-2.5 text-left"
+        style={{
+          background: active ? "var(--hover)" : "transparent",
+          color: "var(--ink)",
+          border: 0,
+          fontSize: 13.5,
+          cursor: "pointer",
+        }}
+        onMouseEnter={(e) => {
+          if (!active) e.currentTarget.style.background = "var(--hover)"
+        }}
+        onMouseLeave={(e) => {
+          if (!active) e.currentTarget.style.background = "transparent"
+        }}
+      >
+        {session.title || "Untitled"}
+      </button>
+      <button
+        onClick={(e) => {
+          e.stopPropagation()
+          onDelete()
+        }}
+        title="Delete"
+        className="absolute top-1/2 right-1.5 -translate-y-1/2 rounded-md p-1 opacity-0 transition group-hover/row:opacity-100"
+        style={{
+          background: "transparent",
+          border: 0,
+          color: "var(--ink-3)",
+        }}
+      >
+        <Trash2 className="h-3.5 w-3.5" />
+      </button>
+    </div>
+  )
 }
 
 function SectionHead({
@@ -311,15 +355,15 @@ function SectionHead({
   count,
   children,
 }: {
-  open: boolean;
-  onToggle: () => void;
-  count: number;
-  children: React.ReactNode;
+  open: boolean
+  onToggle: () => void
+  count: number
+  children: React.ReactNode
 }) {
   return (
     <button
       onClick={onToggle}
-      className="flex w-full items-center gap-1.5 px-2.5 pb-1 pt-1 uppercase"
+      className="flex w-full items-center gap-1.5 px-2.5 pt-1 pb-1 uppercase"
       style={{
         background: "transparent",
         border: 0,
@@ -343,7 +387,7 @@ function SectionHead({
         {count}
       </span>
     </button>
-  );
+  )
 }
 
 function SideRow({
@@ -351,9 +395,9 @@ function SideRow({
   children,
   onClick,
 }: {
-  icon: React.ReactNode;
-  children: React.ReactNode;
-  onClick?: () => void;
+  icon: React.ReactNode
+  children: React.ReactNode
+  onClick?: () => void
 }) {
   return (
     <button
@@ -365,10 +409,10 @@ function SideRow({
         color: "var(--ink)",
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.background = "var(--hover)";
+        e.currentTarget.style.background = "var(--hover)"
       }}
       onMouseLeave={(e) => {
-        e.currentTarget.style.background = "transparent";
+        e.currentTarget.style.background = "transparent"
       }}
     >
       <span className="inline-flex" style={{ color: "var(--ink-2)" }}>
@@ -376,7 +420,7 @@ function SideRow({
       </span>
       <span>{children}</span>
     </button>
-  );
+  )
 }
 
 function SideIconBtn({
@@ -384,9 +428,9 @@ function SideIconBtn({
   onClick,
   children,
 }: {
-  label: string;
-  onClick?: () => void;
-  children: React.ReactNode;
+  label: string
+  onClick?: () => void
+  children: React.ReactNode
 }) {
   return (
     <button
@@ -396,13 +440,13 @@ function SideIconBtn({
       className="rounded-md p-2"
       style={{ background: "transparent", border: 0, color: "var(--ink-2)" }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.background = "var(--hover)";
+        e.currentTarget.style.background = "var(--hover)"
       }}
       onMouseLeave={(e) => {
-        e.currentTarget.style.background = "transparent";
+        e.currentTarget.style.background = "transparent"
       }}
     >
       {children}
     </button>
-  );
+  )
 }

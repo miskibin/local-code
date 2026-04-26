@@ -28,8 +28,8 @@ def _fake_build_agent(**_kwargs):
 
 @pytest.fixture
 async def chat_app(monkeypatch):
-    from app.main import create_app
     from app.db import init_db
+    from app.main import create_app
     from app.routes import chat as chat_module
 
     monkeypatch.setattr(chat_module, "stream_chat", _empty_stream_chat)
@@ -39,7 +39,7 @@ async def chat_app(monkeypatch):
     await init_db()
     cp = _FakeCheckpointer()
     app.state.checkpointer = cp
-    app.state.llm = object()
+    app.state.llm_cache = {"test-model": object()}
     app.state.mcp_registry = _FakeMCPRegistry()
     return app, cp
 
@@ -53,6 +53,7 @@ async def test_chat_reset_true_deletes_thread(chat_app):
             "/chat",
             json={
                 "id": "sess-reset",
+                "model": "test-model",
                 "messages": [{"id": "m1", "role": "user", "parts": [{"type": "text", "text": "hi"}]}],
                 "reset": True,
             },
@@ -70,6 +71,7 @@ async def test_chat_reset_default_false_keeps_thread(chat_app):
             "/chat",
             json={
                 "id": "sess-keep",
+                "model": "test-model",
                 "messages": [{"id": "m1", "role": "user", "parts": [{"type": "text", "text": "hi"}]}],
             },
         )

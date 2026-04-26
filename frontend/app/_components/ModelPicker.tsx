@@ -1,10 +1,9 @@
-"use client";
+"use client"
 
-import { Check, ChevronDown, Cpu } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { Check, ChevronDown, Cpu } from "lucide-react"
+import { useEffect, useRef, useState } from "react"
 
-const DEFAULT_MODEL =
-  process.env.NEXT_PUBLIC_OLLAMA_MODEL ?? "gemma4:e4b";
+const DEFAULT_MODEL = process.env.NEXT_PUBLIC_OLLAMA_MODEL ?? "gemma4:e4b"
 
 const MODELS = [
   {
@@ -15,27 +14,45 @@ const MODELS = [
     recommended: true,
   },
   {
-    id: "deepseek-v4-flash-cloud",
-    name: "deepseek-v4-flash:cloud",
+    id: "nemotron-3-super:cloud",
+    name: "nemotron-3-super:cloud",
     desc: "Cloud · fast",
     size: "—",
   },
-];
+  {
+    id: "gemini-3.1-flash-lite-preview",
+    name: "gemini-3.1-flash-lite-preview",
+    desc: "Google · cloud",
+    size: "—",
+  },
+]
 
-export function ModelPicker() {
-  const [open, setOpen] = useState(false);
-  const [selected, setSelected] = useState(MODELS[0].id);
-  const ref = useRef<HTMLDivElement | null>(null);
-  const current = MODELS.find((m) => m.id === selected) ?? MODELS[0];
+type ModelPickerProps = {
+  value?: string
+  onChange?: (modelName: string) => void
+}
+
+export function ModelPicker({ value, onChange }: ModelPickerProps = {}) {
+  const [open, setOpen] = useState(false)
+  const [internal, setInternal] = useState(MODELS[0].name)
+  const selectedName = value ?? internal
+  const ref = useRef<HTMLDivElement | null>(null)
+  const current = MODELS.find((m) => m.name === selectedName) ?? MODELS[0]
+
+  const pick = (name: string) => {
+    setInternal(name)
+    onChange?.(name)
+    setOpen(false)
+  }
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) return
     const onClick = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", onClick);
-    return () => document.removeEventListener("mousedown", onClick);
-  }, [open]);
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener("mousedown", onClick)
+    return () => document.removeEventListener("mousedown", onClick)
+  }, [open])
 
   return (
     <div ref={ref} className="relative">
@@ -51,10 +68,10 @@ export function ModelPicker() {
           fontSize: 12,
         }}
         onMouseEnter={(e) => {
-          e.currentTarget.style.background = "var(--hover)";
+          e.currentTarget.style.background = "var(--hover)"
         }}
         onMouseLeave={(e) => {
-          e.currentTarget.style.background = "transparent";
+          e.currentTarget.style.background = "transparent"
         }}
       >
         <Cpu className="h-3.5 w-3.5" />
@@ -89,17 +106,14 @@ export function ModelPicker() {
           {MODELS.map((m) => (
             <button
               key={m.id}
-              onClick={() => {
-                setSelected(m.id);
-                setOpen(false);
-              }}
+              onClick={() => pick(m.name)}
               className="flex w-full items-center gap-3 rounded-md px-3 py-2 text-left"
               style={{ background: "transparent", border: 0 }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.background = "var(--hover)";
+                e.currentTarget.style.background = "var(--hover)"
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.background = "transparent";
+                e.currentTarget.style.background = "transparent"
               }}
             >
               <div
@@ -114,7 +128,13 @@ export function ModelPicker() {
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-1.5">
-                  <span style={{ fontFamily: "var(--font-mono)", fontSize: 13, color: "var(--ink)" }}>
+                  <span
+                    style={{
+                      fontFamily: "var(--font-mono)",
+                      fontSize: 13,
+                      color: "var(--ink)",
+                    }}
+                  >
                     {m.name}
                   </span>
                   {m.recommended && (
@@ -133,17 +153,23 @@ export function ModelPicker() {
                     </span>
                   )}
                 </div>
-                <div className="mt-0.5" style={{ fontSize: 11, color: "var(--ink-3)" }}>
+                <div
+                  className="mt-0.5"
+                  style={{ fontSize: 11, color: "var(--ink-3)" }}
+                >
                   {m.desc} · {m.size}
                 </div>
               </div>
-              {m.id === selected && (
-                <Check className="h-3.5 w-3.5" style={{ color: "var(--accent)" }} />
+              {m.name === selectedName && (
+                <Check
+                  className="h-3.5 w-3.5"
+                  style={{ color: "var(--accent)" }}
+                />
               )}
             </button>
           ))}
         </div>
       )}
     </div>
-  );
+  )
 }
