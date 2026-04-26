@@ -26,7 +26,6 @@ type Props = {
   artifacts: Artifact[]
   onOpenArtifact: (a: Artifact) => void
   onDeleteArtifact: (id: string) => void
-  modelName?: string
 }
 
 export function Sidebar({
@@ -41,7 +40,6 @@ export function Sidebar({
   artifacts,
   onOpenArtifact,
   onDeleteArtifact,
-  modelName,
 }: Props) {
   const [chatsOpen, setChatsOpen] = useState(true)
   const [artifactsOpen, setArtifactsOpen] = useState(true)
@@ -207,32 +205,6 @@ export function Sidebar({
         <Link href="/settings" className="block">
           <SideRow icon={<Settings className="h-4 w-4" />}>Settings</SideRow>
         </Link>
-        <div
-          className="mt-1 flex items-center gap-2.5 px-2.5 py-2"
-          style={{ fontSize: 12, color: "var(--ink-2)" }}
-        >
-          <span
-            className="h-[7px] w-[7px] rounded-full"
-            style={{
-              background: "var(--green)",
-              boxShadow: "0 0 0 3px var(--green-soft)",
-            }}
-          />
-          <div className="flex min-w-0 flex-col">
-            <span
-              style={{
-                fontFamily: "var(--font-mono)",
-                fontSize: 11.5,
-                color: "var(--ink)",
-              }}
-            >
-              {modelName || "Gemma 4 E4B"}
-            </span>
-            <span style={{ fontSize: 11, color: "var(--ink-3)" }}>
-              Local · Ready
-            </span>
-          </div>
-        </div>
       </div>
     </div>
   )

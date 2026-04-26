@@ -10,8 +10,6 @@ import { SearchDialog } from "./SearchDialog"
 import { Sidebar } from "./Sidebar"
 import { DEMO_SUBAGENT_STEPS } from "./sampleData"
 
-const MODEL_NAME = process.env.NEXT_PUBLIC_OLLAMA_MODEL ?? "gemma4:e4b"
-
 export function ChatShell() {
   const [collapsed, setCollapsed] = useState(false)
   const [activeSessionId, setActiveSessionId] = useState(() => nanoid())
@@ -138,7 +136,6 @@ export function ChatShell() {
         artifacts={savedArtifacts}
         onOpenArtifact={setOpenArtifact}
         onDeleteArtifact={onDeleteArtifact}
-        modelName={MODEL_NAME}
       />
       <ChatView
         sessionId={activeSessionId}

@@ -16,14 +16,12 @@ describe("Sidebar", () => {
     artifacts: [],
     onOpenArtifact: vi.fn(),
     onDeleteArtifact: vi.fn(),
-    modelName: "gemma4:e4b",
   };
 
   it("renders chats and demo entry", () => {
     render(<Sidebar {...baseProps} />);
     expect(screen.getByText("Plan trip")).toBeInTheDocument();
     expect(screen.getByText(/SQL Analyst/i)).toBeInTheDocument();
-    expect(screen.getByText("gemma4:e4b")).toBeInTheDocument();
   });
 
   it("calls onNew when New chat clicked", async () => {

@@ -44,7 +44,9 @@ def _extract_text(content) -> str:
 @router.get("/sessions", response_model=list[SessionDTO])
 async def list_sessions():
     async with async_session() as s:
-        rows = (await s.execute(select(ChatSession))).scalars().all()
+        rows = (
+            await s.execute(select(ChatSession).order_by(ChatSession.created_at.desc()))
+        ).scalars().all()
     return [SessionDTO(id=r.id, title=r.title) for r in rows]
 
 
