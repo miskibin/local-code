@@ -4,7 +4,7 @@ from sqlmodel import select
 
 @pytest.mark.asyncio
 async def test_create_all_then_persist_session():
-    from app.db import engine, init_db, async_session
+    from app.db import async_session, init_db
     from app.models import ChatSession
 
     await init_db()
@@ -20,7 +20,7 @@ async def test_create_all_then_persist_session():
 
 @pytest.mark.asyncio
 async def test_mcp_config_json_blob_roundtrip():
-    from app.db import init_db, async_session
+    from app.db import async_session, init_db
     from app.models import MCPServerConfig
 
     await init_db()
@@ -37,7 +37,7 @@ async def test_mcp_config_json_blob_roundtrip():
 
 @pytest.mark.asyncio
 async def test_tool_flag_default_true():
-    from app.db import init_db, async_session
+    from app.db import async_session, init_db
     from app.models import ToolFlag
 
     await init_db()

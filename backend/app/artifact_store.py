@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import subprocess
 import sys
 import textwrap
 from datetime import UTC, datetime
@@ -15,6 +16,7 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
+from langchain_core.runnables import RunnableConfig
 from loguru import logger
 from sqlalchemy import create_engine, text
 from sqlmodel import select
@@ -111,11 +113,18 @@ async def refresh_artifact(artifact_id: str) -> SavedArtifact:
             raise LookupError(f"artifact {artifact_id} not found")
         if not row.source_kind or row.source_code is None:
             raise ValueError(f"artifact {artifact_id} has no source to refresh")
-        result = await _run_executor(
-            row.source_kind,
-            row.source_code,
-            parent_artifact_ids=list(row.parent_artifact_ids or []),
-        )
+        source_kind = row.source_kind
+        source_code = row.source_code
+        parent_ids = list(row.parent_artifact_ids or [])
+
+    result = await _run_executor(
+        source_kind, source_code, parent_artifact_ids=parent_ids
+    )
+
+    async with async_session() as s:
+        row = await s.get(SavedArtifact, artifact_id)
+        if row is None:
+            raise LookupError(f"artifact {artifact_id} not found")
         capped_payload, size, _ = _cap_payload(result["payload"])
         row.kind = result.get("kind", row.kind)
         row.title = result.get("title", row.title)
@@ -170,17 +179,18 @@ async def run_python_artifact(code: str) -> dict[str, Any]:
 
 
 def _run_python_sync(code: str) -> dict[str, Any]:
-    import subprocess
-
     wrapped = _PY_PRELUDE + "\n" + textwrap.dedent(code)
     try:
         proc = subprocess.run(
             [sys.executable, "-I", "-c", wrapped],
             capture_output=True,
             timeout=PY_TIMEOUT_SECONDS,
+            check=False,
         )
-    except subprocess.TimeoutExpired:
-        raise TimeoutError(f"python_exec timed out after {PY_TIMEOUT_SECONDS}s")
+    except subprocess.TimeoutExpired as err:
+        raise TimeoutError(
+            f"python_exec timed out after {PY_TIMEOUT_SECONDS}s"
+        ) from err
 
     stdout = proc.stdout.decode("utf-8", errors="replace") if proc.stdout else ""
     stderr = proc.stderr.decode("utf-8", errors="replace") if proc.stderr else ""
@@ -218,7 +228,7 @@ def _classify_python_output(
                 "rows": blob,
             },
             "summary": (
-                f"table {len(blob)} rows × {len(cols)} cols ({', '.join(cols[:6])})"
+                f"table {len(blob)} rows x {len(cols)} cols ({', '.join(cols[:6])})"
                 + (f"\n{note}" if note else "")
             ),
         }
@@ -238,7 +248,7 @@ def _classify_python_output(
             "title": blob.get("title", "Python chart"),
             "payload": {"data": data, "caption": blob.get("caption")},
             "summary": f"chart {len(data)} points (range "
-            f"{min(v for v in values):.2f}–{max(v for v in values):.2f})"
+            f"{min(v for v in values):.2f}-{max(v for v in values):.2f})"
             + (f"\n{note}" if note else ""),
         }
     text = free_stdout if free_stdout else (json.dumps(blob)[:500] if blob is not None else "")
@@ -277,7 +287,7 @@ def _run_sql_sync(sql: str) -> dict[str, Any]:
             for r in rows
         ]
     summary = (
-        f"sql {len(out_rows)} rows × {len(cols)} cols ({', '.join(cols[:6])})"
+        f"sql {len(out_rows)} rows x {len(cols)} cols ({', '.join(cols[:6])})"
         + (" [truncated to 200]" if truncated else "")
     )
     return {
@@ -328,7 +338,7 @@ async def run_chart_artifact(spec: dict[str, Any]) -> dict[str, Any]:
             logger.debug("skipping non-numeric chart row {} for y={}", r, y)
     summary = (
         f"chart kind={kind} {len(data)} points "
-        f"(range {min((d['value'] for d in data), default=0):.2f}–"
+        f"(range {min((d['value'] for d in data), default=0):.2f}-"
         f"{max((d['value'] for d in data), default=0):.2f})"
     )
     return {
@@ -369,3 +379,32 @@ async def persist_tool_artifact(
         session_id=session_id,
         artifact_id=artifact.get("id"),
     )
+
+
+def session_id_from_config(config: RunnableConfig | None) -> str | None:
+    return ((config or {}).get("configurable") or {}).get("thread_id")
+
+
+async def build_and_persist_tool_artifact(
+    *,
+    result: dict[str, Any],
+    source_kind: str,
+    source_code: str,
+    config: RunnableConfig | None,
+    parent_artifact_ids: list[str] | None = None,
+) -> tuple[str, dict]:
+    artifact: dict[str, Any] = {
+        "kind": result["kind"],
+        "title": result["title"],
+        "payload": result["payload"],
+        "summary": result["summary"],
+        "source_kind": source_kind,
+        "source_code": source_code,
+    }
+    if parent_artifact_ids:
+        artifact["parent_artifact_ids"] = parent_artifact_ids
+    row = await persist_tool_artifact(
+        artifact=artifact, session_id=session_id_from_config(config)
+    )
+    summary = f"{row.id} · {result['summary']}"
+    return summary, {**artifact, "id": row.id}

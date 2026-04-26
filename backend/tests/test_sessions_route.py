@@ -4,10 +4,11 @@ from httpx import ASGITransport, AsyncClient
 
 @pytest.mark.asyncio
 async def test_sessions_crud():
-    from app.main import create_app
-    from app.db import init_db, async_session
-    from app.models import ChatSession
     from sqlmodel import delete
+
+    from app.db import async_session, init_db
+    from app.main import create_app
+    from app.models import ChatSession
 
     app = create_app()
     await init_db()

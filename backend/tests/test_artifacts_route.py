@@ -4,10 +4,11 @@ from httpx import ASGITransport, AsyncClient
 
 @pytest.mark.asyncio
 async def test_artifacts_crud():
-    from app.main import create_app
-    from app.db import init_db, async_session
-    from app.models import SavedArtifact
     from sqlmodel import delete
+
+    from app.db import async_session, init_db
+    from app.main import create_app
+    from app.models import SavedArtifact
 
     app = create_app()
     await init_db()
@@ -50,10 +51,11 @@ async def test_artifacts_crud():
 
 @pytest.mark.asyncio
 async def test_refresh_route_re_executes_python_source():
-    from app.main import create_app
-    from app.db import init_db, async_session
-    from app.models import SavedArtifact
     from sqlmodel import delete
+
+    from app.db import async_session, init_db
+    from app.main import create_app
+    from app.models import SavedArtifact
 
     app = create_app()
     await init_db()
@@ -95,10 +97,11 @@ async def test_refresh_route_re_executes_python_source():
 
 @pytest.mark.asyncio
 async def test_get_artifact_route_returns_full_dto():
-    from app.main import create_app
-    from app.db import init_db, async_session
-    from app.models import SavedArtifact
     from sqlmodel import delete
+
+    from app.db import async_session, init_db
+    from app.main import create_app
+    from app.models import SavedArtifact
 
     app = create_app()
     await init_db()
@@ -136,9 +139,10 @@ async def test_get_artifact_route_returns_full_dto():
 
 @pytest.mark.asyncio
 async def test_saved_artifact_persists():
-    from app.db import init_db, async_session
-    from app.models import SavedArtifact
     from sqlmodel import delete, select
+
+    from app.db import async_session, init_db
+    from app.models import SavedArtifact
 
     await init_db()
     async with async_session() as s:

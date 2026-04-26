@@ -1,15 +1,17 @@
+from unittest.mock import AsyncMock
+
 import pytest
 from httpx import ASGITransport, AsyncClient
-from unittest.mock import AsyncMock
 
 
 @pytest.mark.asyncio
 async def test_post_mcp_persists_and_triggers_sync():
-    from app.main import create_app
-    from app.db import init_db, async_session
-    from app.models import MCPServerConfig
-    from app.mcp_registry import MCPRegistry
     from sqlmodel import delete
+
+    from app.db import async_session, init_db
+    from app.main import create_app
+    from app.mcp_registry import MCPRegistry
+    from app.models import MCPServerConfig
 
     app = create_app()
     await init_db()

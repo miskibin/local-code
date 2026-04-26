@@ -1,4 +1,5 @@
 import json
+
 import pytest
 from langchain_core.messages import AIMessage, AIMessageChunk, ToolMessage
 
@@ -71,8 +72,9 @@ async def test_stream_emits_tool_events_for_consolidated_aimessage():
 async def test_subagent_inner_tool_events_pass_through_namespace():
     """Tool events from a subagent (non-empty namespace) flow to the client,
     while subagent's internal LLM tokens stay out of the user-visible text."""
-    from app.streaming import stream_chat
     from langchain_core.messages import AIMessageChunk
+
+    from app.streaming import stream_chat
 
     items = [
         # Parent emits text

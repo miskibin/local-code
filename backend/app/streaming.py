@@ -198,7 +198,7 @@ async def stream_chat(
                     if raw:
                         try:
                             parsed = json.loads(raw)
-                        except Exception:
+                        except json.JSONDecodeError:
                             parsed = {"_raw": raw}
                     ev = _start(cid, name, namespace)
                     if ev:
@@ -243,7 +243,7 @@ async def stream_chat(
                     if is_top_level and cid == current_dispatch_id:
                         logger.debug(f"dispatcher done cid={cid}")
                         current_dispatch_id = None
-    except Exception as e:
+    except (OSError, RuntimeError, ValueError, TypeError, KeyError, TimeoutError) as e:
         logger.exception(f"stream error thread={thread_id}")
         yield sse({"type": "error", "errorText": str(e)})
     finally:

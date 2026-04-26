@@ -1,11 +1,7 @@
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 
-from app.artifact_store import persist_tool_artifact, run_python_artifact
-
-
-def _session_id(config: RunnableConfig | None) -> str | None:
-    return ((config or {}).get("configurable") or {}).get("thread_id")
+from app.artifact_store import build_and_persist_tool_artifact, run_python_artifact
 
 
 @tool(response_format="content_and_artifact")
@@ -25,14 +21,9 @@ async def python_exec(code: str, config: RunnableConfig) -> tuple[str, dict]:
         result = await run_python_artifact(code)
     except (RuntimeError, TimeoutError) as e:
         return f"error: {e}", {}
-    artifact = {
-        "kind": result["kind"],
-        "title": result["title"],
-        "payload": result["payload"],
-        "summary": result["summary"],
-        "source_kind": "python",
-        "source_code": code,
-    }
-    row = await persist_tool_artifact(artifact=artifact, session_id=_session_id(config))
-    summary = f"{row.id} · {result['summary']}"
-    return summary, {**artifact, "id": row.id}
+    return await build_and_persist_tool_artifact(
+        result=result,
+        source_kind="python",
+        source_code=code,
+        config=config,
+    )

@@ -1,22 +1,8 @@
-import os
-from pathlib import Path
-
 import pytest
 
 
-@pytest.fixture(autouse=True)
-def _chinook_path():
-    here = Path(__file__).resolve().parents[1] / "data" / "chinook.db"
-    os.environ["CHINOOK_DB_PATH"] = str(here)
-    from app.config import get_settings
-
-    get_settings.cache_clear()
-    yield
-    get_settings.cache_clear()
-
-
 @pytest.mark.asyncio
-async def test_refresh_python_artifact_updates_payload_and_timestamp():
+async def test_refresh_python_artifact_updates_payload_and_timestamp(chinook_path):
     from app.artifact_store import create_artifact, refresh_artifact
     from app.db import init_db
 
@@ -36,7 +22,7 @@ async def test_refresh_python_artifact_updates_payload_and_timestamp():
 
 
 @pytest.mark.asyncio
-async def test_refresh_sql_artifact_round_trip():
+async def test_refresh_sql_artifact_round_trip(chinook_path):
     from app.artifact_store import create_artifact, refresh_artifact
     from app.db import init_db
 
@@ -56,7 +42,7 @@ async def test_refresh_sql_artifact_round_trip():
 
 
 @pytest.mark.asyncio
-async def test_refresh_rejects_artifact_with_no_source():
+async def test_refresh_rejects_artifact_with_no_source(chinook_path):
     from app.artifact_store import create_artifact, refresh_artifact
     from app.db import init_db
 
@@ -74,7 +60,7 @@ async def test_refresh_rejects_artifact_with_no_source():
 
 
 @pytest.mark.asyncio
-async def test_refresh_chart_uses_parent_artifact_id():
+async def test_refresh_chart_uses_parent_artifact_id(chinook_path):
     from app.artifact_store import create_artifact, refresh_artifact
     from app.db import init_db
 

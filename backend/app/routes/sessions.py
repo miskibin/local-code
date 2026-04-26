@@ -1,8 +1,10 @@
 from uuid import uuid4
+
 from fastapi import APIRouter, HTTPException, Request
 from loguru import logger
 from pydantic import BaseModel
 from sqlmodel import select
+
 from app.db import async_session
 from app.models import ChatSession
 

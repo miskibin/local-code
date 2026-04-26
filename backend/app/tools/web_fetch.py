@@ -1,7 +1,7 @@
 import httpx
 import trafilatura
+from langchain_core.tools import ToolException, tool
 from loguru import logger
-from langchain_core.tools import tool, ToolException
 
 MAX_CHARS = 8000
 

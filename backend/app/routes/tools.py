@@ -1,9 +1,10 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from sqlmodel import select
+
+from app import tool_registry
 from app.db import async_session
 from app.models import ToolFlag
-from app import tool_registry
 
 router = APIRouter()
 

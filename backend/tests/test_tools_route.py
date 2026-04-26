@@ -4,15 +4,16 @@ from httpx import ASGITransport, AsyncClient
 
 @pytest.mark.asyncio
 async def test_tools_list_reflects_discovered_and_flags(monkeypatch):
-    from app.main import create_app
     from app.db import init_db
+    from app.main import create_app
     app = create_app()
     transport = ASGITransport(app=app)
     await init_db()
 
     # Stub discovery to a known set
-    from app import tool_registry
     from langchain_core.tools import tool
+
+    from app import tool_registry
 
     @tool
     def stub_tool() -> str:
@@ -31,10 +32,11 @@ async def test_tools_list_reflects_discovered_and_flags(monkeypatch):
 
 @pytest.mark.asyncio
 async def test_patch_tool_updates_flag(monkeypatch):
-    from app.main import create_app
-    from app.db import init_db
-    from app import tool_registry
     from langchain_core.tools import tool
+
+    from app import tool_registry
+    from app.db import init_db
+    from app.main import create_app
 
     @tool
     def stub_tool() -> str:

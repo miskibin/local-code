@@ -1,5 +1,6 @@
-import pytest
 from unittest.mock import AsyncMock, patch
+
+import pytest
 
 
 @pytest.mark.asyncio
@@ -19,7 +20,7 @@ async def test_web_fetch_returns_extracted_text():
 
 @pytest.mark.asyncio
 async def test_web_fetch_truncates_long_output():
-    from app.tools.web_fetch import web_fetch, MAX_CHARS
+    from app.tools.web_fetch import MAX_CHARS, web_fetch
 
     html = "<html><body><article>" + "x" * (MAX_CHARS * 2) + "</article></body></html>"
     mock_resp = AsyncMock()

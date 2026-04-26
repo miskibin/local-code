@@ -97,9 +97,9 @@ async def refresh_artifact_route(aid: str):
     try:
         row = await refresh_artifact(aid)
     except LookupError as e:
-        raise HTTPException(404, str(e))
+        raise HTTPException(404, str(e)) from e
     except ValueError as e:
-        raise HTTPException(400, str(e))
+        raise HTTPException(400, str(e)) from e
     return _to_dto(row)
 
 

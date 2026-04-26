@@ -1,9 +1,11 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlmodel import SQLModel
-from app.config import get_settings
+
 from app import models  # noqa: F401  ensure metadata registered
+from app.config import get_settings
 
 engine = create_async_engine(get_settings().app_db_url, future=True)
 _sessionmaker = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)

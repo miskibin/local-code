@@ -23,8 +23,8 @@ class _FakeMCPRegistry:
 
 @pytest.fixture
 async def app_with_msgs():
-    from app.main import create_app
     from app.db import init_db
+    from app.main import create_app
 
     app = create_app()
     await init_db()

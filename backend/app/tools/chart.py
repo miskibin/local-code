@@ -4,11 +4,7 @@ from typing import Literal
 from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import tool
 
-from app.artifact_store import persist_tool_artifact, run_chart_artifact
-
-
-def _session_id(config: RunnableConfig | None) -> str | None:
-    return ((config or {}).get("configurable") or {}).get("thread_id")
+from app.artifact_store import build_and_persist_tool_artifact, run_chart_artifact
 
 
 @tool(response_format="content_and_artifact")
@@ -36,15 +32,10 @@ async def chart(
         result = await run_chart_artifact(spec)
     except (LookupError, ValueError) as e:
         return f"chart error: {e}", {}
-    artifact = {
-        "kind": result["kind"],
-        "title": result["title"],
-        "payload": result["payload"],
-        "summary": result["summary"],
-        "source_kind": "chart",
-        "source_code": json.dumps(spec, separators=(",", ":")),
-        "parent_artifact_ids": [artifact_id],
-    }
-    row = await persist_tool_artifact(artifact=artifact, session_id=_session_id(config))
-    summary = f"{row.id} · {result['summary']}"
-    return summary, {**artifact, "id": row.id}
+    return await build_and_persist_tool_artifact(
+        result=result,
+        source_kind="chart",
+        source_code=json.dumps(spec, separators=(",", ":")),
+        config=config,
+        parent_artifact_ids=[artifact_id],
+    )

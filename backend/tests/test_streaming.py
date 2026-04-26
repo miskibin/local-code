@@ -1,4 +1,5 @@
 import json
+
 import pytest
 from langchain_core.language_models.fake_chat_models import FakeListChatModel
 
@@ -10,9 +11,10 @@ class _FakeChatWithTools(FakeListChatModel):
 
 @pytest.mark.asyncio
 async def test_sse_stream_emits_protocol_envelope_and_deltas():
+    from langgraph.checkpoint.memory import InMemorySaver
+
     from app.graphs.main_agent import build_agent
     from app.streaming import stream_chat
-    from langgraph.checkpoint.memory import InMemorySaver
 
     graph = build_agent(
         llm=_FakeChatWithTools(responses=["one two"]),

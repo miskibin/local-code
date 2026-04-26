@@ -1,26 +1,12 @@
-import os
-from pathlib import Path
-
 import pytest
 
 
-@pytest.fixture(autouse=True)
-async def _chinook_path():
-    here = Path(__file__).resolve().parents[1] / "data" / "chinook.db"
-    os.environ["CHINOOK_DB_PATH"] = str(here)
-    from app.config import get_settings
-    from app.db import init_db
-
-    get_settings.cache_clear()
-    await init_db()
-    yield
-    get_settings.cache_clear()
-
-
 @pytest.mark.asyncio
-async def test_sql_query_returns_table_artifact():
+async def test_sql_query_returns_table_artifact(chinook_path):
+    from app.db import init_db
     from app.tools.sql_query import sql_query
 
+    await init_db()
     msg = await sql_query.ainvoke(
         dict(
             type="tool_call",
@@ -41,9 +27,11 @@ async def test_sql_query_returns_table_artifact():
 
 
 @pytest.mark.asyncio
-async def test_sql_query_truncates_at_200():
+async def test_sql_query_truncates_at_200(chinook_path):
+    from app.db import init_db
     from app.tools.sql_query import sql_query
 
+    await init_db()
     msg = await sql_query.ainvoke(
         dict(
             type="tool_call",

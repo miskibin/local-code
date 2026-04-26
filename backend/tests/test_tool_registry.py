@@ -18,6 +18,7 @@ def test_active_tools_filters_by_flag():
 
 def test_discover_tools_returns_basetool_instances():
     from langchain_core.tools import BaseTool
+
     from app.tool_registry import discover_tools
     found = discover_tools()
     assert all(isinstance(t, BaseTool) for t in found)
