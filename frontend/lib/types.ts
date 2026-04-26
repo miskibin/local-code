@@ -94,3 +94,57 @@ export type AssistantStep = ToolStep | SubagentStep;
 
 export type TodoStatus = "pending" | "in_progress" | "completed";
 export type Todo = { content: string; status: TodoStatus };
+
+export type TaskVariableType = "string" | "number" | "boolean";
+
+export type TaskVariable = {
+  name: string;
+  type: TaskVariableType;
+  label: string;
+  default: unknown;
+  required: boolean;
+};
+
+export type TaskStepKind = "tool" | "code" | "subagent" | "prompt";
+export type TaskStepOutputKind = "rows" | "text" | "chart" | "json" | "file";
+
+export type TaskStepInput = {
+  name: string;
+  source: "var" | "step";
+  ref: string;
+};
+
+export type TaskStep = {
+  id: string;
+  kind: TaskStepKind;
+  title: string;
+  server?: string | null;
+  tool?: string | null;
+  args_template?: Record<string, unknown> | null;
+  code?: string | null;
+  subagent?: string | null;
+  prompt?: string | null;
+  output_name: string;
+  output_kind: TaskStepOutputKind;
+  inputs: TaskStepInput[];
+};
+
+export type SavedTask = {
+  id: string;
+  title: string;
+  description: string;
+  source_session_id?: string | null;
+  variables: TaskVariable[];
+  steps: TaskStep[];
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
+export type TaskListItem = {
+  id: string;
+  title: string;
+  description: string;
+  updated_at?: string | null;
+};
+
+export type TaskRunVariables = Record<string, string | number | boolean>;

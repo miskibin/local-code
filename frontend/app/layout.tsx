@@ -2,7 +2,8 @@ import { Geist_Mono } from "next/font/google"
 
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
-import { cn } from "@/lib/utils";
+import { Toaster } from "@/components/ui/sonner"
+import { cn } from "@/lib/utils"
 
 const fontMono = Geist_Mono({ subsets: ["latin"], variable: "--font-mono" })
 
@@ -18,8 +19,9 @@ export default function RootLayout({
       className={cn("antialiased", fontMono.variable, "font-mono")}
     >
       <body data-app="local-chat">
-        <ThemeProvider forcedTheme="light" defaultTheme="light" enableSystem={false}>
+        <ThemeProvider defaultTheme="system" enableSystem>
           {children}
+          <Toaster position="top-right" richColors closeButton />
         </ThemeProvider>
       </body>
     </html>

@@ -1,6 +1,6 @@
 "use client";
 
-import { Copy, Pencil, RotateCcw, Share } from "lucide-react";
+import { BookmarkPlus, Copy, Pencil, RotateCcw, Share } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { Artifact, AssistantStep, Todo } from "@/lib/types";
 import { Markdown } from "./Markdown";
@@ -203,6 +203,8 @@ export function AssistantMessage({
   onOpenArtifact,
   onCopy,
   onRegenerate,
+  onSaveAsTask,
+  saveAsTaskBusy,
 }: {
   msg: AssistantMsg;
   expanded: Record<string, boolean>;
@@ -214,6 +216,8 @@ export function AssistantMessage({
   onOpenArtifact: (a: Artifact) => void;
   onCopy?: () => void;
   onRegenerate?: () => void;
+  onSaveAsTask?: () => void;
+  saveAsTaskBusy?: boolean;
 }) {
   const plainText = contentBlocksToPlainText(msg.contentBlocks);
   const showThinking = streaming && isLast && !plainText;
@@ -274,6 +278,24 @@ export function AssistantMessage({
           <ActionBtn title="Regenerate" onClick={onRegenerate}>
             <RotateCcw className="h-3.5 w-3.5" />
           </ActionBtn>
+          {isLast && onSaveAsTask && (
+            <ActionBtn
+              title={
+                saveAsTaskBusy ? "Generating task..." : "Save as task"
+              }
+              onClick={saveAsTaskBusy ? undefined : onSaveAsTask}
+            >
+              <BookmarkPlus
+                className="h-3.5 w-3.5"
+                style={{
+                  opacity: saveAsTaskBusy ? 0.4 : 1,
+                  animation: saveAsTaskBusy
+                    ? "pulse 1.4s ease-in-out infinite"
+                    : undefined,
+                }}
+              />
+            </ActionBtn>
+          )}
           <ActionBtn title="Share">
             <Share className="h-3.5 w-3.5" />
           </ActionBtn>

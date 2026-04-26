@@ -1,4 +1,12 @@
-import type { Artifact, MCPServer, Session, StoredMessage, Tool } from "./types";
+import type {
+  Artifact,
+  MCPServer,
+  SavedTask,
+  Session,
+  StoredMessage,
+  TaskListItem,
+  Tool,
+} from "./types";
 
 const BACKEND =
   process.env.NEXT_PUBLIC_BACKEND_URL_BASE ?? "http://localhost:8000";
@@ -67,6 +75,33 @@ export const api = {
   deleteArtifact: (id: string) =>
     jsonFetch<{ deleted: string }>(`/artifacts/${encodeURIComponent(id)}`, {
       method: "DELETE",
+    }),
+
+  // Tasks
+  listTasks: () => jsonFetch<TaskListItem[]>("/tasks"),
+  getTask: (id: string) =>
+    jsonFetch<SavedTask>(`/tasks/${encodeURIComponent(id)}`),
+  updateTask: (id: string, task: SavedTask) =>
+    jsonFetch<SavedTask>(`/tasks/${encodeURIComponent(id)}`, {
+      method: "PUT",
+      json: task,
+    }),
+  deleteTask: (id: string) =>
+    jsonFetch<{ deleted: string }>(`/tasks/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    }),
+  exportTask: (id: string) =>
+    jsonFetch<SavedTask>(`/tasks/${encodeURIComponent(id)}/export`),
+  importTask: (task: SavedTask) =>
+    jsonFetch<SavedTask>("/tasks/import", { method: "POST", json: task }),
+  generateTask: (sessionId: string, model: string, messageId?: string) =>
+    jsonFetch<SavedTask>("/tasks/generate", {
+      method: "POST",
+      json: {
+        session_id: sessionId,
+        message_id: messageId ?? null,
+        model,
+      },
     }),
 };
 

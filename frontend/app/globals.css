@@ -191,6 +191,52 @@ body[data-app="local-chat"] {
     text-rendering: optimizeLegibility;
 }
 
+html.dark body[data-app="local-chat"] {
+    --background: #0d0d0d;
+    --foreground: #ededed;
+    --card: #161616;
+    --card-foreground: #ededed;
+    --popover: #161616;
+    --popover-foreground: #ededed;
+    --primary: #ededed;
+    --primary-foreground: #0d0d0d;
+    --secondary: #1f1f1f;
+    --secondary-foreground: #ededed;
+    --muted: #1a1a1a;
+    --muted-foreground: #9a9a9a;
+    --border: #2a2a2a;
+    --input: #2a2a2a;
+
+    --accent-soft: #1a233a;
+    --accent-ink: #93b4ff;
+
+    --bg: #0d0d0d;
+    --bg-soft: #161616;
+    --bg-sidebar: #111111;
+    --surface: #161616;
+    --hover: #1f1f1f;
+    --hover-strong: #2a2a2a;
+
+    --ink: #ededed;
+    --ink-2: #b4b4b4;
+    --ink-3: #8e8e8e;
+    --ink-4: #5d5d5d;
+
+    --border-strong: #3a3a3a;
+
+    --user-bubble: #1f1f1f;
+
+    --tool-bg: #161616;
+    --tool-border: #2a2a2a;
+    --code-bg: #161616;
+    --code-bg-2: #1f1f1f;
+    --code-ink: #ededed;
+
+    --green-soft: #0c2a22;
+    --amber-soft: #2a1f0c;
+    --red-soft: #2a0c0c;
+}
+
 /* Scoped utility classes from design */
 [data-app="local-chat"] .lc-scroll::-webkit-scrollbar { width: 10px; height: 10px; }
 [data-app="local-chat"] .lc-scroll::-webkit-scrollbar-track { background: transparent; }
@@ -288,7 +334,7 @@ body[data-app="local-chat"] {
 .lc-markdown code:not(pre code) {
     font-family: var(--font-mono);
     font-size: 0.88em;
-    background: #f0f0f0;
+    background: var(--code-bg-2);
     color: var(--code-ink);
     padding: 1px 6px;
     border-radius: 4px;
@@ -316,7 +362,7 @@ body[data-app="local-chat"] {
     border-collapse: collapse;
     margin: 12px 0 16px;
     font-size: 13px;
-    background: #fff;
+    background: var(--bg);
     border: 1px solid var(--border);
     border-radius: 10px;
     overflow: hidden;
@@ -337,7 +383,7 @@ body[data-app="local-chat"] {
     padding: 7px 12px;
     color: var(--ink);
     border-top: 1px solid var(--border);
-    background: #fff;
+    background: var(--bg);
 }
 .lc-markdown tr:hover td { background: var(--bg-soft); }
 

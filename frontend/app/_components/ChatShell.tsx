@@ -1,17 +1,54 @@
 "use client"
 
+import { useRouter, useSearchParams } from "next/navigation"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { nanoid } from "nanoid"
+import { toast } from "sonner"
 import { api } from "@/lib/api"
 import type { Artifact, Session } from "@/lib/types"
 import { ArtifactModal } from "./ArtifactModal"
 import { ChatView } from "./ChatView"
 import { SearchDialog } from "./SearchDialog"
 import { Sidebar } from "./Sidebar"
+import { ThemeToggle } from "./ThemeToggle"
+
+type PendingTaskRun = { task_id: string; variables: Record<string, unknown> }
+
+function decodeTaskRun(raw: string | null): PendingTaskRun | null {
+  if (!raw) return null
+  try {
+    const decoded = JSON.parse(decodeURIComponent(atob(raw)))
+    if (typeof decoded?.task_id !== "string") return null
+    const vars =
+      decoded.variables && typeof decoded.variables === "object"
+        ? (decoded.variables as Record<string, unknown>)
+        : {}
+    return { task_id: decoded.task_id, variables: vars }
+  } catch {
+    return null
+  }
+}
 
 export function ChatShell() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const initialTaskRun = useMemo(
+    () => decodeTaskRun(searchParams.get("taskRun")),
+    [searchParams]
+  )
   const [collapsed, setCollapsed] = useState(false)
   const [activeSessionId, setActiveSessionId] = useState(() => nanoid())
+  const [pendingTaskRun, setPendingTaskRun] = useState<PendingTaskRun | null>(
+    initialTaskRun
+  )
+
+  useEffect(() => {
+    if (!initialTaskRun) return
+    const params = new URLSearchParams(searchParams.toString())
+    params.delete("taskRun")
+    const qs = params.toString()
+    router.replace(qs ? `/?${qs}` : "/")
+  }, [initialTaskRun, searchParams, router])
   const [sessions, setSessions] = useState<Session[]>([])
   const [savedArtifacts, setSavedArtifacts] = useState<Artifact[]>([])
   const [searchOpen, setSearchOpen] = useState(false)
@@ -22,6 +59,7 @@ export function ChatShell() {
       setSavedArtifacts(await api.listArtifacts())
     } catch (e) {
       console.error("listArtifacts", e)
+      toast.error("Failed to load artifacts", { description: String(e) })
     }
   }, [])
 
@@ -30,6 +68,7 @@ export function ChatShell() {
       setSessions(await api.listSessions())
     } catch (e) {
       console.error("listSessions", e)
+      toast.error("Failed to load sessions", { description: String(e) })
     }
   }, [])
 
@@ -64,6 +103,7 @@ export function ChatShell() {
       await refreshSessions()
     } catch (e) {
       console.error("deleteSession", e)
+      toast.error("Couldn't delete session", { description: String(e) })
     }
   }
 
@@ -74,6 +114,7 @@ export function ChatShell() {
       await refreshArtifacts()
     } catch (e) {
       console.error("deleteArtifact", e)
+      toast.error("Couldn't delete artifact", { description: String(e) })
     }
   }
 
@@ -89,6 +130,7 @@ export function ChatShell() {
         await refreshSessions()
       } catch (e) {
         console.error("createSession", e)
+        toast.error("Couldn't create session", { description: String(e) })
       }
     },
     [activeSessionId, sessions, refreshSessions]
@@ -106,6 +148,7 @@ export function ChatShell() {
       await refreshArtifacts()
     } catch (e) {
       console.error("saveArtifact", e)
+      toast.error("Couldn't save artifact", { description: String(e) })
     }
   }
 
@@ -133,6 +176,11 @@ export function ChatShell() {
         savedArtifacts={savedMap}
         onSaveArtifact={onSaveArtifact}
         onOpenArtifact={setOpenArtifact}
+        initialTaskRun={pendingTaskRun ?? undefined}
+        onTaskRunConsumed={() => {
+          setPendingTaskRun(null)
+          void refreshSessions()
+        }}
       />
       <SearchDialog
         open={searchOpen}
@@ -148,6 +196,7 @@ export function ChatShell() {
           void refreshArtifacts()
         }}
       />
+      <ThemeToggle />
     </main>
   )
 }

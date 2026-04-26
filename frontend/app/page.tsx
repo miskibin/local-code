@@ -1,5 +1,10 @@
+import { Suspense } from "react";
 import { ChatShell } from "./_components/ChatShell";
 
 export default function Page() {
-  return <ChatShell />;
+  return (
+    <Suspense fallback={null}>
+      <ChatShell />
+    </Suspense>
+  );
 }

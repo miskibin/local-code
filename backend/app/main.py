@@ -15,6 +15,7 @@ from app.routes.artifacts import router as artifacts_router
 from app.routes.chat import router as chat_router
 from app.routes.mcp import router as mcp_router
 from app.routes.sessions import router as sessions_router
+from app.routes.tasks import router as tasks_router
 from app.routes.tools import router as tools_router
 
 
@@ -22,9 +23,7 @@ from app.routes.tools import router as tools_router
 async def lifespan(app: FastAPI):
     settings = get_settings()
     setup_logging(settings.log_level)
-    logger.info(
-        f"log_level={settings.log_level} base_url={settings.ollama_base_url}"
-    )
+    logger.info(f"log_level={settings.log_level} base_url={settings.ollama_base_url}")
     await init_db()
 
     async with AsyncSqliteSaver.from_conn_string(settings.checkpoint_db_path) as saver:
@@ -61,6 +60,7 @@ def create_app() -> FastAPI:
     app.include_router(mcp_router)
     app.include_router(sessions_router)
     app.include_router(artifacts_router)
+    app.include_router(tasks_router)
     return app
 
 

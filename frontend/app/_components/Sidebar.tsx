@@ -4,6 +4,7 @@ import {
   ChevronRight,
   Cpu,
   Database,
+  ListChecks,
   PanelLeft,
   Pencil,
   Search,
@@ -63,6 +64,11 @@ export function Sidebar({
         <SideIconBtn label="Search" onClick={onSearch}>
           <Search className="h-4 w-4" />
         </SideIconBtn>
+        <Link href="/tasks" aria-label="Tasks">
+          <SideIconBtn label="Tasks">
+            <ListChecks className="h-4 w-4" />
+          </SideIconBtn>
+        </Link>
         <div className="flex-1" />
         <Link href="/settings" aria-label="Settings">
           <SideIconBtn label="Settings">
@@ -110,6 +116,9 @@ export function Sidebar({
         <SideRow icon={<Search className="h-4 w-4" />} onClick={onSearch}>
           Search chats
         </SideRow>
+        <Link href="/tasks" className="block">
+          <SideRow icon={<ListChecks className="h-4 w-4" />}>Tasks</SideRow>
+        </Link>
       </div>
 
       <div className="lc-scroll flex-1 overflow-y-auto px-2 pt-3 pb-2">

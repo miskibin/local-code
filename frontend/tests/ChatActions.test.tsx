@@ -35,6 +35,14 @@ vi.mock("@/lib/api", () => ({
   CHAT_URL: "http://test/chat",
 }));
 
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({
+    push: vi.fn(),
+    replace: vi.fn(),
+  }),
+  useSearchParams: () => new URLSearchParams(""),
+}));
+
 import { ChatView } from "@/app/_components/ChatView";
 
 const baseProps = {

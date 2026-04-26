@@ -47,3 +47,14 @@ class SavedArtifact(SQLModel, table=True):
     payload_size: int = 0
     created_at: datetime = Field(default_factory=_now_utc)
     updated_at: datetime = Field(default_factory=_now_utc)
+
+
+class SavedTask(SQLModel, table=True):
+    id: str = Field(primary_key=True)
+    title: str
+    description: str = ""
+    source_session_id: str | None = None
+    variables: list[dict[str, Any]] = Field(sa_column=Column(JSON), default_factory=list)
+    steps: list[dict[str, Any]] = Field(sa_column=Column(JSON), default_factory=list)
+    created_at: datetime = Field(default_factory=_now_utc)
+    updated_at: datetime = Field(default_factory=_now_utc)
