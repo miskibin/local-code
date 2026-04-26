@@ -17,27 +17,6 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
-_ARTIFACT_ID_RE = re.compile(r"\bartifact_id\s*=\s*(art_[A-Za-z0-9]+)")
-_COLUMNS_RE = re.compile(r"\bcolumns\s*=\s*([A-Za-z0-9_,\s]+)")
-
-
-def _extract_subagent_outputs(text: str) -> dict[str, Any]:
-    """Subagent prompts ask the agent to end with `artifact_id=...; columns=...`.
-
-    Surface these as sibling outputs so later steps can reference
-    `{{stepId.artifact_id}}` directly.
-    """
-    extra: dict[str, Any] = {}
-    m = _ARTIFACT_ID_RE.search(text or "")
-    if m:
-        extra["artifact_id"] = m.group(1)
-    c = _COLUMNS_RE.search(text or "")
-    if c:
-        cols = [s.strip() for s in c.group(1).split(",") if s.strip()]
-        if cols:
-            extra["columns"] = cols
-    return extra
-
 from langchain_core.language_models import BaseChatModel
 from langchain_core.messages import HumanMessage, ToolMessage
 from langchain_core.tools import BaseTool
@@ -58,6 +37,27 @@ from app.tasks.storage import to_dto
 from app.tasks.substitution import SubstitutionError, substitute
 
 _CONTENT_AND_ARTIFACT_LEN = 2  # langchain (summary, artifact) tuple shape
+
+_ARTIFACT_ID_RE = re.compile(r"\bartifact_id\s*=\s*(art_[A-Za-z0-9]+)")
+_COLUMNS_RE = re.compile(r"\bcolumns\s*=\s*([A-Za-z0-9_,\s]+)")
+
+
+def _extract_subagent_outputs(text: str) -> dict[str, Any]:
+    """Subagent prompts ask the agent to end with `artifact_id=...; columns=...`.
+
+    Surface these as sibling outputs so later steps can reference
+    `{{stepId.artifact_id}}` directly.
+    """
+    extra: dict[str, Any] = {}
+    m = _ARTIFACT_ID_RE.search(text or "")
+    if m:
+        extra["artifact_id"] = m.group(1)
+    c = _COLUMNS_RE.search(text or "")
+    if c:
+        cols = [s.strip() for s in c.group(1).split(",") if s.strip()]
+        if cols:
+            extra["columns"] = cols
+    return extra
 
 
 def _now() -> datetime:
@@ -192,7 +192,10 @@ async def _run_code_step(
     summary, artifact = await build_and_persist_tool_artifact(
         result=result, source_kind="python", source_code=code, config=config
     )
-    return summary, {step.output_name: artifact}
+    outputs: dict[str, Any] = {step.output_name: artifact}
+    if isinstance(artifact, dict) and artifact.get("id"):
+        outputs["artifact_id"] = artifact["id"]
+    return summary, outputs
 
 
 async def _run_prompt_step(
