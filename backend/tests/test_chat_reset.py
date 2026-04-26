@@ -1,3 +1,5 @@
+from typing import ClassVar
+
 import pytest
 from httpx import ASGITransport, AsyncClient
 
@@ -11,7 +13,7 @@ class _FakeCheckpointer:
 
 
 class _FakeMCPRegistry:
-    tools: list = []
+    tools: ClassVar[list] = []
 
 
 def _empty_stream_chat(**_kwargs):

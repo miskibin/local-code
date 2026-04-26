@@ -1,6 +1,8 @@
 from deepagents import create_deep_agent
 from langchain_core.language_models import BaseChatModel
 from langchain_core.tools import BaseTool
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_ollama import ChatOllama
 
 SYSTEM_PROMPT = (
     "When delegating with the `task` tool, ALWAYS provide both `subagent_type` "
@@ -69,8 +71,6 @@ def default_subagents() -> list[dict]:
 
 
 def build_ollama_llm(settings, *, model: str) -> BaseChatModel:
-    from langchain_ollama import ChatOllama
-
     return ChatOllama(
         model=model,
         base_url=settings.ollama_base_url,
@@ -84,8 +84,6 @@ def build_ollama_llm(settings, *, model: str) -> BaseChatModel:
 
 
 def build_gemini_llm(settings, *, model: str) -> BaseChatModel:
-    from langchain_google_genai import ChatGoogleGenerativeAI
-
     return ChatGoogleGenerativeAI(
         model=model,
         google_api_key=settings.google_api_key,

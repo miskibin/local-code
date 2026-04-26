@@ -56,7 +56,8 @@ select = [
     "PIE",
     "PL",
 ]
-ignore = ["PLR0913"]
+ignore = ["PLR0913", "TRY003"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["PLR2004"]
+"tests/*" = ["PLR2004", "PLC0415", "E501"]
+"app/graphs/*" = ["E501"]

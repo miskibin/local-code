@@ -32,7 +32,7 @@ def _coerce_output(content) -> object:
     return str(content)
 
 
-async def stream_chat(
+async def stream_chat(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits would fragment SSE state
     *,
     graph,
     thread_id: str,
@@ -131,13 +131,13 @@ async def stream_chat(
             # Legacy (no subgraphs) yields (chunk, meta).
             if (
                 isinstance(event, tuple)
-                and len(event) == 2
+                and len(event) == 2  # noqa: PLR2004 -- (namespace, (chunk, meta))
                 and isinstance(event[0], tuple)
                 and isinstance(event[1], tuple)
-                and len(event[1]) == 2
+                and len(event[1]) == 2  # noqa: PLR2004 -- (chunk, meta)
             ):
                 namespace, (chunk, meta) = event
-            elif isinstance(event, tuple) and len(event) == 2:
+            elif isinstance(event, tuple) and len(event) == 2:  # noqa: PLR2004 -- legacy (chunk, meta)
                 chunk, meta = event
                 namespace = ()
             else:

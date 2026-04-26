@@ -115,12 +115,6 @@ export function Composer({
           </div>
         </div>
       </div>
-      <div
-        className="mt-2 text-center"
-        style={{ fontSize: 11.5, color: "var(--ink-3)" }}
-      >
-        Local model — your data never leaves this device.
-      </div>
     </div>
   );
 }

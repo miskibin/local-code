@@ -21,7 +21,7 @@ async def test_tool_artifact_available_emitted_when_tool_message_carries_artifac
     await init_db()
 
     tm = ToolMessage(
-        content="table 1 rows × 1 cols (n)",
+        content="table 1 rows x 1 cols (n)",
         tool_call_id="call_a",
         name="python_exec",
         artifact={
@@ -31,7 +31,7 @@ async def test_tool_artifact_available_emitted_when_tool_message_carries_artifac
                 "columns": [{"key": "n", "label": "n"}],
                 "rows": [{"n": 7}],
             },
-            "summary": "table 1 rows × 1 cols (n)",
+            "summary": "table 1 rows x 1 cols (n)",
             "source_kind": "python",
             "source_code": "out([{'n': 7}])",
         },

@@ -1,3 +1,5 @@
+from typing import ClassVar
+
 import pytest
 from httpx import ASGITransport, AsyncClient
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
@@ -12,13 +14,13 @@ class _FakeCheckpointer:
             return None
 
         class _Tup:
-            checkpoint = {"channel_values": {"messages": self._msgs}}
+            checkpoint: ClassVar[dict] = {"channel_values": {"messages": self._msgs}}
 
         return _Tup()
 
 
 class _FakeMCPRegistry:
-    tools: list = []
+    tools: ClassVar[list] = []
 
 
 @pytest.fixture

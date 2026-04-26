@@ -16,7 +16,9 @@ async def chart(
     kind: Literal["bar", "line"] = "bar",
     title: str = "Chart",
 ) -> tuple[str, dict]:
-    """Build a chart from a prior table artifact (referenced by id) and return (summary, chart artifact).
+    """Build a chart from a prior table artifact (referenced by id).
+
+    Returns (summary, chart artifact).
 
     `artifact_id` MUST be the bare id string from a previous tool's summary
     (the token at the very start, before the ` · ` separator — looks like

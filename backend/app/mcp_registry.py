@@ -26,11 +26,12 @@ class MCPRegistry:
             for name in list(self.client.connections):
                 try:
                     new_tools.extend(await self._load_one(name))
-                except Exception as e:
+                except Exception as e:  # noqa: BLE001 -- skip unreachable server, keep loading the rest
                     logger.warning(f"MCP server {name!r} unavailable: {e}")
             self._tools = new_tools
+            n_servers = len(self.client.connections)
             logger.info(
-                f"mcp sync done: {len(new_tools)} tools across {len(self.client.connections)} servers"
+                f"mcp sync done: {len(new_tools)} tools across {n_servers} servers"
             )
 
     async def _load_one(self, name: str) -> list[BaseTool]:

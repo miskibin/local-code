@@ -34,8 +34,9 @@ async def lifespan(app: FastAPI):
         async with async_session() as s:
             cfgs = list((await s.execute(select(MCPServerConfig))).scalars().all())
         await app.state.mcp_registry.sync_from_db(cfgs)
+        n_tools = len(app.state.mcp_registry.tools)
         logger.info(
-            f"startup ready: {len(cfgs)} mcp servers configured, {len(app.state.mcp_registry.tools)} mcp tools loaded"
+            f"startup ready: {len(cfgs)} mcp servers configured, {n_tools} mcp tools loaded"
         )
         yield
 
