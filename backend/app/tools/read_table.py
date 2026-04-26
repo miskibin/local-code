@@ -20,3 +20,8 @@ async def read_table_summary(artifact_id: str) -> str:
     if artifact.kind != "table":
         raise ToolException(f"artifact {artifact_id} is kind={artifact.kind}, not table")
     return build_table_summary(artifact)
+
+
+# Surface ToolException as ToolMessage(status="error") so a wrong-kind id
+# doesn't tear down the stream — UI shows a Failed state and the agent can recover.
+read_table_summary.handle_tool_error = True

@@ -19,6 +19,12 @@ SYSTEM_PROMPT = (
     "DataFrame — never `pd.read_csv` on an `art_…` path; those files do not "
     "exist. End plotting scripts with `out_image(plt.gcf(), title='…')` (or "
     "just `out_image()`); don't embed plots as markdown.\n"
+    "When you need a table artifact from a DataFrame, call "
+    '`out(df.reset_index().to_dict("records"))` — `out(df)` falls through to '
+    "a text artifact (its repr), which is NOT a table.\n"
+    "`read_table_summary` only accepts table artifacts. Before calling it, "
+    "confirm the id you have is a table (the prior tool summary starts with "
+    "`table …`); never call it on a `text` or `image` artifact.\n"
     "Sub-agents (returned via the `task` tool) end their reply with a line "
     "like `artifact_id=art_…; columns=…`. When you need to process that "
     "result, parse the id from that line — never invent an id, and never use "

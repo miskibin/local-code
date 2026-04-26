@@ -41,9 +41,7 @@ async def stream_chat(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits w
 ) -> AsyncIterator[str]:
     msg_id = f"msg_{uuid4().hex}"
     text_id = f"t_{uuid4().hex}"
-    logger.info(
-        f"stream start thread={thread_id} msg_id={msg_id} input_msgs={len(lc_messages)}"
-    )
+    logger.info(f"stream start thread={thread_id} msg_id={msg_id} input_msgs={len(lc_messages)}")
     yield sse({"type": "start", "messageId": msg_id})
     yield sse({"type": "start-step"})
     yield sse({"type": "text-start", "id": text_id})
@@ -155,7 +153,7 @@ async def stream_chat(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits w
                 if is_top_level and node == "model" and chunk.content:
                     yield sse({"type": "text-delta", "id": text_id, "delta": chunk.content})
 
-                for tcc in (chunk.tool_call_chunks or []):
+                for tcc in chunk.tool_call_chunks or []:
                     cid = tcc.get("id")
                     if not cid:
                         continue
@@ -170,7 +168,7 @@ async def stream_chat(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits w
                         tool_args_buffer[cid] = tool_args_buffer.get(cid, "") + args
 
             if isinstance(chunk, AIMessage):
-                for tc in (getattr(chunk, "tool_calls", None) or []):
+                for tc in getattr(chunk, "tool_calls", None) or []:
                     cid = tc.get("id")
                     if not cid or cid in announced_input:
                         continue
@@ -243,7 +241,7 @@ async def stream_chat(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits w
                     if is_top_level and cid == current_dispatch_id:
                         logger.debug(f"dispatcher done cid={cid}")
                         current_dispatch_id = None
-    except (OSError, RuntimeError, ValueError, TypeError, KeyError, TimeoutError) as e:
+    except Exception as e:  # noqa: BLE001 -- protocol boundary; surface as SSE error so client gets a clean finish
         logger.exception(f"stream error thread={thread_id}")
         yield sse({"type": "error", "errorText": str(e)})
     finally:

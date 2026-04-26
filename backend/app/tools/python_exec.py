@@ -12,6 +12,8 @@ async def python_exec(code: str, config: RunnableConfig) -> tuple[str, dict]:
 
     - `out(obj)` — surface a value as the artifact. List-of-dict → table.
       Else → text. Without `out()` you get a text artifact from stdout.
+      Pandas DataFrames are NOT auto-converted; pass
+      `df.reset_index().to_dict("records")` if you want a table artifact.
     - `out_image(fig=None, *, title=None, caption=None)` — emit a matplotlib
       figure as a PNG image artifact. With no arg, captures `plt.gcf()`.
       Example: `import matplotlib.pyplot as plt; plt.bar(x, y); out_image(title='Sales')`.
