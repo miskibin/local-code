@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "gemma4:e4b"
     num_ctx: int = 32768
-    keep_alive: str = "-1"
+    keep_alive: int = -1
     temperature: float = 0.2
     top_p: float = 0.95
     top_k: int = 64
