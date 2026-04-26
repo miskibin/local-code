@@ -6,6 +6,7 @@ from app.config import get_settings
 from app.db import init_db
 from app.observability import setup_logging
 from app.routes.chat import router as chat_router
+from app.routes.tools import router as tools_router
 from app.graphs.main_agent import build_agent, build_ollama_llm
 from app.tool_registry import discover_tools
 
@@ -43,6 +44,7 @@ def create_app() -> FastAPI:
         return {"status": "ok"}
 
     app.include_router(chat_router)
+    app.include_router(tools_router)
     return app
 
 
