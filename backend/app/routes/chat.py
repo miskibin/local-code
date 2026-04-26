@@ -21,9 +21,10 @@ async def _flags() -> dict[str, bool]:
 async def chat(req: ChatRequest, request: Request):
     state = request.app.state
     flags = await _flags()
+    mcp_tools = state.mcp_registry.tools if hasattr(state, "mcp_registry") else []
     tools = tool_registry.active_tools(
         tool_registry.discover_tools(),
-        getattr(state, "mcp_tools", []),
+        mcp_tools,
         flags,
     )
     graph = build_agent_for_turn(
