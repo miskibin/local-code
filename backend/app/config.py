@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     checkpoint_db_path: str = "./checkpoints.db"
 
     cors_origins: list[str] = ["http://localhost:3000"]
-    log_level: str = "INFO"
+    log_level: str = "DEBUG"
 
 
 @lru_cache

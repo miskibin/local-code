@@ -20,6 +20,7 @@ class MCPRegistry:
             self.client.connections = {
                 c.name: c.connection for c in configs if c.enabled
             }
+            logger.info(f"mcp sync: {len(self.client.connections)} enabled servers")
             new_tools: list[BaseTool] = []
             for name in list(self.client.connections):
                 try:
@@ -27,7 +28,12 @@ class MCPRegistry:
                 except Exception as e:
                     logger.warning(f"MCP server {name!r} unavailable: {e}")
             self._tools = new_tools
+            logger.info(
+                f"mcp sync done: {len(new_tools)} tools across {len(self.client.connections)} servers"
+            )
 
     async def _load_one(self, name: str) -> list[BaseTool]:
         async with self.client.session(name) as session:
-            return await load_mcp_tools(session)
+            tools = await load_mcp_tools(session)
+        logger.debug(f"mcp server {name!r}: loaded {len(tools)} tools")
+        return tools

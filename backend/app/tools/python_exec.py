@@ -3,6 +3,7 @@ import subprocess
 import sys
 import textwrap
 
+from loguru import logger
 from langchain_core.tools import tool
 
 TIMEOUT_SECONDS = 20
@@ -16,8 +17,12 @@ def _run_sync(code: str) -> str:
             timeout=TIMEOUT_SECONDS,
         )
     except subprocess.TimeoutExpired:
+        logger.warning(f"python_exec timeout {TIMEOUT_SECONDS}s")
         return f"error: timed out after {TIMEOUT_SECONDS}s"
 
+    logger.debug(
+        f"python_exec exit={proc.returncode} stdout={len(proc.stdout or b'')}b stderr={len(proc.stderr or b'')}b"
+    )
     parts: list[str] = []
     if proc.stdout:
         parts.append(proc.stdout.decode("utf-8", errors="replace").rstrip())

@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
+from loguru import logger
 from sqlmodel import select
 from app.config import get_settings
 from app.db import init_db, async_session
@@ -20,6 +21,9 @@ from app.mcp_registry import MCPRegistry
 async def lifespan(app: FastAPI):
     settings = get_settings()
     setup_logging(settings.log_level)
+    logger.info(
+        f"log_level={settings.log_level} model={settings.ollama_model} base_url={settings.ollama_base_url}"
+    )
     await init_db()
 
     async with AsyncSqliteSaver.from_conn_string(settings.checkpoint_db_path) as saver:
@@ -29,6 +33,9 @@ async def lifespan(app: FastAPI):
         async with async_session() as s:
             cfgs = list((await s.execute(select(MCPServerConfig))).scalars().all())
         await app.state.mcp_registry.sync_from_db(cfgs)
+        logger.info(
+            f"startup ready: {len(cfgs)} mcp servers configured, {len(app.state.mcp_registry.tools)} mcp tools loaded"
+        )
         yield
 
 

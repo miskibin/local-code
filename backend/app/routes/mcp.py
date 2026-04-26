@@ -1,5 +1,6 @@
 from typing import Any
 from fastapi import APIRouter, HTTPException, Request
+from loguru import logger
 from pydantic import BaseModel
 from sqlmodel import select
 from app.db import async_session
@@ -39,6 +40,7 @@ async def upsert_mcp(dto: MCPDTO, request: Request):
             existing.enabled = dto.enabled
             existing.connection = dto.connection
         await s.commit()
+    logger.info(f"mcp upsert {dto.name!r} enabled={dto.enabled} -> resync")
     await _resync(request)
     return dto
 
@@ -51,5 +53,6 @@ async def delete_mcp(name: str, request: Request):
             raise HTTPException(404)
         await s.delete(existing)
         await s.commit()
+    logger.info(f"mcp delete {name!r} -> resync")
     await _resync(request)
     return {"deleted": name}

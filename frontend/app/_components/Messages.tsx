@@ -2,8 +2,9 @@
 
 import { Copy, Pencil, RotateCcw, Share } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import type { Artifact, AssistantStep } from "@/lib/types";
+import type { Artifact, AssistantStep, Todo } from "@/lib/types";
 import { Markdown } from "./Markdown";
+import { PlanCard } from "./PlanCard";
 import { Subagent } from "./Subagent";
 import { ThinkingIndicator } from "./ThinkingIndicator";
 import { ToolCall } from "./ToolCall";
@@ -174,7 +175,8 @@ function ActionBtn({
 
 export type ContentBlock =
   | { type: "text"; text: string }
-  | { type: "step"; step: AssistantStep };
+  | { type: "step"; step: AssistantStep }
+  | { type: "plan"; todos: Todo[]; streaming: boolean };
 
 export function contentBlocksToPlainText(blocks: ContentBlock[]): string {
   return blocks
@@ -224,6 +226,8 @@ export function AssistantMessage({
         {msg.contentBlocks.map((b, i) =>
           b.type === "text" ? (
             b.text ? <Markdown key={i} text={b.text} /> : null
+          ) : b.type === "plan" ? (
+            <PlanCard key={i} todos={b.todos} streaming={b.streaming} />
           ) : b.step.kind === "subagent" ? (
             <Subagent
               key={i}

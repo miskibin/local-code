@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Request
 from fastapi.responses import StreamingResponse
+from loguru import logger
 from sqlmodel import select
 from app.schemas.chat import ChatRequest
 from app.streaming import stream_chat
@@ -20,6 +21,7 @@ async def _flags() -> dict[str, bool]:
 @router.post("/chat")
 async def chat(req: ChatRequest, request: Request):
     state = request.app.state
+    logger.info(f"/chat thread={req.id} reset={req.reset} msgs={len(req.messages)}")
     if req.reset:
         await state.checkpointer.adelete_thread(req.id)
     flags = await _flags()
@@ -28,6 +30,9 @@ async def chat(req: ChatRequest, request: Request):
         tool_registry.discover_tools(),
         mcp_tools,
         flags,
+    )
+    logger.debug(
+        f"tools active={len(tools)} (local+mcp post-filter, names={[t.name for t in tools]})"
     )
     tools_by_name = {t.name: t for t in tools}
     subagents = []
@@ -43,6 +48,9 @@ async def chat(req: ChatRequest, request: Request):
         tools=tools,
         checkpointer=state.checkpointer,
         subagents=subagents,
+    )
+    logger.debug(
+        f"agent built thread={req.id} subagents={[s.get('name') for s in subagents]}"
     )
     return StreamingResponse(
         stream_chat(graph=graph, thread_id=req.id, lc_messages=req.to_lc_messages()),

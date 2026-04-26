@@ -77,3 +77,6 @@ export type SubagentStep = {
 };
 
 export type AssistantStep = ToolStep | SubagentStep;
+
+export type TodoStatus = "pending" | "in_progress" | "completed";
+export type Todo = { content: string; status: TodoStatus };

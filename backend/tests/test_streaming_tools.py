@@ -224,6 +224,50 @@ async def test_dispatcher_links_subagent_inner_tools_via_provider_metadata():
 
 
 @pytest.mark.asyncio
+async def test_stream_emits_output_error_for_failed_tool_message():
+    """ToolMessage with status='error' must emit a tool-output-error SSE event
+    so the frontend transitions the tool card to a Failed state."""
+    from app.streaming import stream_chat
+
+    items = [
+        (
+            AIMessage(
+                content="",
+                tool_calls=[
+                    {"id": "call_err", "name": "web_fetch", "args": {"url": "https://x"}}
+                ],
+            ),
+            {"langgraph_node": "model"},
+        ),
+        (
+            ToolMessage(
+                content="Error fetching https://x: HTTP 404 Not Found",
+                tool_call_id="call_err",
+                name="web_fetch",
+                status="error",
+            ),
+            {"langgraph_node": "tools"},
+        ),
+    ]
+    events = []
+    async for line in stream_chat(
+        graph=_FakeGraph(items), thread_id="t1", lc_messages=[("user", "go")]
+    ):
+        events.append(line)
+    parsed = [
+        json.loads(e.removeprefix("data: ").strip())
+        for e in events
+        if e.startswith("data: {")
+    ]
+    types = [e["type"] for e in parsed]
+    assert "tool-output-error" in types
+    assert "tool-output-available" not in types
+    err = next(e for e in parsed if e["type"] == "tool-output-error")
+    assert err["toolCallId"] == "call_err"
+    assert err["errorText"] == "Error fetching https://x: HTTP 404 Not Found"
+
+
+@pytest.mark.asyncio
 async def test_stream_emits_tool_events_when_only_tool_message():
     from app.streaming import stream_chat
 

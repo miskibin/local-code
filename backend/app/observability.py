@@ -16,12 +16,33 @@ class InterceptHandler(logging.Handler):
         logger.opt(depth=depth, exception=record.exc_info).log(level, record.getMessage())
 
 
+NOISY_LOGGERS = (
+    "aiosqlite",
+    "httpcore",
+    "httpcore.http11",
+    "httpcore.connection",
+    "httpx",
+    "urllib3",
+    "asyncio",
+    "sqlalchemy.engine",
+    "sqlalchemy.pool",
+    "uvicorn.access",
+    "langchain",
+    "langgraph",
+    "langchain_ollama",
+    "langchain_mcp_adapters",
+    "mcp",
+)
+
+
 def setup_logging(level: str = "INFO") -> None:
     root = logging.getLogger()
     root.handlers = [InterceptHandler()]
     root.setLevel(level)
     for name in ("uvicorn", "uvicorn.access", "uvicorn.error", "fastapi", "httpx"):
         logging.getLogger(name).handlers = [InterceptHandler()]
+    for name in NOISY_LOGGERS:
+        logging.getLogger(name).setLevel(logging.WARNING)
 
 
 def get_callbacks() -> list:

@@ -1,6 +1,7 @@
 import importlib
 import inspect
 import pkgutil
+from loguru import logger
 from langchain_core.tools import BaseTool
 from app import tools as tools_pkg
 
@@ -12,6 +13,7 @@ def discover_tools() -> list[BaseTool]:
         for _, obj in inspect.getmembers(mod):
             if isinstance(obj, BaseTool):
                 found.append(obj)
+    logger.debug(f"discovered {len(found)} local tools: {[t.name for t in found]}")
     return found
 
 
@@ -20,4 +22,8 @@ def active_tools(
     mcp: list[BaseTool],
     flags: dict[str, bool],
 ) -> list[BaseTool]:
-    return [t for t in (local + mcp) if flags.get(t.name, True)]
+    result = [t for t in (local + mcp) if flags.get(t.name, True)]
+    logger.debug(
+        f"active_tools: {len(result)}/{len(local) + len(mcp)} after flag filter"
+    )
+    return result

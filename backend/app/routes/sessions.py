@@ -1,5 +1,6 @@
 from uuid import uuid4
 from fastapi import APIRouter, HTTPException, Request
+from loguru import logger
 from pydantic import BaseModel
 from sqlmodel import select
 from app.db import async_session
@@ -88,4 +89,5 @@ async def delete_session(sid: str):
             raise HTTPException(404)
         await s.delete(existing)
         await s.commit()
+    logger.info(f"session delete {sid}")
     return {"deleted": sid}

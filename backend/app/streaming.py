@@ -2,6 +2,7 @@ import json
 from collections.abc import AsyncIterator
 from uuid import uuid4
 from langchain_core.messages import AIMessage, AIMessageChunk, ToolMessage
+from loguru import logger
 
 
 def sse(obj: dict) -> str:
@@ -36,6 +37,9 @@ async def stream_chat(
 ) -> AsyncIterator[str]:
     msg_id = f"msg_{uuid4().hex}"
     text_id = f"t_{uuid4().hex}"
+    logger.info(
+        f"stream start thread={thread_id} msg_id={msg_id} input_msgs={len(lc_messages)}"
+    )
     yield sse({"type": "start", "messageId": msg_id})
     yield sse({"type": "start-step"})
     yield sse({"type": "text-start", "id": text_id})
@@ -94,6 +98,17 @@ async def stream_chat(
             "type": "tool-output-available",
             "toolCallId": cid,
             "output": output,
+        }
+        md = _provider_md(namespace)
+        if md:
+            evt["providerMetadata"] = md
+        return sse(evt)
+
+    def _output_error(cid: str, error_text: str, namespace: tuple) -> str:
+        evt: dict = {
+            "type": "tool-output-error",
+            "toolCallId": cid,
+            "errorText": error_text,
         }
         md = _provider_md(namespace)
         if md:
@@ -162,6 +177,7 @@ async def stream_chat(
                     # attribute subsequent subgraph events to them.
                     if is_top_level and name in DISPATCHER_TOOLS:
                         current_dispatch_id = cid
+                        logger.debug(f"dispatcher start cid={cid} name={name}")
 
                     ev = _start(cid, name, namespace)
                     if ev:
@@ -186,12 +202,19 @@ async def stream_chat(
                     yield _input_available(cid, name, parsed, namespace)
                     announced_input.add(cid)
                 if cid:
-                    yield _output_available(cid, _coerce_output(chunk.content), namespace)
+                    output = _coerce_output(chunk.content)
+                    if getattr(chunk, "status", None) == "error":
+                        yield _output_error(cid, str(output), namespace)
+                    else:
+                        yield _output_available(cid, output, namespace)
                     if is_top_level and cid == current_dispatch_id:
+                        logger.debug(f"dispatcher done cid={cid}")
                         current_dispatch_id = None
     except Exception as e:
+        logger.exception(f"stream error thread={thread_id}")
         yield sse({"type": "error", "errorText": str(e)})
     finally:
+        logger.info(f"stream end thread={thread_id}")
         yield sse({"type": "text-end", "id": text_id})
         yield sse({"type": "finish-step"})
         yield sse({"type": "finish"})

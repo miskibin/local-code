@@ -27,6 +27,7 @@ import type {
   Artifact,
   AssistantStep,
   SubagentStep,
+  Todo,
   ToolStep,
 } from "@/lib/types";
 import { Composer } from "./Composer";
@@ -63,6 +64,32 @@ function getParentToolCallId(p: AnyPart): string | null {
 
 function isToolPart(p: AnyPart): boolean {
   return p.type === "dynamic-tool" || p.type.startsWith("tool-");
+}
+
+function getToolName(p: AnyPart): string | null {
+  if (p.type === "dynamic-tool") return p.toolName ?? null;
+  if (p.type.startsWith("tool-")) return p.type.slice(5);
+  return null;
+}
+
+function extractTodos(p: AnyPart): Todo[] | null {
+  if (getToolName(p) !== "write_todos") return null;
+  const input = p.input as { todos?: unknown } | undefined;
+  if (!input || !Array.isArray(input.todos) || input.todos.length === 0) {
+    return null;
+  }
+  const todos: Todo[] = [];
+  for (const t of input.todos) {
+    if (typeof t !== "object" || t === null) continue;
+    const obj = t as { content?: unknown; status?: unknown };
+    const content = typeof obj.content === "string" ? obj.content : "";
+    const status: Todo["status"] =
+      obj.status === "completed" || obj.status === "in_progress"
+        ? obj.status
+        : "pending";
+    todos.push({ content, status });
+  }
+  return todos.length > 0 ? todos : null;
 }
 
 function prettifyAgentName(id: string): string {
@@ -112,6 +139,8 @@ function partToToolStep(p: AnyPart): ToolStep | null {
  *  - tool parts whose providerMetadata.subagent.parentToolCallId points at
  *    another tool become children of that tool, which is rendered as a
  *    SubagentStep with a nested step list
+ *  - `write_todos` tool calls collapse into a single plan block at the
+ *    position of the first call, using the latest todos as state of truth
  *  - all other tool parts render as plain ToolSteps
  *
  * Order matches the stream — children always appear inside their parent's
@@ -140,6 +169,37 @@ function partsToContentBlocks(parts: AnyPart[]): ContentBlock[] {
     }
   }
 
+  if (process.env.NEXT_PUBLIC_DEBUG === "1") {
+    for (const [child, parent] of parentOf) {
+      if (!stepByCallId.has(parent)) {
+        console.debug("[chat] orphan tool parent", { child, parent });
+      }
+    }
+  }
+
+  // Pass 1.5 — collect `write_todos` state. The agent calls it repeatedly to
+  // mutate statuses; each call replaces the entire list. We render a single
+  // plan block at the position of the first call, using the latest non-empty
+  // todos. Streaming = latest call's output hasn't arrived.
+  let firstWriteTodosCallId: string | null = null;
+  let latestTodos: Todo[] | null = null;
+  let latestWriteTodosState: string | undefined;
+  const writeTodosCallIds = new Set<string>();
+  for (const p of parts) {
+    if (getToolName(p) !== "write_todos" || !p.toolCallId) continue;
+    writeTodosCallIds.add(p.toolCallId);
+    if (firstWriteTodosCallId === null) firstWriteTodosCallId = p.toolCallId;
+    const todos = extractTodos(p);
+    if (todos) {
+      latestTodos = todos;
+      latestWriteTodosState = p.state;
+    }
+  }
+  const planStreaming = latestWriteTodosState
+    ? latestWriteTodosState !== "output-available" &&
+      latestWriteTodosState !== "output-error"
+    : false;
+
   // Pass 2 — walk parts in stream order. Skip tool parts that have a known
   // parent (they're rendered as nested children below). Group children whose
   // parent has any sub-tools into a SubagentStep.
@@ -158,6 +218,20 @@ function partsToContentBlocks(parts: AnyPart[]): ContentBlock[] {
       continue;
     }
     if (!isToolPart(p) || !p.toolCallId) continue;
+
+    // Collapse all write_todos calls into one plan block at the first call.
+    if (writeTodosCallIds.has(p.toolCallId)) {
+      if (p.toolCallId === firstWriteTodosCallId && latestTodos) {
+        flush();
+        out.push({
+          type: "plan",
+          todos: latestTodos,
+          streaming: planStreaming,
+        });
+      }
+      continue;
+    }
+
     // Has a parent that we know about → consumed by parent's SubagentStep.
     const parentId = parentOf.get(p.toolCallId);
     if (parentId && stepByCallId.has(parentId)) continue;

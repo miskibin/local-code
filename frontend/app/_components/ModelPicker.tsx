@@ -15,16 +15,10 @@ const MODELS = [
     recommended: true,
   },
   {
-    id: "qwen2.5-coder",
-    name: "qwen2.5-coder:7b",
-    desc: "Code-tuned",
-    size: "4.7 GB",
-  },
-  {
-    id: "llama3.1-8b",
-    name: "llama3.1:8b",
-    desc: "General",
-    size: "4.7 GB",
+    id: "deepseek-v4-flash-cloud",
+    name: "deepseek-v4-flash:cloud",
+    desc: "Cloud · fast",
+    size: "—",
   },
 ];
 
