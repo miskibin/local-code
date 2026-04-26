@@ -441,4 +441,10 @@ async def build_and_persist_tool_artifact(
         artifact["parent_artifact_ids"] = parent_artifact_ids
     row = await persist_tool_artifact(artifact=artifact, session_id=session_id_from_config(config))
     summary = f"{row.id} · {result['summary']}"
+    if result.get("kind") == "table":
+        from app.services.table_summary import build_compact_table_summary
+
+        preview = build_compact_table_summary(row)
+        if preview:
+            summary = f"{summary}\n{preview}"
     return summary, {**artifact, "id": row.id}

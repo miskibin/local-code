@@ -8,6 +8,8 @@ from app.artifact_store import build_and_persist_tool_artifact, run_python_artif
 async def python_exec(code: str, config: RunnableConfig) -> tuple[str, dict]:
     """Run Python and return (summary, artifact). Use for arithmetic, data work, plots.
 
+    Write minimal code. No comments, no docstrings, no prints unless needed for output.
+
     Three helpers are injected into your script:
 
     - `out(obj)` — surface a value as the artifact. List-of-dict → table.

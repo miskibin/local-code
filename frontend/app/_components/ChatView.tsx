@@ -18,6 +18,11 @@ import {
 } from "./Messages"
 import type { AssistantMsg, ContentBlock } from "./Messages"
 import { GeneratingTaskModal } from "./tasks/GeneratingTaskModal"
+import {
+  ArtifactRefsProvider,
+  type ArtifactRefs,
+  type ToolArtifactRef,
+} from "./ArtifactRefs"
 
 export type AnyPart = {
   type: string
@@ -131,6 +136,7 @@ function partToToolStep(p: AnyPart): ToolStep | null {
     args,
     result,
     status,
+    toolCallId: p.toolCallId,
   }
 }
 
@@ -458,6 +464,48 @@ export function ChatView({
     }
   }, [messages, onFirstUserMessage])
 
+  const toolArtifactMap = useMemo(() => {
+    const m: Record<string, ToolArtifactRef> = {}
+    for (const msg of messages) {
+      for (const p of (msg.parts ?? []) as AnyPart[]) {
+        if (p.type !== "data-artifact") continue
+        const data = p.data as ArtifactDataPart | undefined
+        if (data?.toolCallId && data?.artifactId) {
+          m[data.toolCallId] = {
+            artifactId: data.artifactId,
+            kind: data.kind,
+            title: data.title,
+          }
+        }
+      }
+    }
+    return m
+  }, [messages])
+
+  const artifactRefs = useMemo<ArtifactRefs>(
+    () => ({
+      getArtifact: (id) => artifactCache[id],
+      getToolArtifact: (cid) => toolArtifactMap[cid],
+      onOpen: (id) => {
+        const cached = artifactCache[id]
+        if (cached) {
+          onOpenArtifact(cached)
+          return
+        }
+        void api
+          .getArtifact(id)
+          .then((a) => {
+            setArtifactCache((prev) => ({ ...prev, [id]: a }))
+            onOpenArtifact(a)
+          })
+          .catch((e) => {
+            toast.error("Failed to open artifact", { description: String(e) })
+          })
+      },
+    }),
+    [artifactCache, toolArtifactMap, onOpenArtifact]
+  )
+
   const toggleStep = (key: string) =>
     setExpanded((p) => ({ ...p, [key]: !p[key] }))
 
@@ -533,118 +581,124 @@ export function ChatView({
   }, [messages])
 
   return (
-    <div
-      className="flex min-w-0 flex-1 flex-col"
-      style={{ background: "var(--bg)" }}
-    >
-      <div ref={scrollRef} className="lc-scroll flex-1 overflow-y-auto">
-        <div className="mx-auto w-full max-w-5xl px-6 pt-8 pb-12">
-          {isEmpty ? (
-            <EmptyState onPick={send} />
-          ) : (
-            <div>
-              {messages.map((m) => {
-                const parts = (m.parts ?? []) as AnyPart[]
-                const text = partsToText(parts)
-                if (m.role === "user") {
+    <ArtifactRefsProvider value={artifactRefs}>
+      <div
+        className="flex min-w-0 flex-1 flex-col"
+        style={{ background: "var(--bg)" }}
+      >
+        <div ref={scrollRef} className="lc-scroll flex-1 overflow-y-auto">
+          <div className="mx-auto w-full max-w-5xl px-6 pt-8 pb-12">
+            {isEmpty ? (
+              <EmptyState onPick={send} />
+            ) : (
+              <div>
+                {messages.map((m) => {
+                  const parts = (m.parts ?? []) as AnyPart[]
+                  const text = partsToText(parts)
+                  if (m.role === "user") {
+                    return (
+                      <UserMessage
+                        key={m.id}
+                        text={text}
+                        onEdit={
+                          streaming
+                            ? undefined
+                            : (newText) => handleEdit(m.id, newText)
+                        }
+                      />
+                    )
+                  }
+                  const isLast = m.id === lastAssistantId
+                  const contentBlocks = partsToContentBlocks(parts)
+                  const liveArtifacts = extractArtifactIds(parts)
+                    .map((id) => artifactCache[id])
+                    .filter((a): a is Artifact => !!a)
+                  const msg: AssistantMsg = {
+                    id: m.id,
+                    contentBlocks,
+                    artifacts:
+                      liveArtifacts.length > 0 ? liveArtifacts : undefined,
+                  }
                   return (
-                    <UserMessage
+                    <AssistantMessage
                       key={m.id}
-                      text={text}
-                      onEdit={
-                        streaming
-                          ? undefined
-                          : (newText) => handleEdit(m.id, newText)
+                      msg={msg}
+                      expanded={expanded}
+                      toggleStep={toggleStep}
+                      isLast={isLast}
+                      streaming={streaming && isLast}
+                      savedArtifacts={savedArtifacts}
+                      onSaveArtifact={(a) => void onSaveArtifact(a)}
+                      onOpenArtifact={onOpenArtifact}
+                      onCopy={() =>
+                        void navigator.clipboard?.writeText(
+                          contentBlocksToPlainText(msg.contentBlocks)
+                        )
                       }
+                      onRegenerate={
+                        streaming ? undefined : () => handleRegenerate(m.id)
+                      }
+                      onSaveAsTask={
+                        streaming ? undefined : () => void handleSaveAsTask()
+                      }
+                      saveAsTaskBusy={generatingTask}
                     />
                   )
-                }
-                const isLast = m.id === lastAssistantId
-                const contentBlocks = partsToContentBlocks(parts)
-                const liveArtifacts = extractArtifactIds(parts)
-                  .map((id) => artifactCache[id])
-                  .filter((a): a is Artifact => !!a)
-                const msg: AssistantMsg = {
-                  id: m.id,
-                  contentBlocks,
-                  artifacts:
-                    liveArtifacts.length > 0 ? liveArtifacts : undefined,
-                }
-                return (
-                  <AssistantMessage
-                    key={m.id}
-                    msg={msg}
-                    expanded={expanded}
-                    toggleStep={toggleStep}
-                    isLast={isLast}
-                    streaming={streaming && isLast}
-                    savedArtifacts={savedArtifacts}
-                    onSaveArtifact={(a) => void onSaveArtifact(a)}
-                    onOpenArtifact={onOpenArtifact}
-                    onCopy={() =>
-                      void navigator.clipboard?.writeText(
-                        contentBlocksToPlainText(msg.contentBlocks)
-                      )
-                    }
-                    onRegenerate={
-                      streaming ? undefined : () => handleRegenerate(m.id)
-                    }
-                    onSaveAsTask={
-                      streaming ? undefined : () => void handleSaveAsTask()
-                    }
-                    saveAsTaskBusy={generatingTask}
-                  />
-                )
-              })}
-            </div>
-          )}
-        </div>
-      </div>
-      <div
-        style={{
-          background:
-            "linear-gradient(to top, var(--bg), color-mix(in srgb, var(--bg) 0%, transparent))",
-        }}
-      >
-        {streamFault && !streaming ? (
-          <div className="mx-auto w-full max-w-5xl px-6 pt-2">
-            <div
-              className="flex items-center justify-between gap-3 rounded-md border px-3 py-2 text-[13px]"
-              style={{
-                background:
-                  streamFault === "incomplete"
-                    ? "var(--amber-soft)"
-                    : "var(--red-soft)",
-                borderColor:
-                  streamFault === "incomplete" ? "var(--amber)" : "var(--red)",
-                color:
-                  streamFault === "incomplete" ? "var(--amber)" : "var(--red)",
-              }}
-            >
-              <span>
-                {streamFault === "incomplete"
-                  ? "Response may be incomplete."
-                  : "Can't reach backend."}
-              </span>
-              <button
-                type="button"
-                onClick={retryStreamFault}
-                className="rounded px-2 py-1 font-medium underline-offset-2 hover:underline"
-              >
-                Retry
-              </button>
-            </div>
+                })}
+              </div>
+            )}
           </div>
-        ) : null}
-        <Composer
-          onSend={send}
-          onStop={() => stop()}
-          streaming={streaming}
-          model={selectedModel}
-          onModelChange={setSelectedModel}
-        />
+        </div>
+        <div
+          style={{
+            background:
+              "linear-gradient(to top, var(--bg), color-mix(in srgb, var(--bg) 0%, transparent))",
+          }}
+        >
+          {streamFault && !streaming ? (
+            <div className="mx-auto w-full max-w-5xl px-6 pt-2">
+              <div
+                className="flex items-center justify-between gap-3 rounded-md border px-3 py-2 text-[13px]"
+                style={{
+                  background:
+                    streamFault === "incomplete"
+                      ? "var(--amber-soft)"
+                      : "var(--red-soft)",
+                  borderColor:
+                    streamFault === "incomplete"
+                      ? "var(--amber)"
+                      : "var(--red)",
+                  color:
+                    streamFault === "incomplete"
+                      ? "var(--amber)"
+                      : "var(--red)",
+                }}
+              >
+                <span>
+                  {streamFault === "incomplete"
+                    ? "Response may be incomplete."
+                    : "Can't reach backend."}
+                </span>
+                <button
+                  type="button"
+                  onClick={retryStreamFault}
+                  className="rounded px-2 py-1 font-medium underline-offset-2 hover:underline"
+                >
+                  Retry
+                </button>
+              </div>
+            </div>
+          ) : null}
+          <Composer
+            onSend={send}
+            onStop={() => stop()}
+            streaming={streaming}
+            model={selectedModel}
+            onModelChange={setSelectedModel}
+          />
+        </div>
+        <GeneratingTaskModal open={generatingTask} />
       </div>
-      <GeneratingTaskModal open={generatingTask} />
-    </div>
+    </ArtifactRefsProvider>
   )
 }

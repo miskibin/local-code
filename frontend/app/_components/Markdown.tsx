@@ -1,7 +1,7 @@
 "use client"
 
 import type { ComponentProps } from "react"
-import { Streamdown, defaultUrlTransform } from "streamdown"
+import { Streamdown } from "streamdown"
 import { cjk } from "@streamdown/cjk"
 import { code } from "@streamdown/code"
 import { math } from "@streamdown/math"
@@ -12,13 +12,11 @@ const streamdownPlugins = { cjk, code, math, mermaid }
 
 const ARTIFACT_PREFIX = "artifact:"
 
-const urlTransform: ComponentProps<typeof Streamdown>["urlTransform"] = (
-  url,
-  key,
-  node
-) => {
-  if (typeof url === "string" && url.startsWith(ARTIFACT_PREFIX)) return url
-  return defaultUrlTransform(url, key, node)
+const urlTransform: ComponentProps<typeof Streamdown>["urlTransform"] = (url) =>
+  url
+
+const linkSafety: ComponentProps<typeof Streamdown>["linkSafety"] = {
+  enabled: false,
 }
 
 const components: ComponentProps<typeof Streamdown>["components"] = {
@@ -28,7 +26,7 @@ const components: ComponentProps<typeof Streamdown>["components"] = {
       if (id) return <ArtifactChip id={id} label={children} />
     }
     return (
-      <a href={href} {...rest}>
+      <a href={href} target="_blank" rel="noreferrer" {...rest}>
         {children}
       </a>
     )
@@ -45,6 +43,7 @@ export function Markdown({ text }: { text: string }) {
         plugins={streamdownPlugins}
         components={components}
         urlTransform={urlTransform}
+        linkSafety={linkSafety}
       >
         {text}
       </Streamdown>

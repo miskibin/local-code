@@ -114,3 +114,31 @@ def build_table_summary(artifact: SavedArtifact) -> str:
     if path:
         return summarize_csv(path, artifact_id=artifact.id, title=artifact.title)["summary_md"]
     return f"## Table: {artifact.title} (artifact:{artifact.id})\n(no data)"
+
+
+def _df_from_artifact(artifact: SavedArtifact) -> pd.DataFrame | None:
+    payload = artifact.payload or {}
+    rows = payload.get("rows")
+    if isinstance(rows, list) and rows:
+        return pd.DataFrame(rows)
+    path = payload.get("path")
+    if path:
+        try:
+            return _read_csv(Path(path), sample_only=True)
+        except Exception:
+            return None
+    return None
+
+
+def build_compact_table_summary(artifact: SavedArtifact, *, head_rows: int = 3) -> str:
+    """Tight preview for tool results — column names + dtypes + small head.
+
+    Designed to fit within ~500 tokens so it can ride along with every tool
+    summary the agent sees, regardless of the host model's context size.
+    """
+    df = _df_from_artifact(artifact)
+    if df is None or df.empty:
+        return ""
+    schema = ", ".join(f"{c} ({df[c].dtype})" for c in df.columns)
+    head = df.head(head_rows).to_markdown(index=False)
+    return f"schema: {schema}\nhead:\n{head}"

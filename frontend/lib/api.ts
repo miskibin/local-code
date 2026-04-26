@@ -7,16 +7,16 @@ import type {
   StoredMessage,
   TaskListItem,
   Tool,
-} from "./types";
+} from "./types"
 
 const BACKEND =
-  process.env.NEXT_PUBLIC_BACKEND_URL_BASE ?? "http://localhost:8000";
+  process.env.NEXT_PUBLIC_BACKEND_URL_BASE ?? "http://localhost:8000"
 
 async function jsonFetch<T>(
   path: string,
-  init?: RequestInit & { json?: unknown },
+  init?: RequestInit & { json?: unknown }
 ): Promise<T> {
-  const { json, ...rest } = init ?? {};
+  const { json, ...rest } = init ?? {}
   const r = await fetch(`${BACKEND}${path}`, {
     ...rest,
     headers: {
@@ -24,12 +24,12 @@ async function jsonFetch<T>(
       ...(rest.headers ?? {}),
     },
     body: json !== undefined ? JSON.stringify(json) : rest.body,
-  });
-  if (!r.ok) throw new Error(`${r.status} ${r.statusText} on ${path}`);
-  if (r.status === 204) return undefined as T;
-  const ct = r.headers.get("content-type") ?? "";
-  if (!ct.includes("application/json")) return undefined as T;
-  return (await r.json()) as T;
+  })
+  if (!r.ok) throw new Error(`${r.status} ${r.statusText} on ${path}`)
+  if (r.status === 204) return undefined as T
+  const ct = r.headers.get("content-type") ?? ""
+  if (!ct.includes("application/json")) return undefined as T
+  return (await r.json()) as T
 }
 
 export const api = {
@@ -47,9 +47,7 @@ export const api = {
       json: patch,
     }),
   getMessages: (id: string) =>
-    jsonFetch<StoredMessage[]>(
-      `/sessions/${encodeURIComponent(id)}/messages`,
-    ),
+    jsonFetch<StoredMessage[]>(`/sessions/${encodeURIComponent(id)}/messages`),
 
   // Tools
   listTools: () => jsonFetch<Tool[]>("/tools"),
@@ -69,7 +67,13 @@ export const api = {
     }),
 
   // Artifacts
-  listArtifacts: () => jsonFetch<Artifact[]>("/artifacts"),
+  listArtifacts: (opts?: { pinned?: boolean }) => {
+    const qs =
+      opts?.pinned !== undefined
+        ? `?pinned=${opts.pinned ? "true" : "false"}`
+        : ""
+    return jsonFetch<Artifact[]>(`/artifacts${qs}`)
+  },
   getArtifact: (id: string) =>
     jsonFetch<Artifact>(`/artifacts/${encodeURIComponent(id)}`),
   saveArtifact: (a: Artifact) =>
@@ -83,18 +87,18 @@ export const api = {
       method: "DELETE",
     }),
   uploadArtifact: async (file: File, sessionId: string): Promise<Artifact> => {
-    const fd = new FormData();
-    fd.append("file", file, file.name);
-    fd.append("session_id", sessionId);
+    const fd = new FormData()
+    fd.append("file", file, file.name)
+    fd.append("session_id", sessionId)
     const r = await fetch(`${BACKEND}/artifacts/upload`, {
       method: "POST",
       body: fd,
-    });
+    })
     if (!r.ok) {
-      const detail = await r.text().catch(() => "");
-      throw new Error(`upload failed: ${r.status} ${r.statusText} ${detail}`);
+      const detail = await r.text().catch(() => "")
+      throw new Error(`upload failed: ${r.status} ${r.statusText} ${detail}`)
     }
-    return (await r.json()) as Artifact;
+    return (await r.json()) as Artifact
   },
 
   // Tasks
@@ -122,7 +126,7 @@ export const api = {
         model,
       },
     }),
-};
+}
 
-export const BACKEND_URL = BACKEND;
-export const CHAT_URL = `${BACKEND}/chat`;
+export const BACKEND_URL = BACKEND
+export const CHAT_URL = `${BACKEND}/chat`

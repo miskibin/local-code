@@ -42,7 +42,7 @@ export function ChatShell() {
 
   const refreshArtifacts = useCallback(async () => {
     try {
-      setSavedArtifacts(await api.listArtifacts())
+      setSavedArtifacts(await api.listArtifacts({ pinned: true }))
     } catch (e) {
       console.error("listArtifacts", e)
       toast.error("Failed to load artifacts", { description: String(e) })

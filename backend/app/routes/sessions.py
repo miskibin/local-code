@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+from typing import Any
 from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Request
@@ -23,15 +24,10 @@ class SessionPatch(BaseModel):
     is_pinned: bool | None = None
 
 
-class UIPart(BaseModel):
-    type: str
-    text: str
-
-
 class UIMessage(BaseModel):
     id: str
     role: str
-    parts: list[UIPart]
+    parts: list[dict[str, Any]]
 
 
 def _extract_text(content) -> str:
@@ -46,6 +42,20 @@ def _extract_text(content) -> str:
                 out.append(c)
         return "".join(out)
     return ""
+
+
+def _coerce_output(content) -> object:
+    if isinstance(content, (str, int, float, bool)) or content is None:
+        return content
+    if isinstance(content, list):
+        parts = []
+        for c in content:
+            if isinstance(c, dict) and c.get("type") == "text":
+                parts.append(str(c.get("text", "")))
+            else:
+                parts.append(str(c))
+        return "".join(parts)
+    return str(content)
 
 
 @router.get("/sessions", response_model=list[SessionDTO])
@@ -95,25 +105,77 @@ async def patch_session(sid: str, patch: SessionPatch):
 
 
 @router.get("/sessions/{sid}/messages", response_model=list[UIMessage])
-async def get_messages(sid: str, request: Request):
+async def get_messages(sid: str, request: Request):  # noqa: PLR0912 -- linear LC-message → UIPart conversion
     cp = request.app.state.checkpointer
     tup = await cp.aget_tuple({"configurable": {"thread_id": sid}})
     if tup is None:
         return []
     msgs = tup.checkpoint.get("channel_values", {}).get("messages", []) or []
+
+    # Pre-index ToolMessages by tool_call_id so AIMessage tool_calls can be
+    # rendered with their matching output state on reload.
+    tool_outputs: dict[str, Any] = {}
+    for m in msgs:
+        if m.type == "tool":
+            cid = getattr(m, "tool_call_id", None)
+            if cid:
+                tool_outputs[cid] = m
+
     out: list[UIMessage] = []
     for m in msgs:
-        role = "user" if m.type == "human" else "assistant" if m.type == "ai" else None
-        if role is None:
+        if m.type == "human":
+            text_content = _extract_text(m.content)
+            if not text_content:
+                continue
+            out.append(
+                UIMessage(
+                    id=getattr(m, "id", None) or f"m_{uuid4().hex}",
+                    role="user",
+                    parts=[{"type": "text", "text": text_content}],
+                )
+            )
             continue
+
+        if m.type != "ai":
+            continue
+
+        parts: list[dict[str, Any]] = []
         text_content = _extract_text(m.content)
-        if not text_content:
+        if text_content:
+            parts.append({"type": "text", "text": text_content})
+
+        for tc in getattr(m, "tool_calls", None) or []:
+            cid = tc.get("id")
+            if not cid:
+                continue
+            name = tc.get("name") or "tool"
+            args = tc.get("args") or {}
+            part: dict[str, Any] = {
+                "type": f"tool-{name}",
+                "toolCallId": cid,
+                "toolName": name,
+                "input": args,
+            }
+            tm = tool_outputs.get(cid)
+            if tm is None:
+                part["state"] = "input-available"
+            else:
+                output = _coerce_output(tm.content)
+                if getattr(tm, "status", None) == "error":
+                    part["state"] = "output-error"
+                    part["errorText"] = str(output)
+                else:
+                    part["state"] = "output-available"
+                    part["output"] = output
+            parts.append(part)
+
+        if not parts:
             continue
         out.append(
             UIMessage(
                 id=getattr(m, "id", None) or f"m_{uuid4().hex}",
-                role=role,
-                parts=[UIPart(type="text", text=text_content)],
+                role="assistant",
+                parts=parts,
             )
         )
     return out
