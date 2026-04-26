@@ -41,6 +41,14 @@ Rules:
     are NOT variables — leave those as direct references.
   - Pick descriptive step titles. Each step.id is a short token (s1, s2, ...).
   - Keep step order matching execution order.
+  - When the original run delegated work via the in-loop ``task`` dispatcher
+    (you may see calls to a tool literally named "task" with subagent_type +
+    description args), emit those as kind="subagent" steps with
+    ``subagent`` = the subagent_type and ``prompt`` = the description. Do NOT
+    emit ``tool``-kind steps where ``tool="task"``.
+  - When a SQL subagent step produces a table artifact, expose its id by
+    referencing ``{{stepId.artifact_id}}`` from later steps (the runner
+    parses ``artifact_id=art_xxx`` from the subagent's reply automatically).
   - Output STRICT JSON matching this shape:
     {
       "title": str,

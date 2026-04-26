@@ -1,7 +1,7 @@
 "use client";
 
 import { formatDistanceToNow } from "date-fns";
-import { Cpu, Database, FileText, RotateCw } from "lucide-react";
+import { Database, FileText, Image as ImageIcon, RotateCw } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -14,18 +14,17 @@ import {
 import { api } from "@/lib/api";
 import type {
   Artifact,
-  ArtifactChartPayload,
   ArtifactTablePayload,
   ArtifactTextPayload,
 } from "@/lib/types";
 
-import { ArtifactChart } from "./ArtifactChart";
+import { ArtifactImage } from "./ArtifactImage";
 import { ArtifactSourceCode } from "./ArtifactSourceCode";
 import { ArtifactTable } from "./ArtifactTable";
 
 function KindIcon({ kind }: { kind: Artifact["kind"] }) {
   if (kind === "table") return <Database className="h-4 w-4" />;
-  if (kind === "chart") return <Cpu className="h-4 w-4" />;
+  if (kind === "image") return <ImageIcon className="h-4 w-4" />;
   return <FileText className="h-4 w-4" />;
 }
 
@@ -112,8 +111,8 @@ export function ArtifactModal({
         >
           {artifact?.kind === "table" ? (
             <ArtifactTable payload={artifact.payload as ArtifactTablePayload} />
-          ) : artifact?.kind === "chart" ? (
-            <ArtifactChart payload={artifact.payload as ArtifactChartPayload} />
+          ) : artifact?.kind === "image" ? (
+            <ArtifactImage artifact={artifact} fullSize />
           ) : artifact?.kind === "text" ? (
             <pre
               className="whitespace-pre-wrap rounded-lg p-3"

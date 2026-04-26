@@ -39,11 +39,10 @@ export type ArtifactTablePayload = {
   rows: Record<string, string | number | null>[];
 };
 
-export type ArtifactChartPoint = { label: string; value: number };
-
-export type ArtifactChartPayload = {
-  data: ArtifactChartPoint[];
-  caption?: string;
+export type ArtifactImagePayload = {
+  format: "png";
+  data_b64: string;
+  caption?: string | null;
 };
 
 export type ArtifactTextPayload = {
@@ -51,14 +50,14 @@ export type ArtifactTextPayload = {
   stderr?: string | null;
 };
 
-export type ArtifactSourceKind = "python" | "sql" | "chart" | "text";
+export type ArtifactSourceKind = "python" | "sql" | "text";
 
 export type Artifact = {
   id: string;
   session_id?: string | null;
-  kind: "table" | "chart" | "text";
+  kind: "table" | "image" | "text";
   title: string;
-  payload: ArtifactTablePayload | ArtifactChartPayload | ArtifactTextPayload;
+  payload: ArtifactTablePayload | ArtifactImagePayload | ArtifactTextPayload;
   summary?: string;
   source_kind?: ArtifactSourceKind | null;
   source_code?: string | null;

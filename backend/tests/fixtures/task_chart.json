@@ -1,0 +1,68 @@
+{
+  "id": "",
+  "title": "Analyze Top 10 Customers Spending and Visualize",
+  "description": "Uses the sql-agent to calculate the total spending for the top 10 customers from the Chinook database, and then generates a horizontal bar chart visualizing this spending.",
+  "source_session_id": null,
+  "variables": [
+    {
+      "name": "database_name",
+      "type": "string",
+      "label": "Database Name",
+      "default": "Chinook",
+      "required": true
+    }
+  ],
+  "steps": [
+    {
+      "id": "s1",
+      "kind": "subagent",
+      "title": "Calculate Top 10 Spenders via SQL",
+      "server": null,
+      "tool": null,
+      "args_template": {
+        "description": "Use the sql-agent to write and execute a SQL query that calculates the total spending for each customer in the {{var.database_name}} database, and then use the resulting artifact to generate a horizontal bar chart showing the top 10 customers by total spend.",
+        "subagent_type": "sql-agent"
+      },
+      "code": null,
+      "subagent": "sql-agent",
+      "prompt": null,
+      "output_name": "sql_result",
+      "output_kind": "rows",
+      "inputs": [
+        {
+          "name": "database_name",
+          "source": "var",
+          "ref": "database_name"
+        }
+      ]
+    },
+    {
+      "id": "s2",
+      "kind": "tool",
+      "title": "Generate Bar Chart of Top Spenders",
+      "server": null,
+      "tool": "chart",
+      "args_template": {
+        "artifact_id": "{{s1.output_name}}",
+        "kind": "bar",
+        "title": "Top 10 Customers by Total Spend",
+        "x": "FirstName",
+        "y": "TotalSpend"
+      },
+      "code": null,
+      "subagent": null,
+      "prompt": null,
+      "output_name": "chart_output",
+      "output_kind": "chart",
+      "inputs": [
+        {
+          "name": "artifact_id",
+          "source": "step",
+          "ref": "s1"
+        }
+      ]
+    }
+  ],
+  "created_at": null,
+  "updated_at": null
+}

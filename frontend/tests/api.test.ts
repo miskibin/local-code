@@ -22,12 +22,17 @@ describe("api wrappers", () => {
 
   it("saveArtifact POSTs JSON body", async () => {
     const fetchMock = vi.spyOn(global, "fetch").mockResolvedValue(
-      new Response(JSON.stringify({ id: "a2", kind: "chart", title: "x", payload: {} }), {
+      new Response(JSON.stringify({ id: "a2", kind: "image", title: "x", payload: {} }), {
         status: 200,
         headers: { "content-type": "application/json" },
       }),
     );
-    await api.saveArtifact({ id: "a2", kind: "chart", title: "x", payload: { data: [] } });
+    await api.saveArtifact({
+      id: "a2",
+      kind: "image",
+      title: "x",
+      payload: { format: "png", data_b64: "" },
+    });
     const init = fetchMock.mock.calls[0][1] as RequestInit;
     expect(init.method).toBe("POST");
     expect(init.body).toContain('"id":"a2"');

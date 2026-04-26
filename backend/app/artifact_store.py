@@ -17,7 +17,6 @@ from typing import Any
 from uuid import uuid4
 
 from langchain_core.runnables import RunnableConfig
-from loguru import logger
 from sqlalchemy import create_engine, text
 from sqlmodel import select
 
@@ -145,11 +144,6 @@ async def _run_executor(
         return await run_python_artifact(source_code)
     if source_kind == "sql":
         return await run_sql_artifact(source_code)
-    if source_kind == "chart":
-        spec = json.loads(source_code)
-        if parent_artifact_ids:
-            spec["artifact_id"] = parent_artifact_ids[0]
-        return await run_chart_artifact(spec)
     if source_kind == "text":
         return {
             "kind": "text",
@@ -170,6 +164,20 @@ _PY_PRELUDE = textwrap.dedent(
         _sys.stdout.write(_json.dumps(_obj, default=str))
         _sys.stdout.write({ARTIFACT_END!r})
         _sys.stdout.write("\\n")
+
+    def out_image(fig=None, *, title=None, caption=None):
+        import io as _io, base64 as _b64
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as _plt
+        f = fig if fig is not None else _plt.gcf()
+        buf = _io.BytesIO()
+        f.savefig(buf, format="png", bbox_inches="tight", dpi=120)
+        out({{
+            "_image_png_b64": _b64.b64encode(buf.getvalue()).decode("ascii"),
+            "title": title,
+            "caption": caption,
+        }})
     """
 ).strip()
 
@@ -232,24 +240,28 @@ def _classify_python_output(
                 + (f"\n{note}" if note else "")
             ),
         }
-    if (
-        isinstance(blob, dict)
-        and isinstance(blob.get("labels"), list)
-        and isinstance(blob.get("values"), list)
-    ):
-        labels = blob["labels"]
-        values = blob["values"]
-        data = [
-            {"label": str(lbl), "value": float(v)}
-            for lbl, v in zip(labels, values, strict=False)
-        ]
+    if isinstance(blob, dict) and "_image_png_b64" in blob:
+        b64 = blob["_image_png_b64"]
+        if not isinstance(b64, str):
+            raise RuntimeError("out_image emitted non-string image payload")
+        if len(b64) > 2 * 1024 * 1024:
+            raise RuntimeError(
+                f"image too large ({len(b64)} b64-bytes). "
+                "Lower dpi or simplify the figure."
+            )
+        caption = blob.get("caption")
         return {
-            "kind": "chart",
-            "title": blob.get("title", "Python chart"),
-            "payload": {"data": data, "caption": blob.get("caption")},
-            "summary": f"chart {len(data)} points (range "
-            f"{min(v for v in values):.2f}-{max(v for v in values):.2f})"
-            + (f"\n{note}" if note else ""),
+            "kind": "image",
+            "title": blob.get("title") or "Python chart",
+            "payload": {
+                "format": "png",
+                "data_b64": b64,
+                "caption": caption,
+            },
+            "summary": (
+                f"image png ({len(b64) * 3 // 4} bytes)"
+                + (f" - {caption}" if caption else "")
+            ),
         }
     text = free_stdout if free_stdout else (json.dumps(blob)[:500] if blob is not None else "")
     return {
@@ -306,47 +318,6 @@ def _coerce_cell(v: Any) -> Any:
     if isinstance(v, (str, int, float, bool)) or v is None:
         return v
     return str(v)
-
-
-# ---------- Chart executor ----------
-
-
-async def run_chart_artifact(spec: dict[str, Any]) -> dict[str, Any]:
-    artifact_id = spec.get("artifact_id")
-    x = spec.get("x")
-    y = spec.get("y")
-    kind = spec.get("kind", "bar")
-    title = spec.get("title", "Chart")
-    if not artifact_id or not x or not y:
-        raise ValueError("chart spec requires artifact_id, x, y")
-    src = await get_artifact(artifact_id)
-    if src is None:
-        raise LookupError(f"chart input artifact {artifact_id} not found")
-    if src.kind != "table":
-        raise ValueError(f"chart input must be a table artifact, got {src.kind}")
-    rows = src.payload.get("rows", [])
-    cols = {c["key"] for c in src.payload.get("columns", [])}
-    if x not in cols or y not in cols:
-        raise ValueError(
-            f"chart fields {x!r}/{y!r} not in input columns {sorted(cols)}"
-        )
-    data = []
-    for r in rows:
-        try:
-            data.append({"label": str(r[x]), "value": float(r[y])})
-        except (TypeError, ValueError):
-            logger.debug("skipping non-numeric chart row {} for y={}", r, y)
-    summary = (
-        f"chart kind={kind} {len(data)} points "
-        f"(range {min((d['value'] for d in data), default=0):.2f}-"
-        f"{max((d['value'] for d in data), default=0):.2f})"
-    )
-    return {
-        "kind": "chart",
-        "title": title,
-        "payload": {"data": data, "caption": f"{kind}: {y} by {x}"},
-        "summary": summary,
-    }
 
 
 # ---------- Persistence helpers used by streaming layer ----------

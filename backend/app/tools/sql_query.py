@@ -11,8 +11,8 @@ async def sql_query(sql: str, config: RunnableConfig) -> tuple[str, dict]:
 
     Use this for one-shot reads. Result rows are capped at 200; check the summary
     for `[truncated to 200]` and refine the query if needed. The summary starts
-    with the artifact id (looks like `art_abc123def456`) — pass that bare id
-    (no brackets, no quotes) to the `chart` tool's `artifact_id` parameter.
+    with the artifact id (looks like `art_abc123def456`). To plot the result,
+    call `python_exec` with matplotlib and `out_image()`.
     """
     try:
         result = await run_sql_artifact(sql)

@@ -96,6 +96,55 @@ async def test_refresh_route_re_executes_python_source():
 
 
 @pytest.mark.asyncio
+async def test_refresh_route_re_renders_matplotlib_image():
+    import base64
+
+    from sqlmodel import delete
+
+    from app.db import async_session, init_db
+    from app.main import create_app
+    from app.models import SavedArtifact
+
+    app = create_app()
+    await init_db()
+    async with async_session() as s:
+        await s.execute(delete(SavedArtifact))
+        await s.commit()
+    code = (
+        "import matplotlib\n"
+        "matplotlib.use('Agg')\n"
+        "import matplotlib.pyplot as plt\n"
+        "plt.plot([0, 1], [0, 1])\n"
+        "out_image()\n"
+    )
+    transport = ASGITransport(app=app)
+    try:
+        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+            await ac.post(
+                "/artifacts",
+                json={
+                    "id": "img-1",
+                    "kind": "image",
+                    "title": "stale",
+                    "payload": {"format": "png", "data_b64": "", "caption": None},
+                    "summary": "",
+                    "source_kind": "python",
+                    "source_code": code,
+                },
+            )
+            r = await ac.post("/artifacts/img-1/refresh")
+            assert r.status_code == 200, r.text
+            body = r.json()
+            assert body["kind"] == "image"
+            raw = base64.b64decode(body["payload"]["data_b64"])
+            assert raw[:8] == b"\x89PNG\r\n\x1a\n"
+    finally:
+        async with async_session() as s:
+            await s.execute(delete(SavedArtifact))
+            await s.commit()
+
+
+@pytest.mark.asyncio
 async def test_get_artifact_route_returns_full_dto():
     from sqlmodel import delete
 
@@ -147,7 +196,7 @@ async def test_saved_artifact_persists():
     await init_db()
     async with async_session() as s:
         await s.execute(delete(SavedArtifact))
-        s.add(SavedArtifact(id="x1", kind="chart", title="t", payload={"k": 1}))
+        s.add(SavedArtifact(id="x1", kind="image", title="t", payload={"k": 1}))
         await s.commit()
     async with async_session() as s:
         rows = (await s.execute(select(SavedArtifact))).scalars().all()

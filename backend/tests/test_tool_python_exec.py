@@ -47,24 +47,39 @@ async def test_python_exec_emits_table_artifact_via_tool_call():
 
 
 @pytest.mark.asyncio
-async def test_python_exec_emits_chart_artifact():
+async def test_python_exec_emits_matplotlib_image_artifact():
+    import base64
+
     from app.tools.python_exec import python_exec
 
-    msg = await python_exec.ainvoke(
-        dict(type="tool_call",
-            id="t2",
-            name="python_exec",
-            args={
-                "code": (
-                    "out({'labels': ['a','b','c'], 'values': [1.0, 2.5, 4.0], "
-                    "'title': 'demo'})"
-                )
-            },
-        )
+    code = (
+        "import matplotlib\n"
+        "matplotlib.use('Agg')\n"
+        "import matplotlib.pyplot as plt\n"
+        "plt.plot([1, 2, 3], [4, 5, 6])\n"
+        "out_image(title='demo', caption='line of three')\n"
     )
-    assert msg.artifact["kind"] == "chart"
+    msg = await python_exec.ainvoke(
+        dict(type="tool_call", id="t2", name="python_exec", args={"code": code})
+    )
+    assert msg.artifact["kind"] == "image"
     assert msg.artifact["title"] == "demo"
-    assert len(msg.artifact["payload"]["data"]) == 3
+    assert msg.artifact["payload"]["format"] == "png"
+    assert msg.artifact["payload"]["caption"] == "line of three"
+    raw = base64.b64decode(msg.artifact["payload"]["data_b64"])
+    assert raw[:8] == b"\x89PNG\r\n\x1a\n"
+    assert msg.artifact["source_kind"] == "python"
+    assert "matplotlib" in msg.artifact["source_code"]
+
+
+@pytest.mark.asyncio
+async def test_python_exec_image_oversize_returns_error():
+    from app.tools.python_exec import python_exec
+
+    code = "out({'_image_png_b64': 'A' * (3 * 1024 * 1024)})\n"
+    out = await python_exec.ainvoke({"code": code})
+    assert out.startswith("error:")
+    assert "image too large" in out
 
 
 @pytest.mark.asyncio
