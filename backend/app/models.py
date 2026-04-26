@@ -31,3 +31,12 @@ class MCPServerConfig(SQLModel, table=True):
 class ToolFlag(SQLModel, table=True):
     name: str = Field(primary_key=True)
     enabled: bool = True
+
+
+class SavedArtifact(SQLModel, table=True):
+    id: str = Field(primary_key=True)
+    session_id: str | None = Field(default=None, index=True)
+    kind: str
+    title: str
+    payload: dict[str, Any] = Field(sa_column=Column(JSON), default_factory=dict)
+    created_at: datetime = Field(default_factory=_now_utc)

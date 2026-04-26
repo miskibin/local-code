@@ -16,6 +16,7 @@ class UIMessage(BaseModel):
 class ChatRequest(BaseModel):
     id: str
     messages: list[UIMessage]
+    reset: bool = False
 
     def to_lc_messages(self) -> list[tuple[str, str]]:
         return [(m.role, "".join(p.text for p in m.parts)) for m in self.messages]

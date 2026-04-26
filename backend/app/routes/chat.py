@@ -20,6 +20,8 @@ async def _flags() -> dict[str, bool]:
 @router.post("/chat")
 async def chat(req: ChatRequest, request: Request):
     state = request.app.state
+    if req.reset:
+        await state.checkpointer.adelete_thread(req.id)
     flags = await _flags()
     mcp_tools = state.mcp_registry.tools if hasattr(state, "mcp_registry") else []
     tools = tool_registry.active_tools(
