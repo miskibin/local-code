@@ -28,6 +28,7 @@ class ArtifactDTO(BaseModel):
     source_code: str | None = None
     parent_artifact_ids: list[str] = Field(default_factory=list)
     payload_size: int = 0
+    pinned: bool = False
     created_at: datetime | None = None
     updated_at: datetime | None = None
 
@@ -44,15 +45,19 @@ def _to_dto(r: SavedArtifact) -> ArtifactDTO:
         source_code=r.source_code,
         parent_artifact_ids=list(r.parent_artifact_ids or []),
         payload_size=r.payload_size,
+        pinned=bool(r.pinned),
         created_at=r.created_at,
         updated_at=r.updated_at,
     )
 
 
 @router.get("/artifacts", response_model=list[ArtifactDTO])
-async def list_artifacts():
+async def list_artifacts(pinned: bool | None = None):
     async with async_session() as s:
-        rows = (await s.execute(select(SavedArtifact))).scalars().all()
+        stmt = select(SavedArtifact)
+        if pinned is not None:
+            stmt = stmt.where(SavedArtifact.pinned == pinned)
+        rows = (await s.execute(stmt)).scalars().all()
     return [_to_dto(r) for r in rows]
 
 
@@ -70,7 +75,7 @@ async def upsert_artifact(dto: ArtifactDTO):
     async with async_session() as s:
         existing = await s.get(SavedArtifact, dto.id)
         if existing is None:
-            row = await create_artifact(
+            await create_artifact(
                 kind=dto.kind,
                 title=dto.title,
                 payload=dto.payload,
@@ -81,7 +86,13 @@ async def upsert_artifact(dto: ArtifactDTO):
                 session_id=dto.session_id,
                 artifact_id=dto.id,
             )
-            return _to_dto(row)
+            fresh = await s.get(SavedArtifact, dto.id)
+            assert fresh is not None
+            fresh.pinned = True
+            s.add(fresh)
+            await s.commit()
+            await s.refresh(fresh)
+            return _to_dto(fresh)
         existing.session_id = dto.session_id
         existing.kind = dto.kind
         existing.title = dto.title
@@ -90,6 +101,7 @@ async def upsert_artifact(dto: ArtifactDTO):
         existing.source_kind = dto.source_kind
         existing.source_code = dto.source_code
         existing.parent_artifact_ids = list(dto.parent_artifact_ids or [])
+        existing.pinned = True
         existing.updated_at = datetime.now(UTC)
         s.add(existing)
         await s.commit()

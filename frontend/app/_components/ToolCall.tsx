@@ -1,25 +1,30 @@
-"use client";
+"use client"
 
-import { Check, ChevronDown, Loader2, TriangleAlert } from "lucide-react";
-import type { ToolStep } from "@/lib/types";
-import { DefaultArgs, DefaultResult } from "./tools/default";
-import { getToolRenderer } from "./tools";
+import { Check, ChevronDown, Loader2, TriangleAlert } from "lucide-react"
+import type { ToolStep } from "@/lib/types"
+import { DefaultArgs, DefaultResult } from "./tools/default"
+import { getToolRenderer } from "./tools"
+import { ArtifactChip, useArtifactRefs } from "./ArtifactRefs"
 
 export function ToolCall({
   step,
+  toolCallId,
   expanded,
   onToggle,
 }: {
-  step: ToolStep;
-  expanded: boolean;
-  onToggle: () => void;
+  step: ToolStep
+  toolCallId?: string
+  expanded: boolean
+  onToggle: () => void
 }) {
-  const status = step.status ?? "done";
-  const running = status === "running";
-  const errored = status === "error";
-  const renderer = getToolRenderer(step.tool);
-  const ArgsView = renderer.Args ?? DefaultArgs;
-  const ResultView = renderer.Result ?? DefaultResult;
+  const status = step.status ?? "done"
+  const running = status === "running"
+  const errored = status === "error"
+  const renderer = getToolRenderer(step.tool)
+  const ArgsView = renderer.Args ?? DefaultArgs
+  const ResultView = renderer.Result ?? DefaultResult
+  const refs = useArtifactRefs()
+  const artRef = toolCallId ? refs?.getToolArtifact(toolCallId) : undefined
 
   return (
     <div
@@ -86,7 +91,7 @@ export function ToolCall({
         )}
         {step.duration && (
           <span
-            className="ml-auto mr-1.5"
+            className="mr-1.5 ml-auto"
             style={{ fontSize: 11.5, color: "var(--ink-3)" }}
           >
             {step.duration}
@@ -101,6 +106,22 @@ export function ToolCall({
           }}
         />
       </button>
+      {artRef && (
+        <div
+          className="flex items-center gap-2 px-3.5 py-1.5"
+          style={{
+            borderTop: "1px solid var(--tool-border)",
+            background: "#fff",
+          }}
+        >
+          <span style={{ fontSize: 11, color: "var(--ink-3)" }}>artifact</span>
+          <ArtifactChip
+            id={artRef.artifactId}
+            title={artRef.title}
+            kind={artRef.kind}
+          />
+        </div>
+      )}
       {expanded && (
         <div
           style={{
@@ -117,15 +138,15 @@ export function ToolCall({
         </div>
       )}
     </div>
-  );
+  )
 }
 
 function Section({
   label,
   children,
 }: {
-  label: string;
-  children: React.ReactNode;
+  label: string
+  children: React.ReactNode
 }) {
   return (
     <div className="px-3.5 pt-2.5 pb-2.5 last:pb-3">
@@ -141,5 +162,5 @@ function Section({
       </div>
       {children}
     </div>
-  );
+  )
 }

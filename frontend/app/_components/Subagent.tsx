@@ -149,6 +149,7 @@ export function Subagent({
                     />
                     <ToolCall
                       step={s}
+                      toolCallId={s.toolCallId}
                       expanded={!!expanded[`${msgId}-sa${blockIdx}-${i}`]}
                       onToggle={() => toggleStep(`${msgId}-sa${blockIdx}-${i}`)}
                     />

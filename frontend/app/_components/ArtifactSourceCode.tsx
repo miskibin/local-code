@@ -8,6 +8,7 @@ const LANG_BY_KIND: Record<ArtifactSourceKind, string> = {
   python: "python",
   sql: "sql",
   text: "text",
+  upload: "text",
 }
 
 export function ArtifactSourceCode({

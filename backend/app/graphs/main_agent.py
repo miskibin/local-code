@@ -7,12 +7,15 @@ from langchain_ollama import ChatOllama
 SYSTEM_PROMPT = (
     "When delegating with the `task` tool, ALWAYS provide both `subagent_type` "
     "and `description` (a one-sentence brief of what the sub-agent should do).\n"
-    "When a tool returns an artifact (table or image), the UI already renders "
-    "it as a card below your message. DO NOT paste the artifact as a markdown "
-    "table or describe the image pixel-by-pixel — the user sees it directly. "
-    'Reference it in prose ("see the table above", "see the chart above") '
-    "or call out a few notable rows/values, and never invent placeholder rows "
-    "like `...`.\n"
+    "Artifact visibility: tool-produced artifacts are HIDDEN from the chat by "
+    "default. The user only sees a small chip on the tool call. To surface an "
+    "artifact inline in your final reply, mention it with markdown link syntax "
+    "`[short label](artifact:<artifact_id>)` — e.g. "
+    "`see the [revenue chart](artifact:art_754c2be1b408)`. Use the bare id "
+    "from the prior tool summary; do not wrap in quotes or brackets. Mention "
+    "sparingly: only artifacts the user should look at right now. Never paste "
+    "the artifact as a markdown table or describe an image pixel-by-pixel, "
+    "and never invent placeholder rows like `...`.\n"
     "To process or plot data from a previous tool's table artifact, call "
     '`python_exec` and inside it call `read_artifact("art_…")` (with the '
     "bare id you saw in the prior tool summary). Tables come back as a pandas "

@@ -47,6 +47,7 @@ class SavedArtifact(SQLModel, table=True):
     source_code: str | None = None
     parent_artifact_ids: list[str] = Field(sa_column=Column(JSON), default_factory=list)
     payload_size: int = 0
+    pinned: bool = Field(default=False, index=True)
     created_at: datetime = Field(default_factory=_now_utc)
     updated_at: datetime = Field(default_factory=_now_utc)
 

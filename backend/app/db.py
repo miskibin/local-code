@@ -23,6 +23,9 @@ _COLUMN_BACKFILLS = {
         ("is_pinned", "BOOLEAN NOT NULL DEFAULT 0"),
         ("pinned_at", "DATETIME"),
     ],
+    "savedartifact": [
+        ("pinned", "BOOLEAN NOT NULL DEFAULT 0"),
+    ],
 }
 
 

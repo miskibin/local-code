@@ -13,6 +13,8 @@ describe("Sidebar", () => {
     onNew: vi.fn(),
     onSearch: vi.fn(),
     onDeleteSession: vi.fn(),
+    onRenameSession: vi.fn(),
+    onTogglePinSession: vi.fn(),
     artifacts: [],
     onOpenArtifact: vi.fn(),
     onDeleteArtifact: vi.fn(),
