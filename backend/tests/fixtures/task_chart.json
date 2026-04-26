@@ -1,7 +1,7 @@
 {
   "id": "",
-  "title": "Analyze Top 10 Customers Spending and Visualize",
-  "description": "Uses the sql-agent to calculate the total spending for the top 10 customers from the Chinook database, and then generates a horizontal bar chart visualizing this spending.",
+  "title": "Top spenders via SQL then summarise",
+  "description": "Subagent step computes a SQL artifact; downstream code step references its artifact_id.",
   "source_session_id": null,
   "variables": [
     {
@@ -17,49 +17,23 @@
       "id": "s1",
       "kind": "subagent",
       "title": "Calculate Top 10 Spenders via SQL",
-      "server": null,
-      "tool": null,
-      "args_template": {
-        "description": "Use the sql-agent to write and execute a SQL query that calculates the total spending for each customer in the {{var.database_name}} database, and then use the resulting artifact to generate a horizontal bar chart showing the top 10 customers by total spend.",
-        "subagent_type": "sql-agent"
-      },
-      "code": null,
       "subagent": "sql-agent",
-      "prompt": null,
-      "output_name": "sql_result",
-      "output_kind": "rows",
+      "prompt": "Query the {{var.database_name}} DB for the top 10 customers by total spend. Return the result as a table artifact.",
+      "output_name": "spenders_text",
+      "output_kind": "text",
       "inputs": [
-        {
-          "name": "database_name",
-          "source": "var",
-          "ref": "database_name"
-        }
+        { "name": "database_name", "source": "var", "ref": "database_name" }
       ]
     },
     {
       "id": "s2",
-      "kind": "tool",
-      "title": "Generate Bar Chart of Top Spenders",
-      "server": null,
-      "tool": "chart",
-      "args_template": {
-        "artifact_id": "{{s1.output_name}}",
-        "kind": "bar",
-        "title": "Top 10 Customers by Total Spend",
-        "x": "FirstName",
-        "y": "TotalSpend"
-      },
-      "code": null,
-      "subagent": null,
-      "prompt": null,
-      "output_name": "chart_output",
-      "output_kind": "chart",
+      "kind": "code",
+      "title": "Echo artifact id from prior step",
+      "code": "out({'artifact_id': '{{s1.artifact_id}}'})",
+      "output_name": "echo",
+      "output_kind": "json",
       "inputs": [
-        {
-          "name": "artifact_id",
-          "source": "step",
-          "ref": "s1"
-        }
+        { "name": "artifact_id", "source": "step", "ref": "s1.artifact_id" }
       ]
     }
   ],

@@ -31,19 +31,14 @@ def _lookup(
     outputs: dict[str, dict[str, Any]],
 ) -> Any:
     head, sep, tail = ref.partition(".")
+    if not sep:
+        raise SubstitutionError(
+            f"reference {ref!r} must be {{{{var.<name>}}}} or {{{{<stepId>.<output>}}}}"
+        )
     if head == "var":
         if tail not in variables:
             raise SubstitutionError(f"variable {tail!r} not provided")
         return variables[tail]
-    # Bare {{name}} — common shorthand from LLM-generated tasks. If it matches
-    # a declared variable, resolve as one; otherwise fall through.
-    if not sep and head in variables:
-        return variables[head]
-    if not sep:
-        raise SubstitutionError(
-            f"reference {head!r} is not a variable; use {{{{var.{head}}}}} or {{{{stepId.output}}}}"
-        )
-    # Otherwise treat head as a step id, tail as an output name.
     step_outputs = outputs.get(head)
     if step_outputs is None:
         raise SubstitutionError(f"step {head!r} has not run yet")

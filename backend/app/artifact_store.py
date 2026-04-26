@@ -116,9 +116,7 @@ async def refresh_artifact(artifact_id: str) -> SavedArtifact:
         source_code = row.source_code
         parent_ids = list(row.parent_artifact_ids or [])
 
-    result = await _run_executor(
-        source_kind, source_code, parent_artifact_ids=parent_ids
-    )
+    result = await _run_executor(source_kind, source_code, parent_artifact_ids=parent_ids)
 
     async with async_session() as s:
         row = await s.get(SavedArtifact, artifact_id)
@@ -156,6 +154,14 @@ async def _run_executor(
 
 # ---------- Python executor ----------
 
+import os  # noqa: E402
+import re  # noqa: E402
+import shutil  # noqa: E402
+import tempfile  # noqa: E402
+
+_ART_ID_PATTERN = re.compile(r"art_[0-9a-f]{8,}")
+_ART_PATHS_ENV = "LC_ARTIFACT_PATHS"
+
 _PY_PRELUDE = textwrap.dedent(
     f"""
     import json as _json, sys as _sys
@@ -178,27 +184,94 @@ _PY_PRELUDE = textwrap.dedent(
             "title": title,
             "caption": caption,
         }})
+
+    def read_artifact(_id):
+        '''Load a prior artifact by id. Tables -> pandas DataFrame (or
+        list-of-dict if pandas missing); images -> raw PNG bytes; text -> str.
+        Only ids that appear literally in the script source are staged.'''
+        import json as _json
+        import os as _os
+        _paths = _json.loads(_os.environ.get({_ART_PATHS_ENV!r}, "{{}}"))
+        _path = _paths.get(_id)
+        if _path is None:
+            raise LookupError(
+                f"artifact {{_id!r}} not staged; the runner only stages ids "
+                f"that appear literally in the script source."
+            )
+        with open(_path, "r", encoding="utf-8") as _f:
+            _meta = _json.load(_f)
+        _kind = _meta.get("kind")
+        _payload = _meta.get("payload") or {{}}
+        if _kind == "table":
+            try:
+                import pandas as _pd
+                return _pd.DataFrame(_payload.get("rows", []))
+            except ImportError:
+                return _payload.get("rows", [])
+        if _kind == "image":
+            import base64 as _b64
+            return _b64.b64decode(_payload.get("data_b64", ""))
+        if _kind == "text":
+            return _payload.get("text", "")
+        return _payload
     """
 ).strip()
 
 
+async def _stage_artifacts_for_code(
+    code: str,
+) -> tuple[dict[str, str], Path | None]:
+    ids = sorted(set(_ART_ID_PATTERN.findall(code)))
+    if not ids:
+        return {}, None
+    tmp = Path(tempfile.mkdtemp(prefix="lc_art_"))
+    paths: dict[str, str] = {}
+    for aid in ids:
+        row = await get_artifact(aid)
+        if row is None:
+            continue
+        path = tmp / f"{aid}.json"
+        path.write_text(
+            json.dumps(
+                {
+                    "id": row.id,
+                    "kind": row.kind,
+                    "title": row.title,
+                    "payload": row.payload,
+                }
+            ),
+            encoding="utf-8",
+        )
+        paths[aid] = str(path)
+    if not paths:
+        shutil.rmtree(tmp, ignore_errors=True)
+        return {}, None
+    return paths, tmp
+
+
 async def run_python_artifact(code: str) -> dict[str, Any]:
-    return await asyncio.to_thread(_run_python_sync, code)
+    paths, tmp = await _stage_artifacts_for_code(code)
+    try:
+        return await asyncio.to_thread(_run_python_sync, code, paths)
+    finally:
+        if tmp is not None:
+            shutil.rmtree(tmp, ignore_errors=True)
 
 
-def _run_python_sync(code: str) -> dict[str, Any]:
+def _run_python_sync(code: str, staged: dict[str, str]) -> dict[str, Any]:
     wrapped = _PY_PRELUDE + "\n" + textwrap.dedent(code)
+    env = os.environ.copy()
+    env[_ART_PATHS_ENV] = json.dumps(staged)
     try:
         proc = subprocess.run(
             [sys.executable, "-I", "-c", wrapped],
             capture_output=True,
             timeout=PY_TIMEOUT_SECONDS,
             check=False,
+            env=env,
         )
     except subprocess.TimeoutExpired as err:
-        raise TimeoutError(
-            f"python_exec timed out after {PY_TIMEOUT_SECONDS}s"
-        ) from err
+        raise TimeoutError(f"python_exec timed out after {PY_TIMEOUT_SECONDS}s") from err
 
     stdout = proc.stdout.decode("utf-8", errors="replace") if proc.stdout else ""
     stderr = proc.stderr.decode("utf-8", errors="replace") if proc.stderr else ""
@@ -222,9 +295,7 @@ def _run_python_sync(code: str) -> dict[str, Any]:
     return _classify_python_output(artifact_blob, free_stdout, stderr)
 
 
-def _classify_python_output(
-    blob: Any, free_stdout: str, stderr: str
-) -> dict[str, Any]:
+def _classify_python_output(blob: Any, free_stdout: str, stderr: str) -> dict[str, Any]:
     note = (free_stdout or "")[:400]
     if isinstance(blob, list) and blob and isinstance(blob[0], dict):
         cols = list(blob[0].keys())
@@ -246,8 +317,7 @@ def _classify_python_output(
             raise RuntimeError("out_image emitted non-string image payload")
         if len(b64) > 2 * 1024 * 1024:
             raise RuntimeError(
-                f"image too large ({len(b64)} b64-bytes). "
-                "Lower dpi or simplify the figure."
+                f"image too large ({len(b64)} b64-bytes). Lower dpi or simplify the figure."
             )
         caption = blob.get("caption")
         return {
@@ -259,8 +329,7 @@ def _classify_python_output(
                 "caption": caption,
             },
             "summary": (
-                f"image png ({len(b64) * 3 // 4} bytes)"
-                + (f" - {caption}" if caption else "")
+                f"image png ({len(b64) * 3 // 4} bytes)" + (f" - {caption}" if caption else "")
             ),
         }
     text = free_stdout if free_stdout else (json.dumps(blob)[:500] if blob is not None else "")
@@ -295,12 +364,10 @@ def _run_sql_sync(sql: str) -> dict[str, Any]:
         truncated = len(rows_iter) > SQL_ROW_CAP
         rows = rows_iter[:SQL_ROW_CAP]
         out_rows = [
-            {c: _coerce_cell(getattr(r, c, r[i])) for i, c in enumerate(cols)}
-            for r in rows
+            {c: _coerce_cell(getattr(r, c, r[i])) for i, c in enumerate(cols)} for r in rows
         ]
-    summary = (
-        f"sql {len(out_rows)} rows x {len(cols)} cols ({', '.join(cols[:6])})"
-        + (" [truncated to 200]" if truncated else "")
+    summary = f"sql {len(out_rows)} rows x {len(cols)} cols ({', '.join(cols[:6])})" + (
+        " [truncated to 200]" if truncated else ""
     )
     return {
         "kind": "table",
@@ -326,9 +393,7 @@ def _coerce_cell(v: Any) -> Any:
 async def list_session_artifact_ids(session_id: str) -> list[str]:
     async with async_session() as s:
         rows = (
-            await s.execute(
-                select(SavedArtifact.id).where(SavedArtifact.session_id == session_id)
-            )
+            await s.execute(select(SavedArtifact.id).where(SavedArtifact.session_id == session_id))
         ).all()
     return [r[0] for r in rows]
 
@@ -374,8 +439,6 @@ async def build_and_persist_tool_artifact(
     }
     if parent_artifact_ids:
         artifact["parent_artifact_ids"] = parent_artifact_ids
-    row = await persist_tool_artifact(
-        artifact=artifact, session_id=session_id_from_config(config)
-    )
+    row = await persist_tool_artifact(artifact=artifact, session_id=session_id_from_config(config))
     summary = f"{row.id} · {result['summary']}"
     return summary, {**artifact, "id": row.id}

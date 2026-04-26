@@ -32,18 +32,9 @@ def test_substitute_unknown_variable_raises():
         substitute("{{var.missing}}", variables={}, outputs={})
 
 
-def test_substitute_bare_var_shorthand_resolves():
-    out = substitute(
-        "hello {{name}}",
-        variables={"name": "world"},
-        outputs={},
-    )
-    assert out == "hello world"
-
-
-def test_substitute_bare_unknown_ref_raises():
+def test_substitute_bare_ref_without_dot_raises():
     with pytest.raises(SubstitutionError):
-        substitute("{{nope}}", variables={"x": 1}, outputs={})
+        substitute("{{name}}", variables={"name": "x"}, outputs={})
 
 
 def test_substitute_unknown_step_output_raises():

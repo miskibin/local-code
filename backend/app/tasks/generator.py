@@ -23,33 +23,69 @@ from app.tasks.storage import create_task
 
 GENERATOR_SYSTEM = """You convert a finished agent run into a reusable Task.
 
-A Task has variables (typed inputs) and ordered steps. Each step is one of:
-  - tool: call a registered tool. Fields: server, tool, args_template (JSON).
-  - code: run Python. Field: code.
-  - subagent: delegate to a named subagent. Fields: subagent, prompt.
-  - prompt: free-form LLM call. Field: prompt.
+A Task has variables (typed inputs) and ordered steps. Each step has exactly
+one kind:
+  - tool      → invoke a registered tool. Required: tool (name), args_template (JSON object).
+  - code      → run Python. Required: code (string). See PYTHON CODE CONTRACT below.
+  - subagent  → delegate to a named subagent. Required: subagent (name), prompt (string).
+  - prompt    → single free-form LLM call. Required: prompt (string).
 
-Reference variables as {{var.name}} and prior step outputs as {{stepId.output_name}}.
-Use these refs *inside string values* of args_template / code / prompt. Do not
-quote the {{...}} — write it as a bare token in the JSON string. Output names
-are short snake_case identifiers (e.g. "rows", "filtered", "summary").
+PYTHON CODE CONTRACT (kind=code):
+  The code runs inside a sandboxed `python_exec`. Three helpers are pre-injected:
+    - out(obj)             → surface obj as the step artifact.
+                              list[dict] becomes a TABLE; dict/str/number becomes TEXT/JSON.
+    - out_image(fig=None, *, title=None, caption=None)
+                            → emit a matplotlib figure as a PNG IMAGE artifact.
+                              MUST be used for any plot. Calling out(fig) on a Figure
+                              object only stores its repr (e.g. "Figure(1000x600)") and
+                              IS WRONG. With no arg captures plt.gcf().
+    - read_artifact("art_xxx")
+                            → load a prior artifact by literal id. Tables → DataFrame,
+                              images → PNG bytes, text → str. The id MUST appear as a
+                              literal string in the script source.
 
-Rules:
+  RULES for code steps:
+    - When the step produces a CHART/PLOT, the LAST line(s) MUST call out_image(fig).
+      Set output_kind="chart" for these.
+    - When the step produces a TABLE/rows, end with out(rows). output_kind="rows".
+    - To consume a prior step's table, write
+          df = read_artifact("{{<prevStepId>.artifact_id}}")
+      Tables come back as a pandas DataFrame.
+    - matplotlib + pandas are available. Subprocess, 20s timeout, no state across calls.
+
+REFERENCE SYNTAX — strict, no shorthand:
+  - {{var.<variable_name>}}            → a user-supplied variable
+  - {{<stepId>.<output_name>}}         → an earlier step's named output
+
+  Both forms MUST contain a dot. {{name}} alone is invalid and will fail at run
+  time. The runner does no other substitution.
+
+  References go inside string values (args_template fields, code, prompt). Do
+  not wrap them in extra quotes; write them bare inside the surrounding string.
+
+OUTPUT NAMES:
+  - Each step declares a short snake_case `output_name` (e.g. "rows", "filtered",
+    "summary"). Later steps reference that exact name.
+  - SUBAGENT steps that delegate to the SQL agent automatically expose an extra
+    `artifact_id` output (parsed from the agent's contract trailer
+    `artifact_id=art_xxx; columns=...`). To pass that artifact to a later step,
+    write {{<stepId>.artifact_id}}.
+
+HARD RULES:
   - Drop failed steps and steps that produced nothing useful.
   - Hoist literal values that look like inputs (project names, paths, prefixes,
     thresholds) into variables. Mechanical IDs and tool-internal artefact ids
-    are NOT variables — leave those as direct references.
+    are NOT variables.
   - Pick descriptive step titles. Each step.id is a short token (s1, s2, ...).
   - Keep step order matching execution order.
-  - When the original run delegated work via the in-loop ``task`` dispatcher
-    (you may see calls to a tool literally named "task" with subagent_type +
-    description args), emit those as kind="subagent" steps with
-    ``subagent`` = the subagent_type and ``prompt`` = the description. Do NOT
-    emit ``tool``-kind steps where ``tool="task"``.
-  - When a SQL subagent step produces a table artifact, expose its id by
-    referencing ``{{stepId.artifact_id}}`` from later steps (the runner
-    parses ``artifact_id=art_xxx`` from the subagent's reply automatically).
-  - Output STRICT JSON matching this shape:
+  - NEVER emit a tool step with `tool: "task"`. The `task` name is the agent's
+    in-loop subagent dispatcher and is not callable from outside the agent. For
+    delegations, emit a `subagent` step with the subagent name in `subagent`
+    and the brief in `prompt`.
+  - NEVER emit bare {{name}} references — always use {{var.name}} or
+    {{stepId.output}}.
+
+OUTPUT — STRICT JSON, NO commentary, NO markdown fences. Shape:
     {
       "title": str,
       "description": str,
@@ -65,7 +101,6 @@ Rules:
         "inputs": [{"name": str, "source": "var"|"step", "ref": str}]
       }]
     }
-  - Reply with the JSON object ONLY. No markdown fences, no commentary.
 """
 
 

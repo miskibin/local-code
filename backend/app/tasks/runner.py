@@ -114,47 +114,6 @@ def _emit_artifact(step_id: str, row) -> str:
     )
 
 
-def _resolve_step_prompt(step: TaskStep) -> str | None:
-    """Pick the prompt body for SUBAGENT/PROMPT steps.
-
-    Generators sometimes stash the prompt inside `args_template` under
-    "description" or "prompt" instead of the dedicated `prompt` field. Accept
-    either shape so imported tasks Just Work.
-    """
-    if step.prompt:
-        return step.prompt
-    args = step.args_template or {}
-    for key in ("prompt", "description"):
-        v = args.get(key)
-        if isinstance(v, str) and v.strip():
-            return v
-    return None
-
-
-def _normalise_step(step: TaskStep) -> TaskStep:
-    """Coerce common LLM-emitted shapes into the runner's contract.
-
-    - ``kind=tool`` with ``tool="task"`` is the deepagents in-loop dispatcher,
-      not a real registered tool. Convert to a SUBAGENT step using the
-      ``subagent_type`` + ``description`` fields the dispatcher expects.
-    """
-    if step.kind == "tool" and (step.tool or "").lower() == "task":
-        args = step.args_template or {}
-        target = args.get("subagent_type") or args.get("subagent") or step.subagent or ""
-        prompt = args.get("description") or args.get("prompt") or step.prompt or ""
-        return step.model_copy(
-            update={
-                "kind": "subagent",
-                "tool": None,
-                "server": None,
-                "args_template": None,
-                "subagent": target,
-                "prompt": prompt,
-            }
-        )
-    return step
-
-
 def _coerce_summary(content: Any) -> str:
     if isinstance(content, str):
         return content
@@ -305,15 +264,16 @@ async def run_task(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits woul
     outputs: dict[str, dict[str, Any]] = {}
     failed = False
     for step_dto in dto.steps:
-        step = _normalise_step(step_dto)
+        step = step_dto
         step_id = step.id
         yield _emit_input_start(step_id, step.title or step.kind)
         try:
             args_template = step.args_template or {}
             resolved_args = substitute(args_template, variables, outputs) if args_template else {}
             resolved_code = substitute(step.code, variables, outputs) if step.code else None
-            raw_prompt = _resolve_step_prompt(step)
-            resolved_prompt = substitute(raw_prompt, variables, outputs) if raw_prompt else None
+            resolved_prompt = (
+                substitute(step.prompt, variables, outputs) if step.prompt else None
+            )
 
             display_input: dict[str, Any] = {"kind": step.kind, "title": step.title}
             if step.kind == "tool":

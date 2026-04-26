@@ -19,12 +19,14 @@ async def test_python_exec_runs_simple_code():
 
 
 @pytest.mark.asyncio
-async def test_python_exec_returns_error_string_on_exception():
+async def test_python_exec_emits_tool_message_with_status_error_on_exception():
     from app.tools.python_exec import python_exec
 
-    out = await python_exec.ainvoke({"code": "1/0"})
-    assert out.startswith("error:")
-    assert "ZeroDivisionError" in out
+    msg = await python_exec.ainvoke(
+        dict(type="tool_call", id="err1", name="python_exec", args={"code": "1/0"})
+    )
+    assert msg.status == "error"
+    assert "ZeroDivisionError" in msg.content
 
 
 @pytest.mark.asyncio
@@ -73,13 +75,54 @@ async def test_python_exec_emits_matplotlib_image_artifact():
 
 
 @pytest.mark.asyncio
-async def test_python_exec_image_oversize_returns_error():
+async def test_python_exec_image_oversize_returns_tool_error():
     from app.tools.python_exec import python_exec
 
     code = "out({'_image_png_b64': 'A' * (3 * 1024 * 1024)})\n"
-    out = await python_exec.ainvoke({"code": code})
-    assert out.startswith("error:")
-    assert "image too large" in out
+    msg = await python_exec.ainvoke(
+        dict(type="tool_call", id="big1", name="python_exec", args={"code": code})
+    )
+    assert msg.status == "error"
+    assert "image too large" in msg.content
+
+
+@pytest.mark.asyncio
+async def test_python_exec_read_artifact_returns_dataframe():
+    from app.artifact_store import create_artifact
+    from app.tools.python_exec import python_exec
+
+    art = await create_artifact(
+        kind="table",
+        title="seed",
+        payload={
+            "columns": [{"key": "n", "label": "n"}],
+            "rows": [{"n": 1}, {"n": 2}, {"n": 3}],
+        },
+        summary="3 rows",
+        source_kind="python",
+        source_code="out([{'n': 1}])",
+    )
+    code = (
+        f"df = read_artifact({art.id!r})\n"
+        f"out([{{'n': int(v)}} for v in df['n'].tolist()])\n"
+    )
+    msg = await python_exec.ainvoke(
+        dict(type="tool_call", id="ra1", name="python_exec", args={"code": code})
+    )
+    assert msg.artifact["kind"] == "table"
+    assert msg.artifact["payload"]["rows"] == [{"n": 1}, {"n": 2}, {"n": 3}]
+
+
+@pytest.mark.asyncio
+async def test_python_exec_read_artifact_unstaged_id_raises_lookup():
+    from app.tools.python_exec import python_exec
+
+    code = "read_artifact('art_deadbeefcafe')\n"
+    msg = await python_exec.ainvoke(
+        dict(type="tool_call", id="ra2", name="python_exec", args={"code": code})
+    )
+    assert msg.status == "error"
+    assert "not staged" in msg.content
 
 
 @pytest.mark.asyncio

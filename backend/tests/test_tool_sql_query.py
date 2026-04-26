@@ -27,6 +27,24 @@ async def test_sql_query_returns_table_artifact(chinook_path):
 
 
 @pytest.mark.asyncio
+async def test_sql_query_emits_tool_error_on_invalid_sql(chinook_path):
+    from app.db import init_db
+    from app.tools.sql_query import sql_query
+
+    await init_db()
+    msg = await sql_query.ainvoke(
+        dict(
+            type="tool_call",
+            id="serr",
+            name="sql_query",
+            args={"sql": "SELECT * FROM table_that_does_not_exist"},
+        )
+    )
+    assert msg.status == "error"
+    assert "sql error" in msg.content
+
+
+@pytest.mark.asyncio
 async def test_sql_query_truncates_at_200(chinook_path):
     from app.db import init_db
     from app.tools.sql_query import sql_query

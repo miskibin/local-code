@@ -1,7 +1,7 @@
 {
   "id": "",
   "title": "Gather Context for Language Recommendation",
-  "description": "Gathers necessary context from the user regarding the intended use case, team expertise, and primary goals for a small CLI to recommend between Rust and Go.",
+  "description": "Single-prompt task that interpolates user-supplied variables.",
   "source_session_id": null,
   "variables": [
     {
@@ -31,13 +31,8 @@
       "id": "s1",
       "kind": "prompt",
       "title": "Request Detailed CLI Requirements",
-      "server": null,
-      "tool": null,
-      "args_template": null,
-      "code": null,
-      "subagent": null,
-      "prompt": "To give you the best recommendation, I need a bit more context about your \"small CLI.\"\n\nCould you tell me:\n\n1.  **What will the CLI primarily do?**  {{cli_purpose}}\n2.  **What is your team's existing expertise?** (Are you more comfortable with C-style languages, or are you starting fresh?)\n3.  **What are your main priorities?**  {{main_priorities}}\n\nNow answer: ",
-      "output_name": "context_gathering",
+      "prompt": "Recommend Rust or Go for a CLI that does {{var.cli_purpose}}. Team comfort: {{var.team_expertise}}. Priorities: {{var.main_priorities}}. Reply in two sentences.",
+      "output_name": "recommendation",
       "output_kind": "text",
       "inputs": []
     }
