@@ -1,8 +1,11 @@
 from deepagents import create_deep_agent
+from deepagents.middleware._tool_exclusion import _ToolExclusionMiddleware
 from langchain_core.language_models import BaseChatModel
 from langchain_core.tools import BaseTool
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_ollama import ChatOllama
+
+_EXCLUDED_BUILTIN_TOOLS = frozenset({"ls", "read_file", "write_file", "edit_file", "glob", "grep"})
 
 SYSTEM_PROMPT = (
     "When delegating with the `task` tool, ALWAYS provide both `subagent_type` "
@@ -48,6 +51,7 @@ def build_agent(
         subagents=subagents or [],
         system_prompt=SYSTEM_PROMPT,
         checkpointer=checkpointer,
+        middleware=[_ToolExclusionMiddleware(excluded=_EXCLUDED_BUILTIN_TOOLS)],
     )
 
 
