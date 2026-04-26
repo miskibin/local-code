@@ -94,6 +94,24 @@ describe("ArtifactModal", () => {
     });
   });
 
+  it("renders an <img> with data: URL for image artifacts", () => {
+    const PNG_B64 =
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
+    const imgArt: Artifact = {
+      id: "img-1",
+      kind: "image",
+      title: "demo plot",
+      payload: { format: "png", data_b64: PNG_B64, caption: "tiny" },
+      source_kind: "python",
+      source_code: "out_image()",
+      updated_at: new Date().toISOString(),
+    };
+    render(<ArtifactModal artifact={imgArt} onClose={vi.fn()} />);
+    const img = screen.getByAltText("demo plot") as HTMLImageElement;
+    expect(img.src).toBe(`data:image/png;base64,${PNG_B64}`);
+    expect(img.style.maxHeight).toBe("80vh");
+  });
+
   it("hides Refresh when no source_code is present", () => {
     render(
       <ArtifactModal

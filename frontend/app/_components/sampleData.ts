@@ -59,23 +59,17 @@ export const DEMO_SUBAGENT_STEPS: AssistantStep[] = [
   },
 ];
 
+// 1x1 transparent PNG used as a sample image artifact.
+const TRANSPARENT_PNG_B64 =
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=";
+
 export const DEMO_SAMPLE_ARTIFACT: Artifact = {
-  id: "demo-sample-chart",
-  kind: "chart",
+  id: "demo-sample-image",
+  kind: "image",
   title: "Revenue by customer (top 10)",
   payload: {
+    format: "png",
+    data_b64: TRANSPARENT_PNG_B64,
     caption: "Q1 2026 · USD",
-    data: [
-      { label: "Acme", value: 48230 },
-      { label: "Globex", value: 39410 },
-      { label: "Initech", value: 31870 },
-      { label: "Hooli", value: 28940 },
-      { label: "Piper", value: 25110 },
-      { label: "Stark", value: 23890 },
-      { label: "Wayne", value: 21450 },
-      { label: "Umbrella", value: 20120 },
-      { label: "Cyber", value: 18760 },
-      { label: "Mass.", value: 17240 },
-    ],
   },
 };

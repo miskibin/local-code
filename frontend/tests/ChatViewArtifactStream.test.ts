@@ -27,7 +27,7 @@ describe("extractArtifactIds", () => {
         data: {
           toolCallId: "call_b",
           artifactId: "art-2",
-          kind: "chart",
+          kind: "image",
           title: "C",
           summary: "...",
           updatedAt: "2026-04-26T00:00:01Z",

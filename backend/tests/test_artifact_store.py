@@ -60,31 +60,32 @@ async def test_refresh_rejects_artifact_with_no_source(chinook_path):
 
 
 @pytest.mark.asyncio
-async def test_refresh_chart_uses_parent_artifact_id(chinook_path):
+async def test_refresh_python_image_artifact_round_trip(chinook_path):
+    import base64
+
     from app.artifact_store import create_artifact, refresh_artifact
     from app.db import init_db
 
     await init_db()
-    parent = await create_artifact(
-        kind="table",
-        title="src",
-        payload={
-            "columns": [{"key": "x", "label": "x"}, {"key": "y", "label": "y"}],
-            "rows": [{"x": "a", "y": 1}, {"x": "b", "y": 2}],
-        },
-        summary="2 rows",
-        source_kind="sql",
-        source_code="",
+    code = (
+        "import matplotlib\n"
+        "matplotlib.use('Agg')\n"
+        "import matplotlib.pyplot as plt\n"
+        "plt.bar(['a', 'b'], [1, 2])\n"
+        "out_image(title='t')\n"
     )
-    chart_art = await create_artifact(
-        kind="chart",
-        title="c",
-        payload={"data": []},
+    art = await create_artifact(
+        kind="image",
+        title="seed",
+        payload={"format": "png", "data_b64": "", "caption": None},
         summary="",
-        source_kind="chart",
-        source_code='{"x":"x","y":"y","kind":"bar"}',
-        parent_artifact_ids=[parent.id],
+        source_kind="python",
+        source_code=code,
     )
-    fresh = await refresh_artifact(chart_art.id)
-    assert fresh.kind == "chart"
-    assert len(fresh.payload["data"]) == 2
+    pre = art.updated_at
+    fresh = await refresh_artifact(art.id)
+    assert fresh.kind == "image"
+    assert fresh.payload["format"] == "png"
+    raw = base64.b64decode(fresh.payload["data_b64"])
+    assert raw[:8] == b"\x89PNG\r\n\x1a\n"
+    assert fresh.updated_at >= pre

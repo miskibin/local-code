@@ -42,7 +42,7 @@ export type AnyPart = {
 export type ArtifactDataPart = {
   toolCallId: string;
   artifactId: string;
-  kind: "table" | "chart" | "text";
+  kind: "table" | "image" | "text";
   title: string;
   summary: string;
   updatedAt: string;

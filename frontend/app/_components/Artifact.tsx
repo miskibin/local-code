@@ -1,13 +1,12 @@
 "use client";
 
-import { Check, Cpu, Database, MoreHorizontal, Plus } from "lucide-react";
+import { Check, Cpu, Database, Image as ImageIcon, MoreHorizontal, Plus } from "lucide-react";
 import type {
   Artifact as ArtifactT,
-  ArtifactChartPayload,
   ArtifactTablePayload,
 } from "@/lib/types";
 import { ArtifactTable } from "./ArtifactTable";
-import { ArtifactChart } from "./ArtifactChart";
+import { ArtifactImage } from "./ArtifactImage";
 
 export function ArtifactCard({
   artifact,
@@ -21,11 +20,13 @@ export function ArtifactCard({
   onOpen: (a: ArtifactT) => void;
 }) {
   const isTable = artifact.kind === "table";
+  const isImage = artifact.kind === "image";
   const tablePayload = isTable ? (artifact.payload as ArtifactTablePayload) : null;
-  const chartPayload = !isTable ? (artifact.payload as ArtifactChartPayload) : null;
   const meta = isTable
     ? `${tablePayload!.rows?.length ?? 0} rows · ${tablePayload!.columns?.length ?? 0} columns`
-    : `${artifact.kind} · svg`;
+    : isImage
+      ? "image · png"
+      : artifact.kind;
   return (
     <div
       className="lc-reveal mb-3.5 mt-2 overflow-hidden rounded-xl"
@@ -39,7 +40,13 @@ export function ArtifactCard({
         }}
       >
         <span className="inline-flex" style={{ color: "var(--accent)" }}>
-          {isTable ? <Database className="h-3.5 w-3.5" /> : <Cpu className="h-3.5 w-3.5" />}
+          {isTable ? (
+            <Database className="h-3.5 w-3.5" />
+          ) : isImage ? (
+            <ImageIcon className="h-3.5 w-3.5" />
+          ) : (
+            <Cpu className="h-3.5 w-3.5" />
+          )}
         </span>
         <div className="flex min-w-0 flex-1 flex-col">
           <div className="text-[13px] font-medium" style={{ color: "var(--ink)" }}>
@@ -90,9 +97,9 @@ export function ArtifactCard({
       </div>
       {isTable ? (
         <ArtifactTable payload={tablePayload!} />
-      ) : (
-        <ArtifactChart payload={chartPayload!} />
-      )}
+      ) : isImage ? (
+        <ArtifactImage artifact={artifact} />
+      ) : null}
     </div>
   );
 }
