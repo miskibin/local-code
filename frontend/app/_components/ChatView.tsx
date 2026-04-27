@@ -251,8 +251,8 @@ function partsToContentBlocks(parts: AnyPart[]): ContentBlock[] {
 
   // Pass 1.5 — collect `write_todos` state. The agent calls it repeatedly to
   // mutate statuses; each call replaces the entire list. We render a single
-  // plan block at the position of the first call, using the latest non-empty
-  // todos. Streaming = latest call's output hasn't arrived.
+  // plan block, using the latest non-empty todos. Streaming = latest call's
+  // output hasn't arrived.
   let firstWriteTodosCallId: string | null = null
   let latestTodos: Todo[] | null = null
   let latestWriteTodosState: string | undefined
@@ -272,6 +272,21 @@ function partsToContentBlocks(parts: AnyPart[]): ContentBlock[] {
       latestWriteTodosState !== "output-error"
     : false
 
+  // Resolve plan anchor: the top-level ancestor of the first write_todos call.
+  // When write_todos runs inside a subagent, the plan describes that
+  // subagent's work — render it just before the subagent's tool block, not
+  // after (which is where the child's stream position would otherwise put it).
+  let planAnchorCallId: string | null = firstWriteTodosCallId
+  if (planAnchorCallId) {
+    let cur = planAnchorCallId
+    while (true) {
+      const parent = parentOf.get(cur)
+      if (!parent || !stepByCallId.has(parent)) break
+      cur = parent
+    }
+    planAnchorCallId = cur
+  }
+
   // Pass 2 — walk parts in stream order. Skip tool parts that have a known
   // parent (they're rendered as nested children below). Group children whose
   // parent has any sub-tools into a SubagentStep.
@@ -284,6 +299,20 @@ function partsToContentBlocks(parts: AnyPart[]): ContentBlock[] {
     }
   }
 
+  let planEmitted = false
+  const emitPlanIfAnchor = (callId: string) => {
+    if (planEmitted) return
+    if (callId !== planAnchorCallId) return
+    if (!latestTodos) return
+    flush()
+    out.push({
+      type: "plan",
+      todos: latestTodos,
+      streaming: planStreaming,
+    })
+    planEmitted = true
+  }
+
   for (const p of parts) {
     if (p.type === "text") {
       textAcc += p.text ?? ""
@@ -291,16 +320,11 @@ function partsToContentBlocks(parts: AnyPart[]): ContentBlock[] {
     }
     if (!isToolPart(p) || !p.toolCallId) continue
 
-    // Collapse all write_todos calls into one plan block at the first call.
+    // write_todos parts are collapsed into the single plan block. Emit the
+    // plan here only when this part is itself the resolved anchor (i.e., a
+    // top-level write_todos with no subagent parent).
     if (writeTodosCallIds.has(p.toolCallId)) {
-      if (p.toolCallId === firstWriteTodosCallId && latestTodos) {
-        flush()
-        out.push({
-          type: "plan",
-          todos: latestTodos,
-          streaming: planStreaming,
-        })
-      }
+      emitPlanIfAnchor(p.toolCallId)
       continue
     }
 
@@ -325,6 +349,7 @@ function partsToContentBlocks(parts: AnyPart[]): ContentBlock[] {
     const parentId = parentOf.get(p.toolCallId)
     if (parentId && stepByCallId.has(parentId)) continue
 
+    emitPlanIfAnchor(p.toolCallId)
     flush()
     const childIds = childrenOf.get(p.toolCallId) ?? []
     const ownStep = stepByCallId.get(p.toolCallId)!
@@ -705,7 +730,11 @@ export function ChatView({
   }, [messages])
 
   const handleRegenerate = (assistantId: string) => {
+    const idx = messages.findIndex((m) => m.id === assistantId)
     setStreamFault(null)
+    if (idx >= 0) {
+      setMessages((prev) => prev.slice(0, idx))
+    }
     void regenerate({ messageId: assistantId })
   }
 

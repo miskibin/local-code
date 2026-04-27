@@ -8,24 +8,12 @@ import {
   Square,
   X,
 } from "lucide-react"
-import type { LanguageModelUsage } from "ai"
 import { useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
-import {
-  Context,
-  ContextCacheUsage,
-  ContextContent,
-  ContextContentBody,
-  ContextContentFooter,
-  ContextContentHeader,
-  ContextInputUsage,
-  ContextOutputUsage,
-  ContextReasoningUsage,
-  ContextTrigger,
-} from "@/components/ai-elements/context"
 import { api } from "@/lib/api"
 import type { Artifact } from "@/lib/types"
 import type { UsageDataPart } from "./ChatView"
+import { ContextIndicator } from "./ContextIndicator"
 import { ModelPicker } from "./ModelPicker"
 
 type Props = {
@@ -201,32 +189,7 @@ export function Composer({
               <Paperclip className="h-4 w-4" />
             </ToolbarBtn>
             <ModelPicker value={model} onChange={onModelChange} />
-            {usage && usage.contextMaxTokens && usage.contextMaxTokens > 0 ? (
-              <Context
-                usedTokens={usage.inputTokens}
-                maxTokens={usage.contextMaxTokens}
-                modelId={usage.modelId}
-                usage={
-                  {
-                    inputTokens: usage.inputTokens,
-                    outputTokens: usage.outputTokens,
-                    totalTokens: usage.inputTokens + usage.outputTokens,
-                  } as LanguageModelUsage
-                }
-              >
-                <ContextTrigger />
-                <ContextContent>
-                  <ContextContentHeader />
-                  <ContextContentBody>
-                    <ContextInputUsage />
-                    <ContextOutputUsage />
-                    <ContextReasoningUsage />
-                    <ContextCacheUsage />
-                  </ContextContentBody>
-                  {usage.modelId ? <ContextContentFooter /> : null}
-                </ContextContent>
-              </Context>
-            ) : null}
+            <ContextIndicator usage={usage} model={model} />
           </div>
           <div className="flex items-center gap-1">
             {streaming ? (

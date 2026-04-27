@@ -60,11 +60,24 @@ export function ArtifactChip({
       : resolvedKind === "image"
         ? ImageIcon
         : Cpu
-  const onClick = () => refs?.onOpen(id)
+  const onClick = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    refs?.onOpen(id)
+  }
+  // role=button instead of <button> so the chip can sit inside a parent
+  // <button> (e.g. ToolCall's collapse toggle) without invalid HTML nesting.
   return (
-    <button
-      type="button"
+    <span
+      role="button"
+      tabIndex={0}
       onClick={onClick}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault()
+          e.stopPropagation()
+          refs?.onOpen(id)
+        }
+      }}
       title={resolvedTitle}
       className="inline-flex max-w-[260px] items-center gap-1.5 rounded-md px-2 py-0.5 align-baseline text-[12px]"
       style={{
@@ -79,7 +92,7 @@ export function ArtifactChip({
         style={{ color: "var(--accent)" }}
       />
       <span className="truncate">{label ?? resolvedTitle}</span>
-    </button>
+    </span>
   )
 }
 

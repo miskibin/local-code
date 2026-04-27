@@ -31,11 +31,11 @@ describe("Markdown link behavior", () => {
     ).toBe(0)
   })
 
-  it("renders artifact: protocol mentions as a chip button", () => {
+  it("renders artifact: protocol mentions as a chip", () => {
     const { container } = render(
       <Markdown text="see [chart](artifact:art_abc123) above" />
     )
-    const chip = container.querySelector('button[title="art_abc123"]')
+    const chip = container.querySelector('[role="button"][title="art_abc123"]')
     expect(chip).not.toBeNull()
     expect(container.querySelector("span.text-gray-500")).toBeNull()
   })
@@ -53,7 +53,7 @@ describe("Markdown link behavior", () => {
 
   it("blocks javascript: hrefs as a basic XSS guard", () => {
     const { container } = render(
-      <Markdown text='[click](javascript:alert(1))' />
+      <Markdown text="[click](javascript:alert(1))" />
     )
     const a = container.querySelector("a")
     expect(a).not.toBeNull()

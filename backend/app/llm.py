@@ -6,16 +6,21 @@ from loguru import logger
 from app.config import get_settings
 from app.graphs.main_agent import build_gemini_llm, build_ollama_llm
 
+_LOCAL_CONTEXT_CAP = 16_384
+
 
 def context_max_tokens(llm: BaseChatModel) -> int | None:
+    # ChatOllama exposes `num_ctx`; we treat that presence as the local-model
+    # signal and cap displayed context at 16k regardless of the configured
+    # value, since small local models lose recall well before then.
+    num_ctx = getattr(llm, "num_ctx", None)
+    if isinstance(num_ctx, int) and num_ctx > 0:
+        return min(num_ctx, _LOCAL_CONTEXT_CAP)
     profile = getattr(llm, "profile", None)
     if isinstance(profile, dict):
         n = profile.get("max_input_tokens")
         if isinstance(n, int) and n > 0:
             return n
-    num_ctx = getattr(llm, "num_ctx", None)
-    if isinstance(num_ctx, int) and num_ctx > 0:
-        return num_ctx
     return get_settings().num_ctx or None
 
 
