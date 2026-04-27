@@ -25,6 +25,13 @@ class ChatMessage(SQLModel, table=True):
     created_at: datetime = Field(default_factory=_now_utc)
 
 
+class MessageTrace(SQLModel, table=True):
+    ai_message_id: str = Field(primary_key=True)
+    session_id: str = Field(foreign_key="chatsession.id", index=True)
+    trace_id: str
+    created_at: datetime = Field(default_factory=_now_utc)
+
+
 class MCPServerConfig(SQLModel, table=True):
     name: str = Field(primary_key=True)
     enabled: bool = True

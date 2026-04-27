@@ -68,6 +68,19 @@ function extractUsage(parts: AnyPart[]): UsageDataPart | null {
   return null
 }
 
+export type TraceDataPart = { traceId: string; messageId?: string }
+
+function extractTraceId(parts: AnyPart[]): string | null {
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const p = parts[i]
+    if (p.type !== "data-trace") continue
+    const d = p.data as TraceDataPart | undefined
+    if (!d?.traceId) continue
+    return d.traceId
+  }
+  return null
+}
+
 export function extractArtifactIds(parts: AnyPart[]): string[] {
   const out: string[] = []
   for (const p of parts) {
@@ -842,12 +855,14 @@ export function ChatView({
                     .map((id) => artifactCache[id])
                     .filter((a): a is Artifact => !!a)
                   const usage = extractUsage(parts) ?? undefined
+                  const traceId = extractTraceId(parts) ?? undefined
                   const msg: AssistantMsg = {
                     id: m.id,
                     contentBlocks,
                     artifacts:
                       liveArtifacts.length > 0 ? liveArtifacts : undefined,
                     usage,
+                    traceId,
                   }
                   return (
                     <AssistantMessage
@@ -873,6 +888,11 @@ export function ChatView({
                       }
                       saveAsTaskBusy={generatingTask}
                       onQuizAnswer={submitQuizAnswer}
+                      onFeedback={
+                        traceId
+                          ? (value) => void api.postFeedback(traceId, value)
+                          : undefined
+                      }
                     />
                   )
                 })}

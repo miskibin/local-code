@@ -11,7 +11,7 @@ from sqlmodel import select
 
 from app.artifact_store import get_artifact
 from app.db import async_session
-from app.models import ChatSession
+from app.models import ChatSession, MessageTrace
 
 _ART_DOT_PREFIX = re.compile(r"^\s*(art_[A-Za-z0-9]+)\s*·")
 
@@ -144,7 +144,7 @@ async def patch_session(sid: str, patch: SessionPatch):
 
 
 @router.get("/sessions/{sid}/messages", response_model=list[UIMessage])
-async def get_messages(sid: str, request: Request):  # noqa: PLR0912 -- linear LC-message → UIPart conversion
+async def get_messages(sid: str, request: Request):  # noqa: PLR0912, PLR0915 -- linear LC-message → UIPart conversion
     cp = request.app.state.checkpointer
     tup = await cp.aget_tuple({"configurable": {"thread_id": sid}})
     if tup is None:
@@ -159,6 +159,12 @@ async def get_messages(sid: str, request: Request):  # noqa: PLR0912 -- linear L
             cid = getattr(m, "tool_call_id", None)
             if cid:
                 tool_outputs[cid] = m
+
+    async with async_session() as s:
+        rows = (
+            await s.execute(select(MessageTrace).where(MessageTrace.session_id == sid))
+        ).scalars().all()
+    traces_by_msg_id: dict[str, str] = {r.ai_message_id: r.trace_id for r in rows}
 
     out: list[UIMessage] = []
     for m in msgs:
@@ -248,11 +254,22 @@ async def get_messages(sid: str, request: Request):  # noqa: PLR0912 -- linear L
                 }
             )
 
+        m_id = getattr(m, "id", None)
+        if m_id and m_id in traces_by_msg_id:
+            tid = traces_by_msg_id[m_id]
+            parts.append(
+                {
+                    "type": "data-trace",
+                    "id": f"trace_{m_id}",
+                    "data": {"traceId": tid, "messageId": m_id},
+                }
+            )
+
         if not parts:
             continue
         out.append(
             UIMessage(
-                id=getattr(m, "id", None) or f"m_{uuid4().hex}",
+                id=m_id or f"m_{uuid4().hex}",
                 role="assistant",
                 parts=parts,
             )

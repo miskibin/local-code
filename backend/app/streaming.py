@@ -9,6 +9,8 @@ from langgraph.types import Command
 from loguru import logger
 
 from app.artifact_store import get_artifact, persist_tool_artifact
+from app.db import async_session
+from app.models import MessageTrace
 from app.tasks import coerce_lc_content
 
 
@@ -45,6 +47,7 @@ async def stream_chat(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits w
     resume_value: object = None,
     context_max_tokens: int | None = None,
     model_id: str | None = None,
+    langfuse_handler: object = None,
 ) -> AsyncIterator[str]:
     msg_id = f"msg_{uuid4().hex}"
     logger.info(f"stream start thread={thread_id} msg_id={msg_id} input_msgs={len(lc_messages)}")
@@ -87,6 +90,7 @@ async def stream_chat(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits w
     last_usage_metadata: dict | None = None
     total_input_tokens = 0
     total_output_tokens = 0
+    ai_message_id: str | None = None
     stream_start = time.monotonic()
 
     def _provider_md(namespace: tuple) -> dict | None:
@@ -166,11 +170,18 @@ async def stream_chat(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits w
         Command(resume=resume_value) if resume_value is not None else {"messages": lc_messages}
     )
     try:
+        astream_config: dict = {"configurable": {"thread_id": thread_id}}
+        if langfuse_handler is not None:
+            astream_config["callbacks"] = [langfuse_handler]
+            astream_config["metadata"] = {
+                "langfuse_session_id": session_id or thread_id,
+                "langfuse_user_id": session_id or thread_id,
+            }
         async for event in graph.astream(
             graph_input,
             stream_mode="messages",
             subgraphs=True,
-            config={"configurable": {"thread_id": thread_id}},
+            config=astream_config,
         ):
             # subgraphs=True for stream_mode="messages" yields
             #   (namespace_tuple, (chunk, meta)).
@@ -217,6 +228,9 @@ async def stream_chat(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits w
                 umd = getattr(chunk, "usage_metadata", None)
                 if umd:
                     last_usage_metadata = dict(umd) if not isinstance(umd, dict) else umd
+                _aimid = getattr(chunk, "id", None)
+                if _aimid:
+                    ai_message_id = _aimid
             # Aggregate token counts across all model calls in this turn (top
             # level + subagents). Streaming usually delivers usage_metadata only
             # on the final chunk per model call, so summing those covers the
@@ -446,6 +460,26 @@ async def stream_chat(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits w
         closed = _close_text()
         if closed:
             yield closed
+        if langfuse_handler is not None:
+            trace_id = getattr(langfuse_handler, "last_trace_id", None)
+            if trace_id:
+                yield sse(
+                    {
+                        "type": "data-trace",
+                        "id": f"trace_{msg_id}",
+                        "data": {"traceId": trace_id, "messageId": ai_message_id},
+                    }
+                )
+                if ai_message_id and session_id:
+                    async with async_session() as s:
+                        await s.merge(
+                            MessageTrace(
+                                ai_message_id=ai_message_id,
+                                session_id=session_id,
+                                trace_id=trace_id,
+                            )
+                        )
+                        await s.commit()
         # Always emit one data-usage part per turn. durationMs is meaningful
         # even when the model returned no usage_metadata (e.g. local Ollama),
         # and the client hides zero-token columns in the rendered row.

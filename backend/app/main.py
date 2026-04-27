@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from langfuse import get_client
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from loguru import logger
 from sqlmodel import select
@@ -13,6 +14,7 @@ from app.models import MCPServerConfig
 from app.observability import setup_logging
 from app.routes.artifacts import router as artifacts_router
 from app.routes.chat import router as chat_router
+from app.routes.feedback import router as feedback_router
 from app.routes.mcp import router as mcp_router
 from app.routes.sessions import router as sessions_router
 from app.routes.skills import router as skills_router
@@ -42,7 +44,11 @@ async def lifespan(app: FastAPI):
         logger.info(
             f"startup ready: {len(cfgs)} mcp servers configured, {n_tools} mcp tools loaded"
         )
-        yield
+        try:
+            yield
+        finally:
+            if settings.langfuse_secret_key:
+                get_client().flush()
 
 
 def create_app() -> FastAPI:
@@ -67,6 +73,7 @@ def create_app() -> FastAPI:
     app.include_router(artifacts_router)
     app.include_router(tasks_router)
     app.include_router(skills_router)
+    app.include_router(feedback_router)
     return app
 
 

@@ -17,6 +17,7 @@ dependencies = [
     "langchain-mcp-adapters>=0.2.2",
     "langchain-ollama>=1.1.0",
     "langchain-sandbox>=0.0.3",
+    "langfuse>=4.5.1",
     "langgraph>=1.1.9",
     "langgraph-checkpoint-sqlite>=3.0.3",
     "loguru>=0.7.3",
