@@ -1,5 +1,6 @@
 def test_chat_request_accepts_ai_sdk_messages():
     from app.schemas.chat import ChatRequest
+
     payload = {
         "id": "thread-1",
         "model": "gemma4:e4b",

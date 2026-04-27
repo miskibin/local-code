@@ -17,10 +17,7 @@ async def test_sql_query_returns_table_artifact(chinook_path):
     )
     assert msg.artifact["kind"] == "table"
     assert msg.artifact["source_kind"] == "sql"
-    assert (
-        msg.artifact["source_code"]
-        == "SELECT FirstName, LastName FROM Customer LIMIT 3"
-    )
+    assert msg.artifact["source_code"] == "SELECT FirstName, LastName FROM Customer LIMIT 3"
     cols = [c["key"] for c in msg.artifact["payload"]["columns"]]
     assert cols == ["FirstName", "LastName"]
     assert len(msg.artifact["payload"]["rows"]) == 3

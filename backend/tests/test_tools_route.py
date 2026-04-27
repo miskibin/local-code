@@ -6,6 +6,7 @@ from httpx import ASGITransport, AsyncClient
 async def test_tools_list_reflects_discovered_and_flags(monkeypatch):
     from app.db import init_db
     from app.main import create_app
+
     app = create_app()
     transport = ASGITransport(app=app)
     await init_db()

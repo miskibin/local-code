@@ -25,7 +25,9 @@ async def test_sse_stream_emits_protocol_envelope_and_deltas():
     async for line in stream_chat(graph=graph, thread_id="t1", lc_messages=[("user", "go")]):
         events.append(line)
 
-    parsed = [json.loads(e.removeprefix("data: ").strip()) for e in events if e.startswith("data: {")]
+    parsed = [
+        json.loads(e.removeprefix("data: ").strip()) for e in events if e.startswith("data: {")
+    ]
     types = [e["type"] for e in parsed]
     assert types[0] == "start"
     assert "text-start" in types

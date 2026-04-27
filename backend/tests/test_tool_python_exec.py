@@ -34,7 +34,8 @@ async def test_python_exec_emits_table_artifact_via_tool_call():
     from app.tools.python_exec import python_exec
 
     msg = await python_exec.ainvoke(
-        dict(type="tool_call",
+        dict(
+            type="tool_call",
             id="t1",
             name="python_exec",
             args={"code": "out([{'a':1,'b':2},{'a':3,'b':4}])"},
@@ -102,10 +103,7 @@ async def test_python_exec_read_artifact_returns_dataframe():
         source_kind="python",
         source_code="out([{'n': 1}])",
     )
-    code = (
-        f"df = read_artifact({art.id!r})\n"
-        f"out([{{'n': int(v)}} for v in df['n'].tolist()])\n"
-    )
+    code = f"df = read_artifact({art.id!r})\nout([{{'n': int(v)}} for v in df['n'].tolist()])\n"
     msg = await python_exec.ainvoke(
         dict(type="tool_call", id="ra1", name="python_exec", args={"code": code})
     )
@@ -130,9 +128,7 @@ async def test_python_exec_text_fallback():
     from app.tools.python_exec import python_exec
 
     msg = await python_exec.ainvoke(
-        dict(type="tool_call",
-            id="t3", name="python_exec", args={"code": "print('hello')"}
-        )
+        dict(type="tool_call", id="t3", name="python_exec", args={"code": "print('hello')"})
     )
     assert msg.artifact["kind"] == "text"
     assert "hello" in msg.artifact["payload"]["text"]
@@ -145,7 +141,7 @@ async def test_python_exec_source_code_preserved_verbatim_for_refresh():
 
     code = "import json\nout([{'k': 1}])"
     msg = await python_exec.ainvoke(
-        dict(type="tool_call",id="t4", name="python_exec", args={"code": code})
+        dict(type="tool_call", id="t4", name="python_exec", args={"code": code})
     )
     assert msg.artifact["source_code"] == code
     parsed = json.dumps(msg.artifact["payload"]["rows"])

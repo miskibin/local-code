@@ -24,6 +24,7 @@ async def test_chat_skips_disabled_tool(monkeypatch):
     def fake_build_agent(*, llm, tools, checkpointer, subagents=None):
         captured.append([t.name for t in tools])
         from app.graphs.main_agent import build_agent as real
+
         return real(llm=llm, tools=tools, checkpointer=checkpointer, subagents=subagents)
 
     monkeypatch.setattr("app.routes.chat.build_agent_for_turn", fake_build_agent)
@@ -45,7 +46,11 @@ async def test_chat_skips_disabled_tool(monkeypatch):
     app.state.llm_cache = {"test-model": _FakeChatWithTools(responses=["ok"])}
     app.state.checkpointer = InMemorySaver()
 
-    payload = {"id": "t1", "model": "test-model", "messages": [{"id": "u1", "role": "user", "parts": [{"type": "text", "text": "hi"}]}]}
+    payload = {
+        "id": "t1",
+        "model": "test-model",
+        "messages": [{"id": "u1", "role": "user", "parts": [{"type": "text", "text": "hi"}]}],
+    }
     transport = ASGITransport(app=app)
     try:
         async with AsyncClient(transport=transport, base_url="http://test") as ac:
@@ -54,6 +59,7 @@ async def test_chat_skips_disabled_tool(monkeypatch):
         assert captured and captured[0] == []  # tool was filtered out
     finally:
         from sqlmodel import delete
+
         async with async_session() as s:
             await s.execute(delete(ToolFlag).where(ToolFlag.name == "chat_stub_tool"))
             await s.commit()

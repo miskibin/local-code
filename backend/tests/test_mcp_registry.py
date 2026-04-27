@@ -9,9 +9,21 @@ async def test_sync_from_db_loads_enabled_servers_and_isolates_failures():
     from app.models import MCPServerConfig
 
     cfgs = [
-        MCPServerConfig(name="good", enabled=True, connection={"command": "echo", "args": [], "transport": "stdio"}),
-        MCPServerConfig(name="broken", enabled=True, connection={"command": "doesnotexist", "args": [], "transport": "stdio"}),
-        MCPServerConfig(name="off", enabled=False, connection={"command": "echo", "args": [], "transport": "stdio"}),
+        MCPServerConfig(
+            name="good",
+            enabled=True,
+            connection={"command": "echo", "args": [], "transport": "stdio"},
+        ),
+        MCPServerConfig(
+            name="broken",
+            enabled=True,
+            connection={"command": "doesnotexist", "args": [], "transport": "stdio"},
+        ),
+        MCPServerConfig(
+            name="off",
+            enabled=False,
+            connection={"command": "echo", "args": [], "transport": "stdio"},
+        ),
     ]
     reg = MCPRegistry()
 

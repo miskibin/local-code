@@ -56,7 +56,9 @@ async def test_chat_reset_true_deletes_thread(chat_app):
             json={
                 "id": "sess-reset",
                 "model": "test-model",
-                "messages": [{"id": "m1", "role": "user", "parts": [{"type": "text", "text": "hi"}]}],
+                "messages": [
+                    {"id": "m1", "role": "user", "parts": [{"type": "text", "text": "hi"}]}
+                ],
                 "reset": True,
             },
         )
@@ -74,7 +76,9 @@ async def test_chat_reset_default_false_keeps_thread(chat_app):
             json={
                 "id": "sess-keep",
                 "model": "test-model",
-                "messages": [{"id": "m1", "role": "user", "parts": [{"type": "text", "text": "hi"}]}],
+                "messages": [
+                    {"id": "m1", "role": "user", "parts": [{"type": "text", "text": "hi"}]}
+                ],
             },
         )
         assert r.status_code == 200

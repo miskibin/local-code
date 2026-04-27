@@ -1,0 +1,3 @@
+{"kind":"fixture_meta","provider":"ollama-gemma","model":"gemma4:e4b","prompt":"short_text","description":"Hand-authored seed mirroring Ollama's plain str content shape (the simple case). Replace via record.py.","captured_at":"2026-04-27T00:00:00+00:00","captured_by":"hand-authored","expected_text_nonempty":true}
+{"kind":"AIMessageChunk","content":"hello","tool_call_chunks":[],"tool_calls":[],"response_metadata":{},"usage_metadata":null}
+{"kind":"AIMessageChunk","content":" world","tool_call_chunks":[],"tool_calls":[],"response_metadata":{"finish_reason":"stop","stop_reason":null,"model_name":"gemma4:e4b"},"usage_metadata":{"input_tokens":5,"output_tokens":2,"total_tokens":7}}
