@@ -44,6 +44,8 @@ export type MCPServer = {
     env?: Record<string, string>
     url?: string
   }
+  /** Resolved MCP tool names from the last backend sync (GET /mcp). */
+  resolved_tools?: string[]
 }
 
 export type ArtifactColumn = {

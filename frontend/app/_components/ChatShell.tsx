@@ -45,6 +45,7 @@ export function ChatShell({ initialSessionId }: { initialSessionId: string }) {
   const [savedArtifacts, setSavedArtifacts] = useState<Artifact[]>([])
   const [searchOpen, setSearchOpen] = useState(false)
   const [openArtifact, setOpenArtifact] = useState<Artifact | null>(null)
+  const [langfuseTraceUrl, setLangfuseTraceUrl] = useState<string | null>(null)
 
   const refreshArtifacts = useCallback(async () => {
     try {
@@ -267,6 +268,7 @@ export function ChatShell({ initialSessionId }: { initialSessionId: string }) {
         onOpenArtifact={setOpenArtifact}
         onDeleteArtifact={onDeleteArtifact}
         onTrashArtifact={onTrashArtifact}
+        langfuseTraceUrl={langfuseTraceUrl}
       />
       <ChatView
         sessionId={activeSessionId}
@@ -282,6 +284,7 @@ export function ChatShell({ initialSessionId }: { initialSessionId: string }) {
           setPendingTaskRun(null)
           void refreshSessions()
         }}
+        onLangfuseTraceUrlChange={setLangfuseTraceUrl}
       />
       <SearchDialog
         open={searchOpen}

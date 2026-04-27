@@ -1,10 +1,10 @@
-export type AccentName = "blue" | "violet" | "emerald" | "rose"
+export type AccentName = "blue" | "slate" | "teal" | "stone"
 
 export const ACCENTS: Record<AccentName, { label: string; color: string }> = {
   blue: { label: "Blue", color: "#2563eb" },
-  violet: { label: "Violet", color: "#7c3aed" },
-  emerald: { label: "Emerald", color: "#10b981" },
-  rose: { label: "Rose", color: "#e11d48" },
+  slate: { label: "Slate", color: "#475569" },
+  teal: { label: "Teal", color: "#0f766e" },
+  stone: { label: "Stone", color: "#44403c" },
 }
 
 export const DEFAULT_ACCENT: AccentName = "blue"

@@ -6,12 +6,9 @@ import {
   BookmarkPlus,
   Copy,
   Database,
-  ExternalLink,
   FileText,
   ImageIcon,
   Pencil,
-  RotateCcw,
-  Share,
   ThumbsDown,
   ThumbsUp,
 } from "lucide-react"
@@ -284,7 +281,6 @@ export type AssistantMsg = {
   usage?: { inputTokens: number; outputTokens: number; durationMs?: number }
   summaryFired?: boolean
   traceId?: string
-  traceUrl?: string
   initialFeedback?: 0 | 1
 }
 
@@ -344,7 +340,6 @@ export function AssistantMessage({
   onSaveArtifact,
   onOpenArtifact,
   onCopy,
-  onRegenerate,
   onSaveAsTask,
   saveAsTaskBusy,
   onQuizAnswer,
@@ -359,7 +354,6 @@ export function AssistantMessage({
   onSaveArtifact: (a: Artifact) => void
   onOpenArtifact: (a: Artifact) => void
   onCopy?: () => void
-  onRegenerate?: () => void
   onSaveAsTask?: () => void
   saveAsTaskBusy?: boolean
   onQuizAnswer?: (toolCallId: string, value: string) => void
@@ -454,9 +448,6 @@ export function AssistantMessage({
             <ActionBtn title="Copy" onClick={onCopy}>
               <Copy className="h-3.5 w-3.5" />
             </ActionBtn>
-            <ActionBtn title="Regenerate" onClick={onRegenerate}>
-              <RotateCcw className="h-3.5 w-3.5" />
-            </ActionBtn>
             {msg.traceId && onFeedback && (
               <>
                 <ActionBtn
@@ -501,16 +492,6 @@ export function AssistantMessage({
                     }}
                   />
                 </ActionBtn>
-                {msg.traceUrl && (
-                  <ActionBtn
-                    title="Open trace in Langfuse"
-                    onClick={() =>
-                      window.open(msg.traceUrl, "_blank", "noopener,noreferrer")
-                    }
-                  >
-                    <ExternalLink className="h-3.5 w-3.5" />
-                  </ActionBtn>
-                )}
               </>
             )}
             {isLast && onSaveAsTask && (
@@ -529,9 +510,6 @@ export function AssistantMessage({
                 />
               </ActionBtn>
             )}
-            <ActionBtn title="Share">
-              <Share className="h-3.5 w-3.5" />
-            </ActionBtn>
           </div>
           {msg.usage && <UsageRow usage={msg.usage} />}
         </div>

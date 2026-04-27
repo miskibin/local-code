@@ -18,6 +18,7 @@ import {
   ChevronRight,
   Cpu,
   Database,
+  ExternalLink,
   ListChecks,
   MoreHorizontal,
   PanelLeft,
@@ -55,6 +56,8 @@ type Props = {
   onOpenArtifact: (a: Artifact) => void
   onDeleteArtifact: (id: string) => void
   onTrashArtifact: (id: string) => void
+  /** Latest Langfuse trace URL for the active chat (opens from that row’s ⋯ menu). */
+  langfuseTraceUrl?: string | null
 }
 
 export function Sidebar({
@@ -73,6 +76,7 @@ export function Sidebar({
   onOpenArtifact,
   onDeleteArtifact,
   onTrashArtifact,
+  langfuseTraceUrl,
 }: Props) {
   const [chatsOpen, setChatsOpen] = useState(true)
   const [artifactsOpen, setArtifactsOpen] = useState(true)
@@ -138,6 +142,16 @@ export function Sidebar({
         <SideIconBtn label="Search" onClick={onSearch}>
           <Search className="h-4 w-4" />
         </SideIconBtn>
+        {langfuseTraceUrl ? (
+          <SideIconBtn
+            label="Open trace in Langfuse"
+            onClick={() =>
+              window.open(langfuseTraceUrl, "_blank", "noopener,noreferrer")
+            }
+          >
+            <ExternalLink className="h-4 w-4" />
+          </SideIconBtn>
+        ) : null}
         <Link href="/tasks" aria-label="Tasks">
           <SideIconBtn label="Tasks">
             <ListChecks className="h-4 w-4" />
@@ -228,6 +242,9 @@ export function Sidebar({
                   session={s}
                   active={s.id === activeId}
                   isBeingDragged={activeDragId === s.id}
+                  langfuseTraceUrl={
+                    s.id === activeId ? langfuseTraceUrl ?? null : null
+                  }
                   onSelect={() => onSelect(s.id)}
                   onDelete={() => onDeleteSession(s.id)}
                   onRename={(title) => onRenameSession(s.id, title)}
@@ -439,6 +456,8 @@ type ChatRowProps = {
   /** 1-based index among unpinned chats only; omitted when pinned */
   listNumber?: number
   active: boolean
+  /** Set for the active session when a trace URL exists (shown in ⋯ menu). */
+  langfuseTraceUrl?: string | null
   editing: boolean
   setEditing: (v: boolean) => void
   onSelect: () => void
@@ -455,6 +474,7 @@ function ChatRow({
   session,
   listNumber,
   active,
+  langfuseTraceUrl,
   editing,
   setEditing,
   onSelect,
@@ -610,6 +630,20 @@ function ChatRow({
                 </>
               )}
             </DropdownMenuItem>
+            {langfuseTraceUrl ? (
+              <DropdownMenuItem
+                onSelect={() => {
+                  window.open(
+                    langfuseTraceUrl,
+                    "_blank",
+                    "noopener,noreferrer"
+                  )
+                }}
+              >
+                <ExternalLink className="h-3.5 w-3.5" />
+                <span>Langfuse trace</span>
+              </DropdownMenuItem>
+            ) : null}
             <DropdownMenuSeparator />
             <DropdownMenuItem
               onSelect={() => onDelete()}

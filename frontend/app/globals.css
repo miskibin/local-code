@@ -6,7 +6,7 @@
 
 @theme inline {
     --font-heading: var(--font-mono);
-    --font-sans: var(--font-mono);
+    --font-sans: var(--font-sans-ui, var(--font-mono));
     --color-sidebar-ring: var(--sidebar-ring);
     --color-sidebar-border: var(--sidebar-border);
     --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -185,7 +185,14 @@ body[data-app="local-chat"] {
 
     background: var(--bg);
     color: var(--ink);
-    font-family: var(--font-mono), ui-monospace, "Cascadia Code", "Consolas", monospace;
+    font-family: var(
+        --lc-body-font,
+        var(--font-mono),
+        ui-monospace,
+        "Cascadia Code",
+        "Consolas",
+        monospace
+    );
     font-size: 15px;
     line-height: 1.55;
     -webkit-font-smoothing: antialiased;
@@ -439,7 +446,7 @@ body[data-app="local-chat"] [data-slot="button"][data-variant="default"]:hover {
     }
   html {
     @apply font-mono;
-    --font-sans: var(--font-mono);
+    --font-sans: var(--font-sans-ui, var(--font-mono));
     }
 }
 

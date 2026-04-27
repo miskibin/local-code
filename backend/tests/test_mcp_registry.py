@@ -39,6 +39,7 @@ async def test_sync_from_db_loads_enabled_servers_and_isolates_failures():
     assert "good_t1" in names
     assert "off_t1" not in names
     assert all(not n.startswith("broken") for n in names)
+    assert reg.tools_by_server == {"good": ["good_t1"], "broken": []}
 
 
 class _FakeTool:

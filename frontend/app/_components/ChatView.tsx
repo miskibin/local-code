@@ -442,6 +442,8 @@ type Props = {
   onArtifactRefreshed?: (a: Artifact) => void
   initialTaskRun?: { task_id: string; variables: Record<string, unknown> }
   onTaskRunConsumed?: () => void
+  /** Latest assistant `data-trace` URL in this thread (for sidebar Langfuse link). */
+  onLangfuseTraceUrlChange?: (url: string | null) => void
 }
 
 export function ChatView({
@@ -453,6 +455,7 @@ export function ChatView({
   onArtifactRefreshed,
   initialTaskRun,
   onTaskRunConsumed,
+  onLangfuseTraceUrlChange,
 }: Props) {
   const router = useRouter()
   const [selectedModel, setSelectedModel] = useState<string>(DEFAULT_MODEL)
@@ -786,15 +789,6 @@ export function ChatView({
     return false
   }, [messages])
 
-  const handleRegenerate = (assistantId: string) => {
-    const idx = messages.findIndex((m) => m.id === assistantId)
-    setStreamFault(null)
-    if (idx >= 0) {
-      setMessages((prev) => prev.slice(0, idx))
-    }
-    void regenerate({ messageId: assistantId })
-  }
-
   const handleEdit = (userId: string, newText: string) => {
     const idx = messages.findIndex((m) => m.id === userId)
     if (idx < 0) return
@@ -864,6 +858,20 @@ export function ChatView({
     return undefined
   }, [messages])
 
+  const latestLangfuseTraceUrl = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const m = messages[i]
+      if (m.role !== "assistant") continue
+      const url = extractTrace((m.parts ?? []) as AnyPart[])?.traceUrl
+      if (url) return url
+    }
+    return null
+  }, [messages])
+
+  useEffect(() => {
+    onLangfuseTraceUrlChange?.(latestLangfuseTraceUrl)
+  }, [latestLangfuseTraceUrl, onLangfuseTraceUrlChange])
+
   return (
     <ArtifactRefsProvider value={artifactRefs}>
       <div
@@ -912,7 +920,6 @@ export function ChatView({
                     usage,
                     summaryFired,
                     traceId,
-                    traceUrl: trace?.traceUrl,
                     initialFeedback: trace?.feedback,
                   }
                   return (
@@ -930,9 +937,6 @@ export function ChatView({
                         void navigator.clipboard?.writeText(
                           contentBlocksToPlainText(msg.contentBlocks)
                         )
-                      }
-                      onRegenerate={
-                        streaming ? undefined : () => handleRegenerate(m.id)
                       }
                       onSaveAsTask={
                         streaming ? undefined : () => void handleSaveAsTask()

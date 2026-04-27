@@ -53,7 +53,7 @@ const baseProps = {
   onOpenArtifact: vi.fn(),
 };
 
-describe("ChatView regenerate + edit", () => {
+describe("ChatView edit", () => {
   beforeEach(() => {
     sendMessage.mockReset();
     regenerate.mockReset();
@@ -70,12 +70,6 @@ describe("ChatView regenerate + edit", () => {
         parts: [{ type: "text", text: "4" }],
       },
     ];
-  });
-
-  it("regenerate button calls regenerate with assistant id", async () => {
-    render(<ChatView {...baseProps} />);
-    await userEvent.click(screen.getByTitle("Regenerate"));
-    expect(regenerate).toHaveBeenCalledWith({ messageId: "a1" });
   });
 
   it("edit user message truncates and re-sends with reset", async () => {

@@ -27,6 +27,12 @@ import {
   getStoredAccent,
   setStoredAccent,
 } from "@/lib/accent"
+import {
+  FONT_PRESETS,
+  type FontPreset,
+  getStoredFontPreset,
+  setStoredFontPreset,
+} from "@/lib/font-preset"
 import { AddServerDialog } from "../_components/AddServerDialog"
 
 export default function SettingsPage() {
@@ -241,7 +247,7 @@ function McpRow({
   const Icon = guessIcon(server.name)
   return (
     <div
-      className="flex items-center gap-3.5 px-4 py-3.5"
+      className="flex items-start gap-3.5 px-4 py-3.5"
       style={{ borderTop: first ? 0 : "1px solid var(--border)" }}
     >
       <div
@@ -279,6 +285,7 @@ function McpRow({
             {cmd}
           </div>
         )}
+        <McpResolvedTools server={server} />
       </div>
       <Switch
         checked={server.enabled}
@@ -302,6 +309,46 @@ function McpRow({
         <Trash2 className="h-3.5 w-3.5" />
       </button>
     </div>
+  )
+}
+
+function McpResolvedTools({ server }: { server: MCPServer }) {
+  if (!server.enabled) return null
+  const tools = server.resolved_tools
+  if (tools === undefined) return null
+  if (tools.length === 0) {
+    return (
+      <div className="mt-1.5 text-[11px]" style={{ color: "var(--ink-3)" }}>
+        No tools loaded
+      </div>
+    )
+  }
+  return (
+    <details className="mt-1.5">
+      <summary
+        className="cursor-pointer text-[11px] font-medium"
+        style={{ color: "var(--ink-2)" }}
+      >
+        {tools.length} tool{tools.length === 1 ? "" : "s"}
+      </summary>
+      <div className="mt-1.5 flex flex-wrap gap-1">
+        {tools.map((t) => (
+          <span
+            key={t}
+            className="rounded-md px-1.5 py-0.5"
+            style={{
+              fontFamily: "var(--font-mono)",
+              fontSize: 10.5,
+              color: "var(--ink)",
+              background: "var(--bg-soft)",
+              border: "1px solid var(--border)",
+            }}
+          >
+            {t}
+          </span>
+        ))}
+      </div>
+    </details>
   )
 }
 
@@ -455,21 +502,28 @@ function ToolsTab() {
 
 function AppearanceTab() {
   const [accent, setAccent] = useState<AccentName>("blue")
+  const [fontPreset, setFontPreset] = useState<FontPreset>("mono")
 
   useEffect(() => {
     setAccent(getStoredAccent())
+    setFontPreset(getStoredFontPreset())
   }, [])
 
-  const onPick = (name: AccentName) => {
+  const onPickAccent = (name: AccentName) => {
     setAccent(name)
     setStoredAccent(name)
+  }
+
+  const onPickFont = (name: FontPreset) => {
+    setFontPreset(name)
+    setStoredFontPreset(name)
   }
 
   return (
     <>
       <SectionHeader
         title="Appearance"
-        desc="Pick the accent color used for primary buttons, focus rings, send action, and links."
+        desc="Accent color for primary actions and focus; interface font for chat and settings."
       />
       <div
         className="rounded-xl p-5"
@@ -489,7 +543,7 @@ function AppearanceTab() {
               <button
                 key={name}
                 type="button"
-                onClick={() => onPick(name)}
+                onClick={() => onPickAccent(name)}
                 aria-pressed={active}
                 aria-label={label}
                 title={label}
@@ -517,6 +571,47 @@ function AppearanceTab() {
         </div>
         <p className="mt-3.5 text-xs" style={{ color: "var(--ink-3)" }}>
           Choice is saved to this browser.
+        </p>
+      </div>
+
+      <div
+        className="mt-6 rounded-xl p-5"
+        style={{
+          border: "1px solid var(--border)",
+          background: "var(--surface)",
+        }}
+      >
+        <div className="mb-3 text-[12.5px]" style={{ color: "var(--ink-2)" }}>
+          Interface font
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {(Object.keys(FONT_PRESETS) as FontPreset[]).map((name) => {
+            const { label } = FONT_PRESETS[name]
+            const active = fontPreset === name
+            return (
+              <button
+                key={name}
+                type="button"
+                onClick={() => onPickFont(name)}
+                aria-pressed={active}
+                aria-label={label}
+                className="rounded-lg px-3.5 py-2 text-[13px] font-medium transition"
+                style={{
+                  border: active
+                    ? "2px solid var(--ink)"
+                    : "1px solid var(--border)",
+                  background: active ? "var(--hover)" : "transparent",
+                  color: "var(--ink)",
+                  cursor: "pointer",
+                }}
+              >
+                {label}
+              </button>
+            )
+          })}
+        </div>
+        <p className="mt-3.5 text-xs" style={{ color: "var(--ink-3)" }}>
+          Sans uses Inter; mono matches code-style UI. Saved to this browser.
         </p>
       </div>
     </>

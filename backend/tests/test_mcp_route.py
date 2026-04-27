@@ -41,7 +41,9 @@ async def test_post_mcp_persists_and_triggers_sync():
             assert r.status_code == 200
 
             r2 = await ac.get("/mcp")
-            assert any(c["name"] == "memory" for c in r2.json())
+            rows = [c for c in r2.json() if c["name"] == "memory"]
+            assert len(rows) == 1
+            assert rows[0]["resolved_tools"] == []
 
             r3 = await ac.delete("/mcp/memory")
             assert r3.status_code == 200
