@@ -11,6 +11,8 @@ import {
   Pencil,
   RotateCcw,
   Share,
+  ThumbsDown,
+  ThumbsUp,
 } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 import type { Artifact, AssistantStep, Todo } from "@/lib/types"
@@ -279,6 +281,7 @@ export type AssistantMsg = {
   artifacts?: Artifact[]
   usage?: { inputTokens: number; outputTokens: number; durationMs?: number }
   summaryFired?: boolean
+  traceId?: string
 }
 
 export function formatTokens(n: number): string {
@@ -341,6 +344,7 @@ export function AssistantMessage({
   onSaveAsTask,
   saveAsTaskBusy,
   onQuizAnswer,
+  onFeedback,
 }: {
   msg: AssistantMsg
   expanded: Record<string, boolean>
@@ -355,6 +359,7 @@ export function AssistantMessage({
   onSaveAsTask?: () => void
   saveAsTaskBusy?: boolean
   onQuizAnswer?: (toolCallId: string, value: string) => void
+  onFeedback?: (value: 0 | 1) => void
 }) {
   const plainText = contentBlocksToPlainText(msg.contentBlocks)
   const showThinking = streaming && isLast && !plainText
@@ -436,6 +441,16 @@ export function AssistantMessage({
             <ActionBtn title="Regenerate" onClick={onRegenerate}>
               <RotateCcw className="h-3.5 w-3.5" />
             </ActionBtn>
+            {msg.traceId && onFeedback && (
+              <>
+                <ActionBtn title="Good response" onClick={() => onFeedback(1)}>
+                  <ThumbsUp className="h-3.5 w-3.5" />
+                </ActionBtn>
+                <ActionBtn title="Bad response" onClick={() => onFeedback(0)}>
+                  <ThumbsDown className="h-3.5 w-3.5" />
+                </ActionBtn>
+              </>
+            )}
             {isLast && onSaveAsTask && (
               <ActionBtn
                 title={saveAsTaskBusy ? "Generating task..." : "Save as task"}

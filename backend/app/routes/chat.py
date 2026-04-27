@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
+from langfuse.langchain import CallbackHandler
 from loguru import logger
 from sqlmodel import select
 
@@ -109,6 +110,7 @@ async def chat(req: ChatRequest, request: Request):
     )
     logger.debug(f"agent built thread={req.id} subagents={[s.get('name') for s in subagents]}")
     ctx_max = context_max_tokens(llm)
+    langfuse_handler = CallbackHandler() if get_settings().langfuse_secret_key else None
     if req.resume is not None:
         # tool_call_id is informational — LangGraph resumes by config/thread,
         # not by tool_call_id — but we log it so a stuck thread can be traced
@@ -127,6 +129,7 @@ async def chat(req: ChatRequest, request: Request):
                 context_max_tokens=ctx_max,
                 model_id=req.model,
                 checkpointer=state.checkpointer,
+                langfuse_handler=langfuse_handler,
             ),
             media_type="text/event-stream",
             headers=_STREAM_HEADERS,
@@ -140,6 +143,7 @@ async def chat(req: ChatRequest, request: Request):
             session_id=req.id,
             context_max_tokens=ctx_max,
             model_id=req.model,
+            langfuse_handler=langfuse_handler,
         ),
         media_type="text/event-stream",
         headers=_STREAM_HEADERS,

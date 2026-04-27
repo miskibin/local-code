@@ -50,6 +50,13 @@ export const api = {
   getMessages: (id: string) =>
     jsonFetch<StoredMessage[]>(`/sessions/${encodeURIComponent(id)}/messages`),
 
+  // Feedback
+  postFeedback: (traceId: string, value: 0 | 1, comment?: string) =>
+    jsonFetch<{ ok: boolean }>("/feedback", {
+      method: "POST",
+      json: { traceId, value, comment },
+    }),
+
   // Tools
   listTools: () => jsonFetch<Tool[]>("/tools"),
   setTool: (name: string, enabled: boolean) =>
