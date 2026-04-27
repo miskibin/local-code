@@ -6,7 +6,6 @@ import {
   ImageIcon,
   Paperclip,
   Square,
-  Wrench,
   X,
 } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
@@ -184,10 +183,6 @@ export function Composer({
               onClick={() => fileInputRef.current?.click()}
             >
               <Paperclip className="h-4 w-4" />
-            </ToolbarBtn>
-            <ToolbarBtn title="Tools">
-              <Wrench className="h-3.5 w-3.5" />
-              <span className="ml-1.5 text-[13px]">Tools</span>
             </ToolbarBtn>
             <ModelPicker value={model} onChange={onModelChange} />
           </div>

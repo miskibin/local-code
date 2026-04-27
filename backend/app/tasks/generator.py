@@ -238,6 +238,37 @@ async def _inline_sql_subagent_steps(
         step.pop("prompt", None)
 
 
+_ARTIFACT_STEP_KINDS = {"tool", "code", "subagent"}
+
+
+def _append_report_step(steps: list[dict[str, Any]]) -> None:
+    """Append a deterministic kind=report step that re-renders prior artifacts.
+
+    Body is markdown with `[Title](artifact:{{stepId.artifact_id}})` per
+    artifact-producing step — the frontend Markdown renderer turns those into
+    inline tables / images. No-op if the task has no artifact-producing steps.
+    """
+    art_steps = [s for s in steps if s.get("kind") in _ARTIFACT_STEP_KINDS]
+    if not art_steps:
+        return
+    sections = []
+    for s in art_steps:
+        title = s.get("title") or s["id"]
+        ref = f"{{{{{s['id']}.artifact_id}}}}"
+        sections.append(f"**{title}**\n\n[{title}](artifact:{ref})")
+    body = "## Results\n\n" + "\n\n".join(sections) + "\n"
+    steps.append(
+        {
+            "id": f"s{len(steps) + 1}",
+            "kind": "report",
+            "title": "Results",
+            "prompt": body,
+            "output_name": "report",
+            "output_kind": "text",
+        }
+    )
+
+
 async def generate_task_from_run(
     *,
     session_id: str,
@@ -270,6 +301,7 @@ async def generate_task_from_run(
 
     parsed_steps = _ensure_step_ids(parsed.get("steps") or [])
     await _inline_sql_subagent_steps(parsed_steps, trace["tool_calls"])
+    _append_report_step(parsed_steps)
     dto = TaskDTO(
         id="",
         title=parsed.get("title") or "Untitled task",

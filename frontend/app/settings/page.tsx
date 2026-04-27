@@ -9,6 +9,7 @@ import {
   Globe,
   Plus,
   Server,
+  Sparkles,
   Terminal,
   Trash2,
   Wrench,
@@ -17,11 +18,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Switch } from "@/components/ui/switch"
 import { Button } from "@/components/ui/button"
 import { api } from "@/lib/api"
-import type { MCPServer, Tool } from "@/lib/types"
+import type { MCPServer, Skill, Tool } from "@/lib/types"
 import { AddServerDialog } from "../_components/AddServerDialog"
 
 export default function SettingsPage() {
-  const [tab, setTab] = useState("mcp")
+  const [tab, setTab] = useState("skills")
   return (
     <div className="flex h-dvh flex-col" style={{ background: "var(--bg)" }}>
       <div
@@ -59,6 +60,12 @@ export default function SettingsPage() {
         >
           <TabsList className="flex h-auto w-full flex-col items-stretch gap-0.5 bg-transparent p-0">
             <TabsTrigger
+              value="skills"
+              className="justify-start gap-2.5 px-2.5 py-2"
+            >
+              <Sparkles className="h-3.5 w-3.5" /> Skills
+            </TabsTrigger>
+            <TabsTrigger
               value="mcp"
               className="justify-start gap-2.5 px-2.5 py-2"
             >
@@ -74,6 +81,9 @@ export default function SettingsPage() {
         </div>
         <div className="lc-scroll flex-1 overflow-y-auto px-10 py-8">
           <div className="mx-auto max-w-[760px]">
+            <TabsContent value="skills">
+              <SkillsTab />
+            </TabsContent>
             <TabsContent value="mcp">
               <McpTab />
             </TabsContent>
@@ -419,6 +429,98 @@ function ToolsTab() {
             style={{ color: "var(--ink-3)" }}
           >
             No tools discovered.
+          </div>
+        )}
+      </div>
+    </>
+  )
+}
+
+function SkillsTab() {
+  const [skills, setSkills] = useState<Skill[]>([])
+
+  const reload = useCallback(async () => {
+    try {
+      setSkills(await api.listSkills())
+    } catch (e) {
+      console.error("listSkills", e)
+    }
+  }, [])
+
+  useEffect(() => {
+    reload()
+  }, [reload])
+
+  const enabledCount = useMemo(
+    () => skills.filter((s) => s.enabled).length,
+    [skills]
+  )
+
+  const onToggle = async (name: string, enabled: boolean) => {
+    setSkills((p) => p.map((s) => (s.name === name ? { ...s, enabled } : s)))
+    try {
+      await api.setSkill(name, enabled)
+    } catch (e) {
+      console.error("setSkill", e)
+      reload()
+    }
+  }
+
+  return (
+    <>
+      <SectionHeader
+        title="Skills"
+        desc={`${enabledCount} of ${skills.length} skills enabled. Skills are markdown playbooks the agent reads when relevant.`}
+      />
+      <div
+        className="overflow-hidden rounded-xl"
+        style={{
+          border: "1px solid var(--border)",
+          background: "var(--surface)",
+        }}
+      >
+        {skills.map((s, i) => (
+          <div
+            key={s.name}
+            className="flex items-start gap-3.5 px-4 py-3"
+            style={{ borderTop: i === 0 ? 0 : "1px solid var(--border)" }}
+          >
+            <Sparkles
+              className="mt-0.5 h-4 w-4 flex-shrink-0"
+              style={{ color: "var(--ink-3)" }}
+            />
+            <div className="min-w-0 flex-1">
+              <div
+                style={{
+                  fontFamily: "var(--font-mono)",
+                  fontSize: 13,
+                  color: "var(--ink)",
+                }}
+              >
+                {s.name}
+              </div>
+              {s.description && (
+                <div
+                  className="mt-0.5 text-[12.5px]"
+                  style={{ color: "var(--ink-2)" }}
+                >
+                  {s.description}
+                </div>
+              )}
+            </div>
+            <Switch
+              checked={s.enabled}
+              onCheckedChange={(v) => onToggle(s.name, v)}
+              aria-label={`Toggle ${s.name}`}
+            />
+          </div>
+        ))}
+        {skills.length === 0 && (
+          <div
+            className="px-4 py-6 text-center text-[13px]"
+            style={{ color: "var(--ink-3)" }}
+          >
+            No skills installed.
           </div>
         )}
       </div>

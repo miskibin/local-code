@@ -369,6 +369,16 @@ async def run_task(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits woul
                 yield _emit_text_delta(text_id, "\n\n")
                 prompt_texts.append(f"**{step.title}**\n\n{summary}")
 
+            elif step.kind == "report":
+                body = resolved_prompt or ""
+                report_text_id = f"r_{uuid4().hex}"
+                yield sse({"type": "text-start", "id": report_text_id})
+                yield _emit_text_delta(report_text_id, body)
+                yield sse({"type": "text-end", "id": report_text_id})
+                summary = body
+                step_outputs = {step.output_name: body}
+                prompt_texts.append(body)
+
             else:
                 raise ValueError(f"unknown step kind {step.kind!r}")  # noqa: TRY301 -- intentional in-loop validation
 

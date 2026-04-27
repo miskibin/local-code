@@ -43,4 +43,36 @@ describe("api wrappers", () => {
     vi.spyOn(global, "fetch").mockResolvedValue(new Response("nope", { status: 500 }));
     await expect(api.listSessions()).rejects.toThrow();
   });
+
+  it("listSkills GETs /skills and returns parsed JSON", async () => {
+    const fetchMock = vi.spyOn(global, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify([
+          { name: "data-analysis", description: "do data", enabled: true },
+          { name: "creating-vis", description: "make charts", enabled: false },
+        ]),
+        { status: 200, headers: { "content-type": "application/json" } },
+      ),
+    );
+    const out = await api.listSkills();
+    expect(out).toHaveLength(2);
+    expect(out[0].name).toBe("data-analysis");
+    const url = fetchMock.mock.calls[0][0] as string;
+    expect(url.endsWith("/skills")).toBe(true);
+  });
+
+  it("setSkill PATCHes /skills/{name}", async () => {
+    const fetchMock = vi.spyOn(global, "fetch").mockResolvedValue(
+      new Response(
+        JSON.stringify({ name: "data-analysis", description: "do data", enabled: false }),
+        { status: 200, headers: { "content-type": "application/json" } },
+      ),
+    );
+    await api.setSkill("data-analysis", false);
+    const init = fetchMock.mock.calls[0][1] as RequestInit;
+    expect(init.method).toBe("PATCH");
+    expect(init.body).toContain('"enabled":false');
+    const url = fetchMock.mock.calls[0][0] as string;
+    expect(url.endsWith("/skills/data-analysis")).toBe(true);
+  });
 });

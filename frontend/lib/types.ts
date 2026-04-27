@@ -28,6 +28,12 @@ export type Tool = {
   description: string
 }
 
+export type Skill = {
+  name: string
+  enabled: boolean
+  description: string
+}
+
 export type MCPServer = {
   name: string
   enabled: boolean

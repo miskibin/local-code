@@ -161,7 +161,6 @@ async def test_subagent_sql_step_replaced_with_sql_query_tool():
     dto = await generate_task_from_run(
         session_id="sess-genre", messages=_sql_subagent_trace(), llm=llm
     )
-    assert len(dto.steps) == 1
     step = dto.steps[0]
     assert step.kind == "tool"
     assert step.tool == "sql_query"
@@ -171,6 +170,82 @@ async def test_subagent_sql_step_replaced_with_sql_query_tool():
     assert step.prompt is None
     assert step.id == "s1"
     assert step.output_name == "revenue_data"
+
+
+@pytest.mark.asyncio
+async def test_generator_appends_report_step_referencing_artifact_steps():
+    """After generation, generator must append a kind=report step whose prompt
+    contains markdown `[Title](artifact:{{stepId.artifact_id}})` for each prior
+    artifact-producing step. This is hardcoded, not LLM-driven."""
+    await reset_task_tables(SavedTask, SavedArtifact)
+
+    response_json = json.dumps(
+        {
+            "title": "Two-step",
+            "description": "",
+            "variables": [],
+            "steps": [
+                {
+                    "id": "s1",
+                    "kind": "tool",
+                    "title": "Query rows",
+                    "tool": "sql_query",
+                    "args_template": {"sql": "SELECT 1"},
+                    "output_name": "rows",
+                    "output_kind": "rows",
+                },
+                {
+                    "id": "s2",
+                    "kind": "code",
+                    "title": "Plot chart",
+                    "code": "out_image(plt.gcf())",
+                    "output_name": "chart",
+                    "output_kind": "chart",
+                },
+            ],
+        }
+    )
+    llm = FakeListChatModel(responses=[response_json])
+    dto = await generate_task_from_run(
+        session_id="sess-report", messages=_trace_messages(), llm=llm
+    )
+    assert len(dto.steps) == 3
+    report = dto.steps[-1]
+    assert report.kind == "report"
+    assert "{{s1.artifact_id}}" in (report.prompt or "")
+    assert "{{s2.artifact_id}}" in (report.prompt or "")
+    assert "Query rows" in (report.prompt or "")
+    assert "Plot chart" in (report.prompt or "")
+
+
+@pytest.mark.asyncio
+async def test_generator_skips_report_when_no_artifact_steps():
+    """Tasks built only from prompt steps don't get a synthetic report step."""
+    await reset_task_tables(SavedTask, SavedArtifact)
+
+    response_json = json.dumps(
+        {
+            "title": "Prompt only",
+            "description": "",
+            "variables": [],
+            "steps": [
+                {
+                    "id": "s1",
+                    "kind": "prompt",
+                    "title": "Ask",
+                    "prompt": "Say hi",
+                    "output_name": "text",
+                    "output_kind": "text",
+                }
+            ],
+        }
+    )
+    llm = FakeListChatModel(responses=[response_json])
+    dto = await generate_task_from_run(
+        session_id="sess-prompt-only", messages=_trace_messages(), llm=llm
+    )
+    assert len(dto.steps) == 1
+    assert dto.steps[0].kind == "prompt"
 
 
 @pytest.mark.asyncio

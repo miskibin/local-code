@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     checkpoint_db_path: str = "./checkpoints.db"
     chinook_db_path: str = "./data/chinook.db"
     uploads_dir: str = "./data/uploads"
+    skills_dir: str = "./data/skills"
 
     cors_origins: list[str] = ["http://localhost:3000"]
     log_level: str = "DEBUG"

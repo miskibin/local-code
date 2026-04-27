@@ -36,6 +36,11 @@ class ToolFlag(SQLModel, table=True):
     enabled: bool = True
 
 
+class SkillFlag(SQLModel, table=True):
+    name: str = Field(primary_key=True)
+    enabled: bool = True
+
+
 class SavedArtifact(SQLModel, table=True):
     id: str = Field(primary_key=True)
     session_id: str | None = Field(default=None, index=True)

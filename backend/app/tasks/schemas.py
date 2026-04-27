@@ -4,7 +4,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 VariableType = Literal["string", "number", "boolean"]
-StepKind = Literal["tool", "code", "subagent", "prompt"]
+StepKind = Literal["tool", "code", "subagent", "prompt", "report"]
 OutputKind = Literal["rows", "text", "chart", "json", "file"]
 
 

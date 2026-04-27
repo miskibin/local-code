@@ -5,6 +5,8 @@ from langchain_core.tools import BaseTool
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_ollama import ChatOllama
 
+from app.middleware.skills_state import StateSkillsMiddleware
+from app.skills_registry import SkillInfo
 from app.tools.sql_subagent_query import schema_blob
 
 _EXCLUDED_BUILTIN_TOOLS = frozenset(
@@ -43,7 +45,10 @@ SYSTEM_PROMPT = (
     "Sub-agents (returned via the `task` tool) end their reply with a line "
     "like `artifact_id=art_…; columns=…`. When you need to process that "
     "result, parse the id from that line — never invent an id, and never use "
-    "a column name that isn't in the listed columns."
+    "a column name that isn't in the listed columns.\n"
+    "If a skill in the available-skills list matches the user's request, you "
+    "MAY load it with `read_file` for deeper guidance — the skill contains "
+    "extra recipes and worked examples, not core rules."
 )
 
 
@@ -53,6 +58,7 @@ def build_agent(
     tools: list[BaseTool],
     checkpointer,
     subagents: list[dict] | None = None,
+    enabled_skills: list[SkillInfo] | None = None,
 ):
     # The `middleware` arg below only wraps the top-level agent. Subagents
     # dispatched through `task` build their own model-call stack and would
@@ -69,23 +75,35 @@ def build_agent(
         "system_prompt": "Reply only: 'Use sql-agent or call parent tools directly.'",
         "tools": [],
     }
+    # Subagents always run with the full exclusion (skills are top-level only).
+    subagent_excluded = _EXCLUDED_BUILTIN_TOOLS
     prepared_subagents = [stub_general_purpose] + [
         {
             **spec,
             "middleware": [
                 *list(spec.get("middleware") or []),
-                _ToolExclusionMiddleware(excluded=_EXCLUDED_BUILTIN_TOOLS),
+                _ToolExclusionMiddleware(excluded=subagent_excluded),
             ],
         }
         for spec in (subagents or [])
     ]
+
+    # Top-level agent: when skills enabled, allow read_file so the model can
+    # load skill bodies that StateSkillsMiddleware seeded into state["files"].
+    parent_excluded = _EXCLUDED_BUILTIN_TOOLS
+    parent_middleware: list = []
+    if enabled_skills:
+        parent_excluded = parent_excluded - {"read_file"}
+        parent_middleware.append(StateSkillsMiddleware(skills=enabled_skills))
+    parent_middleware.insert(0, _ToolExclusionMiddleware(excluded=parent_excluded))
+
     agent = create_deep_agent(
         model=llm,
         tools=tools,
         subagents=prepared_subagents,
         system_prompt=SYSTEM_PROMPT,
         checkpointer=checkpointer,
-        middleware=[_ToolExclusionMiddleware(excluded=_EXCLUDED_BUILTIN_TOOLS)],
+        middleware=parent_middleware,
     )
     return agent.with_config({"recursion_limit": 100})
 
