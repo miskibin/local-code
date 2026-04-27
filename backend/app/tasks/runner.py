@@ -20,8 +20,10 @@ from typing import Any
 from uuid import uuid4
 
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import HumanMessage, ToolMessage
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langchain_core.tools import BaseTool
+from langgraph.graph import END, START, StateGraph
+from langgraph.graph.message import MessagesState
 from loguru import logger
 
 from app import tool_registry
@@ -268,6 +270,7 @@ async def run_task(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits woul
     state,
     session_id: str,
     llm: BaseChatModel,
+    lc_messages: list | None = None,
 ) -> AsyncIterator[str]:
     dto: TaskDTO = to_dto(task)
     msg_id = f"msg_{uuid4().hex}"
@@ -282,6 +285,12 @@ async def run_task(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits woul
     tools_by_key: dict[tuple[str | None, str], BaseTool] = {}
     for t in all_tools:
         tools_by_key[(None, t.name)] = t
+
+    ai_tool_calls: list[dict[str, Any]] = []
+    pending_tool_msgs: list[ToolMessage] = []
+    prompt_texts: list[str] = []
+    if lc_messages is not None:
+        lc_messages.append(HumanMessage(content=format_run_summary(task, variables)))
 
     outputs: dict[str, dict[str, Any]] = {}
     failed = False
@@ -305,6 +314,8 @@ async def run_task(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits woul
                     step, args_dict, tools_by_key=tools_by_key, session_id=session_id
                 )
                 yield _emit_output(step_id, summary, provider_md=task_md)
+                ai_tool_calls.append({"id": step_id, "name": tool_name, "args": args_dict})
+                pending_tool_msgs.append(ToolMessage(content=summary, tool_call_id=step_id))
 
             elif step.kind == "code":
                 code_str = resolved_code or ""
@@ -312,6 +323,10 @@ async def run_task(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits woul
                 yield _emit_input(step_id, "python_exec", {"code": code_str}, provider_md=task_md)
                 summary, step_outputs = await _run_code_step(step, code_str, session_id=session_id)
                 yield _emit_output(step_id, summary, provider_md=task_md)
+                ai_tool_calls.append(
+                    {"id": step_id, "name": "python_exec", "args": {"code": code_str}}
+                )
+                pending_tool_msgs.append(ToolMessage(content=summary, tool_call_id=step_id))
 
             elif step.kind == "subagent":
                 dispatch_input = {
@@ -334,12 +349,15 @@ async def run_task(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits woul
                     else:
                         summary, step_outputs = evt
                 yield _emit_output(step_id, summary, provider_md=task_md)
+                ai_tool_calls.append({"id": step_id, "name": "task", "args": dispatch_input})
+                pending_tool_msgs.append(ToolMessage(content=summary, tool_call_id=step_id))
 
             elif step.kind == "prompt":
                 yield _emit_text_delta(text_id, f"\n**{step.title}**\n\n")
                 summary, step_outputs = await _run_prompt_step(step, resolved_prompt or "", llm=llm)
                 yield _emit_text_delta(text_id, summary)
                 yield _emit_text_delta(text_id, "\n\n")
+                prompt_texts.append(f"**{step.title}**\n\n{summary}")
 
             else:
                 raise ValueError(f"unknown step kind {step.kind!r}")  # noqa: TRY301 -- intentional in-loop validation
@@ -363,12 +381,20 @@ async def run_task(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits woul
             failed = True
             yield _emit_error(step_id, f"variable error: {e}", provider_md=task_md)
             yield _emit_text_delta(text_id, f"\n\nStep `{step.id}` failed: {e}\n")
+            ai_tool_calls.append({"id": step_id, "name": step.tool or step.kind, "args": {}})
+            pending_tool_msgs.append(
+                ToolMessage(content=f"variable error: {e}", tool_call_id=step_id, status="error")
+            )
             break
         except Exception as e:  # noqa: BLE001 -- surface every step failure to UI
             logger.exception(f"task step {step_id} failed")
             failed = True
             yield _emit_error(step_id, str(e), provider_md=task_md)
             yield _emit_text_delta(text_id, f"\n\nStep `{step.id}` failed: {e}\n")
+            ai_tool_calls.append({"id": step_id, "name": step.tool or step.kind, "args": {}})
+            pending_tool_msgs.append(
+                ToolMessage(content=str(e), tool_call_id=step_id, status="error")
+            )
             break
 
     if not failed:
@@ -376,10 +402,37 @@ async def run_task(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits woul
             text_id, f"\nDone. {len(outputs)}/{len(dto.steps)} steps completed.\n"
         )
 
+    if lc_messages is not None:
+        ai_content = (
+            "\n\n".join(prompt_texts) if prompt_texts else ("ok" if not failed else "failed")
+        )
+        lc_messages.append(AIMessage(id=msg_id, content=ai_content, tool_calls=ai_tool_calls))
+        lc_messages.extend(pending_tool_msgs)
+
     yield sse({"type": "text-end", "id": text_id})
     yield sse({"type": "finish-step"})
     yield sse({"type": "finish"})
     yield "data: [DONE]\n\n"
+
+
+async def persist_task_run_checkpoint(checkpointer, session_id: str, lc_msgs: list) -> None:
+    """Append LC messages to thread session_id via the shared checkpointer.
+
+    Compiles a tiny passthrough MessagesState graph per call — compilation is
+    microseconds, and caching across tests/app instances would bind to a stale
+    checkpointer.
+    """
+    if not lc_msgs:
+        return
+    g = StateGraph(MessagesState)
+    g.add_node("p", lambda _s: {})
+    g.add_edge(START, "p")
+    g.add_edge("p", END)
+    graph = g.compile(checkpointer=checkpointer)
+    await graph.ainvoke(
+        {"messages": lc_msgs},
+        config={"configurable": {"thread_id": session_id}},
+    )
 
 
 def format_run_summary(task: SavedTask, variables: dict[str, Any]) -> str:

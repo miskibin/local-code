@@ -7,7 +7,9 @@ from langchain_ollama import ChatOllama
 
 from app.tools.sql_subagent_query import schema_blob
 
-_EXCLUDED_BUILTIN_TOOLS = frozenset({"ls", "read_file", "write_file", "edit_file", "glob", "grep"})
+_EXCLUDED_BUILTIN_TOOLS = frozenset(
+    {"ls", "read_file", "write_file", "edit_file", "glob", "grep", "execute"}
+)
 
 SYSTEM_PROMPT = (
     "When delegating with the `task` tool, ALWAYS provide both `subagent_type` "
@@ -58,7 +60,16 @@ def build_agent(
     # `ls`/`grep` that we exclude here. Without the per-subagent middleware
     # a small model can spiral into thousands of `ls` calls before the parent
     # ever sees a result.
-    prepared_subagents = [
+    # deepagents auto-injects a `general-purpose` subagent unless one with that
+    # name is already in the list (graph.py:546). Override with a stub so the
+    # parent never delegates to it — sql-agent + direct tools cover our scope.
+    stub_general_purpose = {
+        "name": "general-purpose",
+        "description": "Do not use. Call tools directly or delegate to sql-agent.",
+        "system_prompt": "Reply only: 'Use sql-agent or call parent tools directly.'",
+        "tools": [],
+    }
+    prepared_subagents = [stub_general_purpose] + [
         {
             **spec,
             "middleware": [
@@ -68,7 +79,7 @@ def build_agent(
         }
         for spec in (subagents or [])
     ]
-    return create_deep_agent(
+    agent = create_deep_agent(
         model=llm,
         tools=tools,
         subagents=prepared_subagents,
@@ -76,6 +87,7 @@ def build_agent(
         checkpointer=checkpointer,
         middleware=[_ToolExclusionMiddleware(excluded=_EXCLUDED_BUILTIN_TOOLS)],
     )
+    return agent.with_config({"recursion_limit": 100})
 
 
 def default_subagents() -> list[dict]:

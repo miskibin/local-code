@@ -215,10 +215,14 @@ async def _inline_sql_subagent_steps(
     sub-agent run, so re-running the task doesn't re-ask the LLM to compose SQL.
     """
     sql_calls = [
-        tc for tc in tool_calls if tc.get("name") == "task"
+        tc
+        for tc in tool_calls
+        if tc.get("name") == "task"
         and (tc.get("args") or {}).get("subagent_type") == _SQL_SUBAGENT_NAME
     ]
-    sql_steps = [s for s in steps if s.get("kind") == "subagent" and s.get("subagent") == _SQL_SUBAGENT_NAME]
+    sql_steps = [
+        s for s in steps if s.get("kind") == "subagent" and s.get("subagent") == _SQL_SUBAGENT_NAME
+    ]
     for step, call in zip(sql_steps, sql_calls, strict=False):
         m = _ARTIFACT_ID_RE.search(call.get("result") or "")
         if not m:
@@ -265,6 +269,7 @@ async def generate_task_from_run(
     parsed = _parse_task_json(raw)
 
     parsed_steps = _ensure_step_ids(parsed.get("steps") or [])
+    await _inline_sql_subagent_steps(parsed_steps, trace["tool_calls"])
     dto = TaskDTO(
         id="",
         title=parsed.get("title") or "Untitled task",

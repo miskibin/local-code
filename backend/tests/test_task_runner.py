@@ -1,5 +1,6 @@
 import pytest
 from langchain_core.language_models.fake_chat_models import FakeListChatModel
+from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from langchain_core.tools import tool
 
 from app.models import SavedArtifact, SavedTask
@@ -327,3 +328,109 @@ async def test_runner_subagent_inner_tool_carries_parent_link(monkeypatch, stub_
     )
     assert dispatcher_input["toolName"] == "task"
     assert dispatcher_input["input"]["subagent_type"] == "sql-agent"
+
+
+@pytest.mark.asyncio
+async def test_runner_appends_lc_messages_for_persistence(monkeypatch, stub_state):
+    """run_task fills caller-supplied lc_messages with Human/AI/Tool LC messages
+    so the chat route can persist them to the LangGraph checkpointer."""
+    await reset_task_tables(SavedTask, SavedArtifact)
+
+    monkeypatch.setattr("app.tasks.runner.tool_registry.discover_tools", lambda: [echo_tool])
+
+    task = await _persist_task(
+        steps=[
+            TaskStep(
+                id="s1",
+                kind="tool",
+                title="Echo",
+                tool="echo_tool",
+                args_template={"text": "hi {{var.who}}"},
+                output_name="said",
+                output_kind="text",
+            )
+        ],
+        variables=[TaskVariable(name="who", type="string", label="Who")],
+    )
+
+    lc: list = []
+    await _collect(
+        run_task(
+            task,
+            {"who": "world"},
+            state=stub_state,
+            session_id="run-lc-1",
+            llm=FakeListChatModel(responses=["unused"]),
+            lc_messages=lc,
+        )
+    )
+    assert isinstance(lc[0], HumanMessage)
+    assert "Echo" in lc[0].content or task.title in lc[0].content
+    ai = next(m for m in lc if isinstance(m, AIMessage))
+    assert ai.tool_calls and ai.tool_calls[0]["id"] == "s1"
+    assert ai.tool_calls[0]["name"] == "echo_tool"
+    assert ai.tool_calls[0]["args"] == {"text": "hi world"}
+    tm = next(m for m in lc if isinstance(m, ToolMessage))
+    assert tm.tool_call_id == "s1"
+    assert "echo:hi world" in tm.content
+
+
+@pytest.mark.asyncio
+async def test_runner_lc_messages_marks_failed_step_as_error(monkeypatch, stub_state):
+    await reset_task_tables(SavedTask, SavedArtifact)
+    monkeypatch.setattr("app.tasks.runner.tool_registry.discover_tools", lambda: [echo_tool])
+    task = await _persist_task(
+        steps=[
+            TaskStep(
+                id="s1",
+                kind="tool",
+                title="Boom",
+                tool="echo_tool",
+                args_template={"text": "{{var.missing}}"},
+                output_name="x",
+                output_kind="text",
+            )
+        ],
+        variables=[],
+    )
+    lc: list = []
+    await _collect(
+        run_task(
+            task,
+            {},
+            state=stub_state,
+            session_id="run-lc-fail",
+            llm=FakeListChatModel(responses=["unused"]),
+            lc_messages=lc,
+        )
+    )
+    tm = next(m for m in lc if isinstance(m, ToolMessage))
+    assert tm.status == "error"
+    assert tm.tool_call_id == "s1"
+
+
+@pytest.mark.asyncio
+async def test_persist_task_run_checkpoint_roundtrip():
+    """persist_task_run_checkpoint writes LC messages such that the AsyncSqliteSaver
+    can be re-read via aget_tuple — this is what /sessions/{id}/messages relies on."""
+    from langgraph.checkpoint.memory import InMemorySaver
+
+    from app.tasks.runner import persist_task_run_checkpoint
+
+    saver = InMemorySaver()
+    msgs = [
+        HumanMessage(content="Run task **T**"),
+        AIMessage(
+            content="ok",
+            tool_calls=[{"id": "s1", "name": "echo_tool", "args": {"text": "x"}}],
+        ),
+        ToolMessage(content="echo:x", tool_call_id="s1"),
+    ]
+    await persist_task_run_checkpoint(saver, "sess-persist-1", msgs)
+    tup = await saver.aget_tuple({"configurable": {"thread_id": "sess-persist-1"}})
+    assert tup is not None
+    saved = tup.checkpoint["channel_values"]["messages"]
+    kinds = [type(m).__name__ for m in saved]
+    assert kinds == ["HumanMessage", "AIMessage", "ToolMessage"]
+    assert saved[1].tool_calls[0]["id"] == "s1"
+    assert saved[2].tool_call_id == "s1"

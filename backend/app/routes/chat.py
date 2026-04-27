@@ -15,7 +15,7 @@ from app.llm import resolve_llm
 from app.models import ToolFlag
 from app.schemas.chat import ChatRequest
 from app.streaming import stream_chat
-from app.tasks.runner import persist_run_messages, run_task
+from app.tasks.runner import persist_run_messages, persist_task_run_checkpoint, run_task
 from app.tasks.storage import get_task
 
 router = APIRouter()
@@ -50,14 +50,22 @@ async def chat(req: ChatRequest, request: Request):
         if task is None:
             raise HTTPException(404, f"task {req.task_run.task_id} not found")
         await persist_run_messages(session_id=req.id, task=task, variables=req.task_run.variables)
-        return StreamingResponse(
-            run_task(
+        lc: list = []
+
+        async def _stream_then_persist():
+            async for evt in run_task(
                 task,
                 req.task_run.variables,
                 state=state,
                 session_id=req.id,
                 llm=llm,
-            ),
+                lc_messages=lc,
+            ):
+                yield evt
+            await persist_task_run_checkpoint(state.checkpointer, req.id, lc)
+
+        return StreamingResponse(
+            _stream_then_persist(),
             media_type="text/event-stream",
             headers=_STREAM_HEADERS,
         )

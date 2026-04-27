@@ -88,6 +88,41 @@ async def test_e2e_prompt_task_resolves_var_refs():
 
 
 @pytest.mark.asyncio
+async def test_e2e_task_run_messages_reload_via_checkpointer():
+    """After a task run, GET /sessions/{id}/messages must return the run's tool steps,
+    not an empty list — the run is persisted to the LangGraph checkpointer like chat."""
+    await reset_task_tables(ChatMessage, ChatSession, SavedArtifact, SavedTask)
+    app = _bootstrap_app(["A small CLI for time."])
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        imported = await ac.post("/tasks/import", json=_load_fixture("task_prompt.json"))
+        assert imported.status_code == 200, imported.text
+        task_id = imported.json()["id"]
+
+        sid = "sess-reload-e2e"
+        await _run_task(
+            ac,
+            task_id=task_id,
+            variables={
+                "cli_purpose": "uptime monitor",
+                "team_expertise": "python",
+                "main_priorities": "speed",
+            },
+            session_id=sid,
+        )
+        r = await ac.get(f"/sessions/{sid}/messages")
+        assert r.status_code == 200
+        body = r.json()
+        roles = [m["role"] for m in body]
+        assert "user" in roles
+        assert "assistant" in roles
+        assistant_msg = next(m for m in body if m["role"] == "assistant")
+        # The prompt-step output should be in the assistant content.
+        text_parts = [p for p in assistant_msg["parts"] if p["type"] == "text"]
+        assert any("CLI" in p.get("text", "") for p in text_parts)
+
+
+@pytest.mark.asyncio
 async def test_e2e_subagent_then_code_propagates_artifact_id():
     """SUBAGENT step exposes artifact_id; CODE step interpolates it."""
     await reset_task_tables(ChatMessage, ChatSession, SavedArtifact, SavedTask)
