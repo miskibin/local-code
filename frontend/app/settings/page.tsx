@@ -46,8 +46,7 @@ export default function SettingsPage() {
         <Link
           href="/"
           aria-label="Back"
-          className="inline-flex items-center justify-center rounded-md p-1.5"
-          style={{ color: "var(--ink-2)" }}
+          className="inline-flex items-center justify-center rounded-md p-1.5 text-[var(--ink-2)] transition-colors hover:bg-[var(--accent-soft)] hover:text-[var(--accent-ink)]"
         >
           <ArrowLeft className="h-[17px] w-[17px]" />
         </Link>
@@ -62,17 +61,21 @@ export default function SettingsPage() {
       <Tabs
         value={tab}
         onValueChange={setTab}
-        className="flex min-h-0 flex-1"
+        className="lc-settings-tabs flex min-h-0 flex-1"
         orientation="vertical"
       >
         <div
           className="flex w-[200px] flex-shrink-0 flex-col gap-1 px-3 py-4"
           style={{
             background: "var(--bg-soft)",
-            borderRight: "1px solid var(--border)",
+            borderRight:
+              "1px solid color-mix(in oklab, var(--accent) 24%, var(--border))",
           }}
         >
-          <TabsList className="flex h-auto w-full flex-col items-stretch gap-0.5 bg-transparent p-0">
+          <TabsList
+            variant="line"
+            className="flex h-auto w-full flex-col items-stretch gap-0.5 bg-transparent p-0"
+          >
             <TabsTrigger
               value="appearance"
               className="justify-start gap-2.5 px-2.5 py-2"
@@ -133,7 +136,7 @@ function SectionHeader({
     <div className="mb-4 flex items-end justify-between gap-4">
       <div>
         <h2
-          className="text-[20px] font-semibold"
+          className="border-l-2 border-l-[var(--accent)] pl-3 text-[20px] font-semibold"
           style={{ letterSpacing: "-.01em" }}
         >
           {title}
@@ -505,8 +508,10 @@ function AppearanceTab() {
   const [fontPreset, setFontPreset] = useState<FontPreset>("mono")
 
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect -- sync from localStorage after mount (boot scripts already set CSS) */
     setAccent(getStoredAccent())
     setFontPreset(getStoredFontPreset())
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [])
 
   const onPickAccent = (name: AccentName) => {
@@ -519,102 +524,178 @@ function AppearanceTab() {
     setStoredFontPreset(name)
   }
 
+  const settingsGroupHeader =
+    "px-4 py-2 uppercase border-b border-[var(--border)]" as const
+
   return (
-    <>
+    <div className="mx-auto max-w-2xl space-y-6">
       <SectionHeader
         title="Appearance"
-        desc="Accent color for primary actions and focus; interface font for chat and settings."
+        desc="Accent for focus and primary actions. Body type follows your font preset everywhere in the app, including this page."
       />
-      <div
-        className="rounded-xl p-5"
-        style={{
-          border: "1px solid var(--border)",
-          background: "var(--surface)",
-        }}
-      >
-        <div className="mb-3 text-[12.5px]" style={{ color: "var(--ink-2)" }}>
-          Accent color
-        </div>
-        <div className="flex flex-wrap gap-2.5">
-          {(Object.keys(ACCENTS) as AccentName[]).map((name) => {
-            const { label, color } = ACCENTS[name]
-            const active = accent === name
-            return (
-              <button
-                key={name}
-                type="button"
-                onClick={() => onPickAccent(name)}
-                aria-pressed={active}
-                aria-label={label}
-                title={label}
-                className="grid h-10 w-10 place-items-center rounded-full transition"
-                style={{
-                  background: color,
-                  border: active
-                    ? "2px solid var(--ink)"
-                    : "2px solid transparent",
-                  outline: "1px solid var(--border)",
-                  outlineOffset: -1,
-                  cursor: "pointer",
-                }}
-              >
-                {active && (
-                  <Check
-                    className="h-4 w-4"
-                    style={{ color: "#ffffff" }}
-                    strokeWidth={3}
-                  />
-                )}
-              </button>
-            )
-          })}
-        </div>
-        <p className="mt-3.5 text-xs" style={{ color: "var(--ink-3)" }}>
-          Choice is saved to this browser.
-        </p>
-      </div>
 
       <div
-        className="mt-6 rounded-xl p-5"
+        className="overflow-hidden rounded-xl"
         style={{
           border: "1px solid var(--border)",
           background: "var(--surface)",
         }}
       >
-        <div className="mb-3 text-[12.5px]" style={{ color: "var(--ink-2)" }}>
-          Interface font
+        <div
+          className={settingsGroupHeader}
+          style={{
+            fontFamily: "var(--font-mono)",
+            fontSize: 11,
+            fontWeight: 500,
+            letterSpacing: "0.04em",
+            color: "var(--ink-3)",
+            background: "var(--bg-soft)",
+          }}
+        >
+          Accent
         </div>
-        <div className="flex flex-wrap gap-2">
-          {(Object.keys(FONT_PRESETS) as FontPreset[]).map((name) => {
-            const { label } = FONT_PRESETS[name]
-            const active = fontPreset === name
-            return (
-              <button
-                key={name}
-                type="button"
-                onClick={() => onPickFont(name)}
-                aria-pressed={active}
-                aria-label={label}
-                className="rounded-lg px-3.5 py-2 text-[13px] font-medium transition"
-                style={{
-                  border: active
-                    ? "2px solid var(--ink)"
-                    : "1px solid var(--border)",
-                  background: active ? "var(--hover)" : "transparent",
-                  color: "var(--ink)",
-                  cursor: "pointer",
-                }}
-              >
-                {label}
-              </button>
-            )
-          })}
+        <div className="p-4 sm:p-5">
+          <p className="mb-3 text-[12px] leading-snug" style={{ color: "var(--ink-2)" }}>
+            Links, buttons, and focus rings use the selected hue.
+          </p>
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+            {(Object.keys(ACCENTS) as AccentName[]).map((name) => {
+              const { label, color } = ACCENTS[name]
+              const active = accent === name
+              return (
+                <button
+                  key={name}
+                  type="button"
+                  onClick={() => onPickAccent(name)}
+                  aria-pressed={active}
+                  aria-label={`Accent: ${label}`}
+                  className="group relative flex flex-col gap-2.5 rounded-lg border p-3 text-left outline-none transition-[border-color,background-color,box-shadow] duration-150 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface)]"
+                  style={{
+                    cursor: "pointer",
+                    borderColor: active ? color : "var(--border)",
+                    background: active
+                      ? `color-mix(in oklab, ${color} 14%, var(--surface))`
+                      : "var(--bg-soft)",
+                    boxShadow: active
+                      ? `0 0 0 1px ${color}, 0 4px 14px -4px color-mix(in oklab, ${color} 40%, transparent)`
+                      : undefined,
+                  }}
+                >
+                  <div
+                    className="h-1.5 w-full rounded-sm"
+                    style={{ background: color }}
+                  />
+                  <div className="flex items-start justify-between gap-2">
+                    <span
+                      className="text-[12px] font-semibold"
+                      style={{ color: "var(--ink)" }}
+                    >
+                      {label}
+                    </span>
+                    {active && (
+                      <Check
+                        className="mt-0.5 h-3.5 w-3.5 shrink-0"
+                        style={{ color }}
+                        strokeWidth={2.5}
+                        aria-hidden
+                      />
+                    )}
+                  </div>
+                </button>
+              )
+            })}
+          </div>
         </div>
-        <p className="mt-3.5 text-xs" style={{ color: "var(--ink-3)" }}>
-          Sans uses Inter; mono matches code-style UI. Saved to this browser.
-        </p>
+
+        <div
+          className={settingsGroupHeader}
+          style={{
+            fontFamily: "var(--font-mono)",
+            fontSize: 11,
+            fontWeight: 500,
+            letterSpacing: "0.04em",
+            color: "var(--ink-3)",
+            background: "var(--bg-soft)",
+            borderTop: "1px solid var(--border)",
+          }}
+        >
+          Body font
+        </div>
+        <div className="p-4 sm:p-5">
+          <p className="mb-3 text-[12px] leading-snug" style={{ color: "var(--ink-2)" }}>
+            Sample line uses each preset so you can compare. Sans uses Inter.
+          </p>
+          <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+            {(Object.keys(FONT_PRESETS) as FontPreset[]).map((name) => {
+              const { label, stack } = FONT_PRESETS[name]
+              const active = fontPreset === name
+              return (
+                <button
+                  key={name}
+                  type="button"
+                  onClick={() => onPickFont(name)}
+                  aria-pressed={active}
+                  aria-label={`Font: ${label}`}
+                  className="rounded-lg border p-3 text-left outline-none transition-[border-color,background-color,box-shadow] duration-150 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface)]"
+                  style={{
+                    cursor: "pointer",
+                    borderColor: active ? "var(--accent)" : "var(--border)",
+                    background: active ? "var(--accent-soft)" : "var(--bg-soft)",
+                    boxShadow: active
+                      ? "0 1px 0 color-mix(in oklab, var(--accent) 22%, transparent)"
+                      : undefined,
+                  }}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                        <span
+                          className="text-[11px] font-medium uppercase tracking-[0.06em]"
+                          style={{
+                            fontFamily: "var(--font-mono)",
+                            color: "var(--ink-3)",
+                          }}
+                        >
+                          {name}
+                        </span>
+                        <span
+                          className="text-[12px] font-semibold"
+                          style={{
+                            color: active ? "var(--accent-ink)" : "var(--ink)",
+                          }}
+                        >
+                          {label}
+                        </span>
+                      </div>
+                      <p
+                        className="mt-2 line-clamp-2 text-[11.5px] leading-relaxed"
+                        style={{
+                          fontFamily: stack,
+                          color: "var(--ink-2)",
+                        }}
+                      >
+                        The quick brown fox jumps over the lazy dog.
+                      </p>
+                    </div>
+                    {active && (
+                      <Check
+                        className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--accent)]"
+                        strokeWidth={2.5}
+                        aria-hidden
+                      />
+                    )}
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+        </div>
       </div>
-    </>
+
+      <p className="text-xs" style={{ color: "var(--ink-3)" }}>
+        Stored in this browser only.
+      </p>
+    </div>
   )
 }
 

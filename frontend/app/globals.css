@@ -142,6 +142,10 @@ body[data-app="local-chat"] {
     --accent-soft: color-mix(in oklab, var(--accent) 12%, white);
     --accent-ink: color-mix(in oklab, var(--accent) 80%, black);
 
+    --sidebar-accent: color-mix(in oklab, var(--accent) 14%, var(--bg-sidebar));
+    --sidebar-accent-foreground: var(--accent-ink);
+    --sidebar-ring: var(--accent);
+
     /* Surfaces */
     --bg: #ffffff;
     --bg-soft: #f9f9f9;
@@ -217,6 +221,10 @@ html.dark body[data-app="local-chat"] {
 
     --accent-soft: color-mix(in oklab, var(--accent) 22%, #0d0d0d);
     --accent-ink: color-mix(in oklab, var(--accent) 55%, white);
+
+    --sidebar-accent: color-mix(in oklab, var(--accent) 18%, var(--bg-sidebar));
+    --sidebar-accent-foreground: var(--accent-ink);
+    --sidebar-ring: var(--accent);
 
     --bg: #0d0d0d;
     --bg-soft: #161616;
@@ -395,29 +403,36 @@ html.dark body[data-app="local-chat"] {
 }
 .lc-markdown tr:hover td { background: var(--bg-soft); }
 
-/* Settings tab triggers — explicit design colors */
-body[data-app="local-chat"] [data-slot="tabs-trigger"] {
+/* Settings nav (scoped): accent active state + line indicator */
+body[data-app="local-chat"] .lc-settings-tabs [data-slot="tabs-trigger"] {
     justify-content: flex-start;
     gap: 10px;
     padding: 8px 10px;
     font-size: 13.5px;
-    color: var(--ink) !important;
+    color: var(--ink-2) !important;
     background: transparent !important;
     border: 0 !important;
     box-shadow: none !important;
     text-shadow: none !important;
     border-radius: 8px;
 }
-body[data-app="local-chat"] [data-slot="tabs-trigger"]:hover {
-    background: var(--hover) !important;
-}
-body[data-app="local-chat"] [data-slot="tabs-trigger"][data-state="active"] {
+body[data-app="local-chat"] .lc-settings-tabs [data-slot="tabs-trigger"]:hover {
     background: var(--hover) !important;
     color: var(--ink) !important;
+}
+body[data-app="local-chat"] .lc-settings-tabs [data-slot="tabs-trigger"][data-state="active"] {
+    background: var(--accent-soft) !important;
+    color: var(--accent-ink) !important;
     font-weight: 500;
 }
-body[data-app="local-chat"] [data-slot="tabs-trigger"] svg {
-    color: var(--ink-2);
+body[data-app="local-chat"] .lc-settings-tabs [data-slot="tabs-trigger"][data-state="active"]::after {
+    background: var(--accent) !important;
+}
+body[data-app="local-chat"] .lc-settings-tabs [data-slot="tabs-trigger"] svg {
+    color: var(--ink-3);
+}
+body[data-app="local-chat"] .lc-settings-tabs [data-slot="tabs-trigger"][data-state="active"] svg {
+    color: var(--accent);
 }
 
 /* Switch — explicit design accent */
