@@ -4,9 +4,11 @@ import Link from "next/link"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import {
   ArrowLeft,
+  Check,
   Database,
   Folder,
   Globe,
+  Palette,
   Plus,
   Server,
   Sparkles,
@@ -19,10 +21,16 @@ import { Switch } from "@/components/ui/switch"
 import { Button } from "@/components/ui/button"
 import { api } from "@/lib/api"
 import type { MCPServer, Skill, Tool } from "@/lib/types"
+import {
+  ACCENTS,
+  type AccentName,
+  getStoredAccent,
+  setStoredAccent,
+} from "@/lib/accent"
 import { AddServerDialog } from "../_components/AddServerDialog"
 
 export default function SettingsPage() {
-  const [tab, setTab] = useState("skills")
+  const [tab, setTab] = useState("appearance")
   return (
     <div className="flex h-dvh flex-col" style={{ background: "var(--bg)" }}>
       <div
@@ -60,6 +68,12 @@ export default function SettingsPage() {
         >
           <TabsList className="flex h-auto w-full flex-col items-stretch gap-0.5 bg-transparent p-0">
             <TabsTrigger
+              value="appearance"
+              className="justify-start gap-2.5 px-2.5 py-2"
+            >
+              <Palette className="h-3.5 w-3.5" /> Appearance
+            </TabsTrigger>
+            <TabsTrigger
               value="skills"
               className="justify-start gap-2.5 px-2.5 py-2"
             >
@@ -81,6 +95,9 @@ export default function SettingsPage() {
         </div>
         <div className="lc-scroll flex-1 overflow-y-auto px-10 py-8">
           <div className="mx-auto max-w-[760px]">
+            <TabsContent value="appearance">
+              <AppearanceTab />
+            </TabsContent>
             <TabsContent value="skills">
               <SkillsTab />
             </TabsContent>
@@ -431,6 +448,76 @@ function ToolsTab() {
             No tools discovered.
           </div>
         )}
+      </div>
+    </>
+  )
+}
+
+function AppearanceTab() {
+  const [accent, setAccent] = useState<AccentName>("blue")
+
+  useEffect(() => {
+    setAccent(getStoredAccent())
+  }, [])
+
+  const onPick = (name: AccentName) => {
+    setAccent(name)
+    setStoredAccent(name)
+  }
+
+  return (
+    <>
+      <SectionHeader
+        title="Appearance"
+        desc="Pick the accent color used for primary buttons, focus rings, send action, and links."
+      />
+      <div
+        className="rounded-xl p-5"
+        style={{
+          border: "1px solid var(--border)",
+          background: "var(--surface)",
+        }}
+      >
+        <div className="mb-3 text-[12.5px]" style={{ color: "var(--ink-2)" }}>
+          Accent color
+        </div>
+        <div className="flex flex-wrap gap-2.5">
+          {(Object.keys(ACCENTS) as AccentName[]).map((name) => {
+            const { label, color } = ACCENTS[name]
+            const active = accent === name
+            return (
+              <button
+                key={name}
+                type="button"
+                onClick={() => onPick(name)}
+                aria-pressed={active}
+                aria-label={label}
+                title={label}
+                className="grid h-10 w-10 place-items-center rounded-full transition"
+                style={{
+                  background: color,
+                  border: active
+                    ? "2px solid var(--ink)"
+                    : "2px solid transparent",
+                  outline: "1px solid var(--border)",
+                  outlineOffset: -1,
+                  cursor: "pointer",
+                }}
+              >
+                {active && (
+                  <Check
+                    className="h-4 w-4"
+                    style={{ color: "#ffffff" }}
+                    strokeWidth={3}
+                  />
+                )}
+              </button>
+            )
+          })}
+        </div>
+        <p className="mt-3.5 text-xs" style={{ color: "var(--ink-3)" }}>
+          Choice is saved to this browser.
+        </p>
       </div>
     </>
   )

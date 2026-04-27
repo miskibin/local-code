@@ -135,11 +135,12 @@ body[data-app="local-chat"] {
     --input: #e5e5e5;
     --ring: #2563eb;
 
-    /* Accent — design blue */
-    --accent: #2563eb;
+    /* Accent — design blue. Pre-paint boot script in layout sets --accent-boot
+       on <html> from localStorage; runtime picker sets --accent inline on body. */
+    --accent: var(--accent-boot, #2563eb);
     --accent-foreground: #ffffff;
-    --accent-soft: #eff4ff;
-    --accent-ink: #1d4ed8;
+    --accent-soft: color-mix(in oklab, var(--accent) 12%, white);
+    --accent-ink: color-mix(in oklab, var(--accent) 80%, black);
 
     /* Surfaces */
     --bg: #ffffff;
@@ -207,8 +208,8 @@ html.dark body[data-app="local-chat"] {
     --border: #2a2a2a;
     --input: #2a2a2a;
 
-    --accent-soft: #1a233a;
-    --accent-ink: #93b4ff;
+    --accent-soft: color-mix(in oklab, var(--accent) 22%, #0d0d0d);
+    --accent-ink: color-mix(in oklab, var(--accent) 55%, white);
 
     --bg: #0d0d0d;
     --bg-soft: #161616;
@@ -415,6 +416,18 @@ body[data-app="local-chat"] [data-slot="tabs-trigger"] svg {
 /* Switch — explicit design accent */
 body[data-app="local-chat"] [data-slot="switch"][data-state="checked"] {
     background-color: var(--accent) !important;
+}
+
+/* Primary buttons follow accent (shadcn default uses --primary which is ink-black) */
+body[data-app="local-chat"] {
+    --ring: var(--accent);
+}
+body[data-app="local-chat"] [data-slot="button"][data-variant="default"] {
+    background-color: var(--accent);
+    color: var(--accent-foreground);
+}
+body[data-app="local-chat"] [data-slot="button"][data-variant="default"]:hover {
+    background-color: color-mix(in oklab, var(--accent) 88%, black);
 }
 
 @layer base {
