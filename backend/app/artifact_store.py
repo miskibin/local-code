@@ -258,9 +258,28 @@ async def run_python_artifact(code: str) -> dict[str, Any]:
             shutil.rmtree(tmp, ignore_errors=True)
 
 
+_SAFE_ENV_KEYS = (
+    "PATH",
+    "SystemRoot",
+    "SYSTEMROOT",
+    "TEMP",
+    "TMP",
+    "TMPDIR",
+    "HOME",
+    "USERPROFILE",
+    "APPDATA",
+    "LOCALAPPDATA",
+    "LANG",
+    "LC_ALL",
+    "LC_CTYPE",
+)
+
+
 def _run_python_sync(code: str, staged: dict[str, str]) -> dict[str, Any]:
     wrapped = _PY_PRELUDE + "\n" + textwrap.dedent(code)
-    env = os.environ.copy()
+    # Minimal env: subprocess inherits only what's needed to start Python.
+    # Avoids leaking secrets (API keys, DB URLs, .env) to LLM-controlled code.
+    env = {k: os.environ[k] for k in _SAFE_ENV_KEYS if k in os.environ}
     env[_ART_PATHS_ENV] = json.dumps(staged)
     try:
         proc = subprocess.run(
@@ -284,10 +303,7 @@ def _run_python_sync(code: str, staged: dict[str, str]) -> dict[str, Any]:
         a = free_stdout.index(ARTIFACT_START)
         b = free_stdout.index(ARTIFACT_END, a)
         body = free_stdout[a + len(ARTIFACT_START) : b]
-        try:
-            artifact_blob = json.loads(body)
-        except json.JSONDecodeError:
-            artifact_blob = None
+        artifact_blob = json.loads(body)
         free_stdout = free_stdout[:a] + free_stdout[b + len(ARTIFACT_END) :]
 
     free_stdout = free_stdout.strip()
@@ -343,6 +359,13 @@ def _classify_python_output(blob: Any, free_stdout: str, stderr: str) -> dict[st
 
 # ---------- SQL executor ----------
 
+from sqlalchemy import event as _sa_event  # noqa: E402
+
+_SQLITE_DENY = 1
+_SQLITE_ATTACH = 24
+
+_chinook_engine = None
+
 
 def _chinook_path() -> str:
     p = Path(get_settings().chinook_db_path)
@@ -351,12 +374,35 @@ def _chinook_path() -> str:
     return str(p)
 
 
+def _get_chinook_engine():
+    global _chinook_engine  # noqa: PLW0603 -- module-level singleton, intentional
+    if _chinook_engine is not None:
+        return _chinook_engine
+    # Read-only via URI; authorizer also blocks ATTACH so adversarial SQL
+    # cannot pivot to other SQLite files (e.g. app.db, checkpoints.db).
+    path = _chinook_path().replace("\\", "/")
+    uri = f"sqlite:///file:/{path.lstrip('/')}?mode=ro&uri=true"
+    engine = create_engine(uri, future=True)
+
+    @_sa_event.listens_for(engine, "connect")
+    def _on_connect(dbapi_conn, _):
+        def _authorizer(action, *_args):
+            if action == _SQLITE_ATTACH:
+                return _SQLITE_DENY
+            return 0
+
+        dbapi_conn.set_authorizer(_authorizer)
+
+    _chinook_engine = engine
+    return engine
+
+
 async def run_sql_artifact(sql: str) -> dict[str, Any]:
     return await asyncio.to_thread(_run_sql_sync, sql)
 
 
 def _run_sql_sync(sql: str) -> dict[str, Any]:
-    engine = create_engine(f"sqlite:///{_chinook_path()}", future=True)
+    engine = _get_chinook_engine()
     with engine.connect() as conn:
         cursor = conn.execute(text(sql))
         cols = list(cursor.keys())

@@ -11,6 +11,8 @@ async def test_web_fetch_returns_extracted_text():
     mock_resp = AsyncMock()
     mock_resp.status_code = 200
     mock_resp.text = html
+    mock_resp.content = html.encode("utf-8")
+    mock_resp.is_redirect = False
     mock_resp.raise_for_status = lambda: None
 
     with patch("httpx.AsyncClient.get", new=AsyncMock(return_value=mock_resp)):
@@ -26,6 +28,8 @@ async def test_web_fetch_truncates_long_output():
     mock_resp = AsyncMock()
     mock_resp.status_code = 200
     mock_resp.text = html
+    mock_resp.content = html.encode("utf-8")
+    mock_resp.is_redirect = False
     mock_resp.raise_for_status = lambda: None
 
     with patch("httpx.AsyncClient.get", new=AsyncMock(return_value=mock_resp)):

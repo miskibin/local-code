@@ -97,20 +97,29 @@ export const SchemaDisplayPath = ({
 }: SchemaDisplayPathProps) => {
   const { path } = useContext(SchemaDisplayContext);
 
-  // Highlight path parameters
-  const highlightedPath = path.replaceAll(
-    /\{([^}]+)\}/g,
-    '<span class="text-blue-600 dark:text-blue-400">{$1}</span>'
-  );
-  const htmlPath = typeof children === "string" ? children : highlightedPath;
+  const segments =
+    typeof children === "string"
+      ? [{ text: children, isParam: false }]
+      : path.split(/(\{[^}]+\})/g).map((seg) => ({
+          text: seg,
+          isParam: /^\{[^}]+\}$/.test(seg),
+        }));
 
   return (
-    <span
-      className={cn("font-mono text-sm", className)}
-      // oxlint-disable-next-line eslint-plugin-react(no-danger)
-      dangerouslySetInnerHTML={{ __html: htmlPath }}
-      {...props}
-    />
+    <span className={cn("font-mono text-sm", className)} {...props}>
+      {segments.map((s, i) =>
+        s.isParam ? (
+          <span
+            key={i}
+            className="text-blue-600 dark:text-blue-400"
+          >
+            {s.text}
+          </span>
+        ) : (
+          <span key={i}>{s.text}</span>
+        )
+      )}
+    </span>
   );
 };
 

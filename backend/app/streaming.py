@@ -255,6 +255,11 @@ async def stream_chat(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits w
                     args = tcc.get("args")
                     if name and cid not in tool_names:
                         tool_names[cid] = name
+                        # Lock in dispatcher id here so subgraph events that
+                        # arrive before the parent AIMessage still get a
+                        # parentToolCallId attached via parent_by_namespace.
+                        if is_top_level and name in DISPATCHER_TOOLS:
+                            current_dispatch_id = cid
                         if is_top_level:
                             closed = _close_text()
                             if closed:

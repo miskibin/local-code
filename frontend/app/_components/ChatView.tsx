@@ -410,19 +410,45 @@ export function ChatView({
                 )
               )
           )
+          const attachments = pendingAttachmentsRef.current
+          pendingAttachmentsRef.current = []
+          const lastUserIdx = (() => {
+            for (let i = cleanMessages.length - 1; i >= 0; i--) {
+              if (cleanMessages[i].role === "user") return i
+            }
+            return -1
+          })()
           return {
             body: {
               id,
-              messages: cleanMessages.map((m) => ({
-                id: m.id,
-                role: m.role,
-                parts: (m.parts ?? [])
+              messages: cleanMessages.map((m, idx) => {
+                const textParts = (m.parts ?? [])
                   .filter((p) => p.type === "text")
                   .map((p) => ({
-                    type: "text",
+                    type: "text" as const,
                     text: (p as { text: string }).text,
-                  })),
-              })),
+                  }))
+                const fileParts =
+                  idx === lastUserIdx && attachments.length > 0
+                    ? attachments.map((a) => ({
+                        type: "file" as const,
+                        artifactId: a.id,
+                        mediaType:
+                          (a.payload as { mime?: string } | undefined)?.mime ??
+                          (a.kind === "image"
+                            ? "image/png"
+                            : a.kind === "table"
+                              ? "text/csv"
+                              : "text/plain"),
+                        name: a.title,
+                      }))
+                    : []
+                return {
+                  id: m.id,
+                  role: m.role,
+                  parts: [...textParts, ...fileParts],
+                }
+              }),
               reset: trigger === "regenerate-message" || b?.reset === true,
               model: b?.model ?? selectedModel,
               ...(b?.task_run ? { task_run: b.task_run } : {}),
@@ -438,6 +464,7 @@ export function ChatView({
   >(null)
   const messagesRef = useRef<{ role: string }[]>([])
   const resumePendingRef = useRef(false)
+  const pendingAttachmentsRef = useRef<Artifact[]>([])
   const { messages, sendMessage, regenerate, setMessages, status, stop } =
     useChat({
       id: sessionId,
@@ -598,8 +625,9 @@ export function ChatView({
 
   const isEmpty = messages.length === 0
 
-  const send = (text: string) => {
+  const send = (text: string, attachments: Artifact[] = []) => {
     setStreamFault(null)
+    pendingAttachmentsRef.current = attachments
     sendMessage({ text })
   }
 
@@ -816,6 +844,7 @@ export function ChatView({
             streaming={streaming || pendingQuiz}
             model={selectedModel}
             onModelChange={setSelectedModel}
+            sessionId={sessionId}
           />
         </div>
         <GeneratingTaskModal open={generatingTask} />

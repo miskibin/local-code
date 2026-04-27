@@ -43,21 +43,32 @@ from app.tasks.substitution import SubstitutionError, substitute
 
 _CONTENT_AND_ARTIFACT_LEN = 2  # langchain (summary, artifact) tuple shape
 
-_ARTIFACT_ID_RE = re.compile(r"\bartifact_id\s*=\s*(art_[A-Za-z0-9]+)")
-_COLUMNS_RE = re.compile(r"\bcolumns\s*=\s*([A-Za-z0-9_,\s]+)")
+_ARTIFACT_ID_RE = re.compile(r"artifact_id\s*=\s*(art_[A-Za-z0-9_]+)")
+_COLUMNS_RE = re.compile(r"columns\s*=\s*([A-Za-z0-9_,\s]+?)(?=$|;|\n)")
 
 
-def _extract_subagent_outputs(text: str) -> dict[str, Any]:
+def _extract_subagent_outputs(text: str, *, trailer_only: bool = False) -> dict[str, Any]:
     """Subagent prompts ask the agent to end with `artifact_id=...; columns=...`.
 
     Surface these as sibling outputs so later steps can reference
-    `{{stepId.artifact_id}}` directly.
+    `{{stepId.artifact_id}}` directly. With `trailer_only=True`, only the
+    last non-empty line is searched — used when the iteration cap may have
+    cut off the subagent before it produced a clean trailer, so we don't
+    grab a stray id from earlier tool output.
     """
+    if not text:
+        return {}
+    haystack = text
+    if trailer_only:
+        lines = [ln for ln in text.splitlines() if ln.strip()]
+        if not lines:
+            return {}
+        haystack = lines[-1]
     extra: dict[str, Any] = {}
-    m = _ARTIFACT_ID_RE.search(text or "")
+    m = _ARTIFACT_ID_RE.search(haystack)
     if m:
         extra["artifact_id"] = m.group(1)
-    c = _COLUMNS_RE.search(text or "")
+    c = _COLUMNS_RE.search(haystack)
     if c:
         cols = [s.strip() for s in c.group(1).split(",") if s.strip()]
         if cols:
@@ -230,6 +241,7 @@ async def _run_subagent_step(
     sub_md = _subagent_md(step)
     messages: list[Any] = [HumanMessage(content=f"{system}\n\n{prompt}")]
     last_text = ""
+    clean_finish = False
     for _ in range(4):  # cap subagent ReAct loop to keep tasks deterministic-ish
         response = await chain.ainvoke(messages)
         messages.append(response)
@@ -237,6 +249,7 @@ async def _run_subagent_step(
         last_text = text or last_text
         tool_calls = getattr(response, "tool_calls", None) or []
         if not tool_calls:
+            clean_finish = True
             break
         config = {"configurable": {"thread_id": session_id}}
         for tc in tool_calls:
@@ -259,7 +272,10 @@ async def _run_subagent_step(
             tool_text_str = coerce_lc_content(tool_text)
             yield _emit_output(inner_id, tool_text_str, provider_md=sub_md)
             messages.append(ToolMessage(content=tool_text_str, tool_call_id=inner_id))
-    outputs = {step.output_name: last_text, **_extract_subagent_outputs(last_text)}
+    outputs = {
+        step.output_name: last_text,
+        **_extract_subagent_outputs(last_text, trailer_only=not clean_finish),
+    }
     yield (last_text, outputs)
 
 
@@ -284,6 +300,9 @@ async def run_task(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits woul
     all_tools = await _all_tools(state)
     tools_by_key: dict[tuple[str | None, str], BaseTool] = {}
     for t in all_tools:
+        server = getattr(t, "server", None)
+        if server:
+            tools_by_key[(server, t.name)] = t
         tools_by_key[(None, t.name)] = t
 
     ai_tool_calls: list[dict[str, Any]] = []
