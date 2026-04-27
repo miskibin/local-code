@@ -1,6 +1,6 @@
-import type { ConnectionLineComponent } from "@xyflow/react";
+import type { ConnectionLineComponent } from "@xyflow/react"
 
-const HALF = 0.5;
+const HALF = 0.5
 
 export const Connection: ConnectionLineComponent = ({
   fromX,
@@ -19,10 +19,10 @@ export const Connection: ConnectionLineComponent = ({
     <circle
       cx={toX}
       cy={toY}
-      fill="#fff"
+      fill="var(--background)"
       r={3}
       stroke="var(--color-ring)"
       strokeWidth={1}
     />
   </g>
-);
+)

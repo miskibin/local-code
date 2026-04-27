@@ -37,7 +37,7 @@ export function Subagent({
         style={{
           border: "1px solid var(--accent)",
           borderLeft: "3px solid var(--accent)",
-          background: "#fff",
+          background: "var(--surface)",
           boxShadow: "0 1px 0 rgba(0,0,0,.02)",
         }}
       >
@@ -52,7 +52,10 @@ export function Subagent({
         >
           <div
             className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-lg"
-            style={{ background: "var(--accent)", color: "#fff" }}
+            style={{
+              background: "var(--accent)",
+              color: "var(--accent-foreground)",
+            }}
           >
             <Bot className="h-4 w-4" />
           </div>
@@ -69,7 +72,7 @@ export function Subagent({
                 style={{
                   fontSize: 10.5,
                   padding: "2px 7px",
-                  background: "#fff",
+                  background: "var(--surface)",
                   color: "var(--accent-ink)",
                   border: "1px solid var(--accent)",
                   fontWeight: 500,
@@ -140,7 +143,7 @@ export function Subagent({
                           s.status === "running"
                             ? "var(--accent-soft)"
                             : "var(--accent)",
-                        border: "2px solid #fff",
+                        border: "2px solid var(--bg)",
                         boxShadow:
                           s.status === "running"
                             ? "0 0 0 2px var(--accent)"

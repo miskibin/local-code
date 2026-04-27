@@ -92,7 +92,7 @@ export function ModelPicker({ value, onChange }: ModelPickerProps = {}) {
           className="lc-reveal absolute left-0 z-30 min-w-[280px] rounded-xl p-1"
           style={{
             bottom: "calc(100% + 8px)",
-            background: "#fff",
+            background: "var(--popover)",
             border: "1px solid var(--border)",
             boxShadow:
               "0 12px 32px -8px rgba(0,0,0,.18), 0 2px 6px rgba(0,0,0,.04)",

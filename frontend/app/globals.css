@@ -247,7 +247,7 @@ html.dark body[data-app="local-chat"] {
     background-clip: padding-box;
 }
 [data-app="local-chat"] .lc-scroll:hover::-webkit-scrollbar-thumb {
-    background: #d4d4d4;
+    background: var(--border-strong);
     background-clip: padding-box;
     border: 3px solid transparent;
 }

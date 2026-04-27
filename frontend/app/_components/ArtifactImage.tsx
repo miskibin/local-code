@@ -22,7 +22,7 @@ export function ArtifactImage({
   }
   const src = `data:image/${payload.format};base64,${payload.data_b64}`
   return (
-    <figure className="bg-white px-3.5 py-3">
+    <figure className="bg-card px-3.5 py-3">
       {/* next/image can't optimize a data: URL; use a plain <img>. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img

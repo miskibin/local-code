@@ -1,4 +1,4 @@
-"use client";
+"use client"
 
 import {
   Database,
@@ -8,22 +8,22 @@ import {
   Square,
   Wrench,
   X,
-} from "lucide-react";
-import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
-import { api } from "@/lib/api";
-import type { Artifact } from "@/lib/types";
-import { ModelPicker } from "./ModelPicker";
+} from "lucide-react"
+import { useEffect, useRef, useState } from "react"
+import { toast } from "sonner"
+import { api } from "@/lib/api"
+import type { Artifact } from "@/lib/types"
+import { ModelPicker } from "./ModelPicker"
 
 type Props = {
-  onSend: (text: string, attachments: Artifact[]) => void;
-  onStop?: () => void;
-  streaming: boolean;
-  model?: string;
-  onModelChange?: (m: string) => void;
-  sessionId: string;
-  onAttachmentUploaded?: (a: Artifact) => void;
-};
+  onSend: (text: string, attachments: Artifact[]) => void
+  onStop?: () => void
+  streaming: boolean
+  model?: string
+  onModelChange?: (m: string) => void
+  sessionId: string
+  onAttachmentUploaded?: (a: Artifact) => void
+}
 
 export function Composer({
   onSend,
@@ -34,96 +34,101 @@ export function Composer({
   sessionId,
   onAttachmentUploaded,
 }: Props) {
-  const [text, setText] = useState("");
-  const [pending, setPending] = useState<Artifact[]>([]);
-  const [uploading, setUploading] = useState(0);
-  const [dragOver, setDragOver] = useState(false);
-  const taRef = useRef<HTMLTextAreaElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [text, setText] = useState("")
+  const [pending, setPending] = useState<Artifact[]>([])
+  const [uploading, setUploading] = useState(0)
+  const [dragOver, setDragOver] = useState(false)
+  const taRef = useRef<HTMLTextAreaElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    const ta = taRef.current;
-    if (!ta) return;
-    ta.style.height = "auto";
-    const capped = ta.scrollHeight > 200;
-    ta.style.height = (capped ? 200 : ta.scrollHeight) + "px";
-    ta.style.overflowY = capped ? "auto" : "hidden";
-  }, [text]);
+    const ta = taRef.current
+    if (!ta) return
+    ta.style.height = "auto"
+    const capped = ta.scrollHeight > 200
+    ta.style.height = (capped ? 200 : ta.scrollHeight) + "px"
+    ta.style.overflowY = capped ? "auto" : "hidden"
+  }, [text])
 
   const upload = async (files: File[] | FileList | null) => {
-    if (!files) return;
-    const list = Array.from(files);
-    if (list.length === 0) return;
-    setUploading((n) => n + list.length);
+    if (!files) return
+    const list = Array.from(files)
+    if (list.length === 0) return
+    setUploading((n) => n + list.length)
     try {
       const uploaded = await Promise.all(
         list.map((f) =>
           api.uploadArtifact(f, sessionId).catch((e) => {
             toast.error("Upload failed", {
               description: e instanceof Error ? e.message : String(e),
-            });
-            return null;
-          }),
-        ),
-      );
-      const ok = uploaded.filter((a): a is Artifact => !!a);
-      setPending((p) => [...p, ...ok]);
-      for (const a of ok) onAttachmentUploaded?.(a);
+            })
+            return null
+          })
+        )
+      )
+      const ok = uploaded.filter((a): a is Artifact => !!a)
+      setPending((p) => [...p, ...ok])
+      for (const a of ok) onAttachmentUploaded?.(a)
     } finally {
-      setUploading((n) => n - list.length);
+      setUploading((n) => n - list.length)
     }
-  };
+  }
 
   const submit = () => {
-    const t = text.trim();
-    if ((!t && pending.length === 0) || streaming || uploading > 0) return;
-    onSend(t, pending);
-    setText("");
-    setPending([]);
-  };
+    const t = text.trim()
+    if ((!t && pending.length === 0) || streaming || uploading > 0) return
+    onSend(t, pending)
+    setText("")
+    setPending([])
+  }
 
   const onKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      submit();
+      e.preventDefault()
+      submit()
     }
-  };
+  }
 
   const onPaste = (e: React.ClipboardEvent<HTMLTextAreaElement>) => {
-    if (!e.clipboardData?.files?.length) return;
-    e.preventDefault();
-    void upload(e.clipboardData.files);
-  };
+    if (!e.clipboardData?.files?.length) return
+    e.preventDefault()
+    void upload(e.clipboardData.files)
+  }
 
   const onDrop = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    setDragOver(false);
-    if (e.dataTransfer?.files?.length) void upload(e.dataTransfer.files);
-  };
+    e.preventDefault()
+    setDragOver(false)
+    if (e.dataTransfer?.files?.length) void upload(e.dataTransfer.files)
+  }
 
   const removeAttachment = (id: string) =>
-    setPending((p) => p.filter((a) => a.id !== id));
+    setPending((p) => p.filter((a) => a.id !== id))
 
-  const canSend = (text.trim().length > 0 || pending.length > 0) && !streaming && uploading === 0;
+  const canSend =
+    (text.trim().length > 0 || pending.length > 0) &&
+    !streaming &&
+    uploading === 0
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-8 pb-4 pt-1">
+    <div className="mx-auto w-full max-w-5xl px-8 pt-1 pb-4">
       <div
         className="rounded-3xl px-3.5 pt-2.5 pb-2 transition"
         style={{
-          background: "#fff",
-          border: dragOver ? "1px solid var(--accent)" : "1px solid var(--border)",
+          background: "var(--surface)",
+          border: dragOver
+            ? "1px solid var(--accent)"
+            : "1px solid var(--border)",
           boxShadow: dragOver
             ? "0 0 0 3px var(--accent-soft)"
             : "0 1px 0 rgba(0,0,0,.02)",
         }}
         onDragOver={(e) => {
-          e.preventDefault();
-          if (e.dataTransfer?.types?.includes("Files")) setDragOver(true);
+          e.preventDefault()
+          if (e.dataTransfer?.types?.includes("Files")) setDragOver(true)
         }}
         onDragLeave={(e) => {
-          if (e.currentTarget.contains(e.relatedTarget as Node)) return;
-          setDragOver(false);
+          if (e.currentTarget.contains(e.relatedTarget as Node)) return
+          setDragOver(false)
         }}
         onDrop={onDrop}
       >
@@ -168,8 +173,8 @@ export function Composer({
           multiple
           hidden
           onChange={(e) => {
-            void upload(e.target.files);
-            e.target.value = "";
+            void upload(e.target.files)
+            e.target.value = ""
           }}
         />
         <div className="mt-1 flex items-center justify-between gap-2">
@@ -200,7 +205,7 @@ export function Composer({
                   fontFamily: "var(--font-mono)",
                   background: "var(--ink)",
                   border: "1px solid var(--ink)",
-                  color: "#fff",
+                  color: "var(--primary-foreground)",
                   cursor: "pointer",
                 }}
               >
@@ -226,7 +231,7 @@ export function Composer({
                   border: canSend
                     ? "1px solid var(--accent)"
                     : "1px solid var(--border)",
-                  color: canSend ? "#fff" : "var(--ink-3)",
+                  color: canSend ? "var(--accent-foreground)" : "var(--ink-3)",
                   cursor: canSend ? "pointer" : "not-allowed",
                 }}
               >
@@ -238,23 +243,23 @@ export function Composer({
         </div>
       </div>
     </div>
-  );
+  )
 }
 
 function AttachmentChip({
   artifact,
   onRemove,
 }: {
-  artifact: Artifact;
-  onRemove: () => void;
+  artifact: Artifact
+  onRemove: () => void
 }) {
   const Icon =
     artifact.kind === "image"
       ? ImageIcon
       : artifact.kind === "table"
         ? Database
-        : FileText;
-  const subtitle = artifact.summary || artifact.kind;
+        : FileText
+  const subtitle = artifact.summary || artifact.kind
   return (
     <div
       className="group inline-flex max-w-[260px] items-center gap-2 rounded-md px-2 py-1 text-[12px]"
@@ -285,7 +290,7 @@ function AttachmentChip({
         <X className="h-3 w-3" />
       </button>
     </div>
-  );
+  )
 }
 
 function ToolbarBtn({
@@ -293,9 +298,9 @@ function ToolbarBtn({
   children,
   onClick,
 }: {
-  title: string;
-  children: React.ReactNode;
-  onClick?: () => void;
+  title: string
+  children: React.ReactNode
+  onClick?: () => void
 }) {
   return (
     <button
@@ -305,13 +310,13 @@ function ToolbarBtn({
       className="inline-flex items-center rounded-md px-2 py-1.5"
       style={{ background: "transparent", border: 0, color: "var(--ink-2)" }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.background = "var(--hover)";
+        e.currentTarget.style.background = "var(--hover)"
       }}
       onMouseLeave={(e) => {
-        e.currentTarget.style.background = "transparent";
+        e.currentTarget.style.background = "transparent"
       }}
     >
       {children}
     </button>
-  );
+  )
 }

@@ -6,7 +6,7 @@ import { cjk } from "@streamdown/cjk"
 import { code } from "@streamdown/code"
 import { math } from "@streamdown/math"
 import { mermaid } from "@streamdown/mermaid"
-import { ArtifactChip } from "./ArtifactRefs"
+import { InlineArtifact } from "./ArtifactRefs"
 
 const streamdownPlugins = { cjk, code, math, mermaid }
 
@@ -26,7 +26,7 @@ const components: ComponentProps<typeof Streamdown>["components"] = {
   a: ({ href, children, ...rest }) => {
     if (typeof href === "string" && href.startsWith(ARTIFACT_PREFIX)) {
       const id = href.slice(ARTIFACT_PREFIX.length).trim()
-      if (id) return <ArtifactChip id={id} label={children} />
+      if (id) return <InlineArtifact id={id} />
     }
     const safeHref =
       typeof href === "string" && UNSAFE_HREF.test(href) ? undefined : href

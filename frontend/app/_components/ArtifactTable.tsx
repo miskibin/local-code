@@ -1,17 +1,19 @@
-"use client";
+"use client"
 
-import type { ArtifactColumn, ArtifactTablePayload } from "@/lib/types";
+import type { ArtifactColumn, ArtifactTablePayload } from "@/lib/types"
 
 function formatCell(v: unknown, c: ArtifactColumn): string {
-  if (v == null) return "—";
+  if (v == null) return "—"
   if (c.numeric && typeof v === "number") {
-    return c.format === "currency" ? "$" + v.toLocaleString() : v.toLocaleString();
+    return c.format === "currency"
+      ? "$" + v.toLocaleString()
+      : v.toLocaleString()
   }
-  return String(v);
+  return String(v)
 }
 
 export function ArtifactTable({ payload }: { payload: ArtifactTablePayload }) {
-  const { columns, rows } = payload;
+  const { columns, rows } = payload
   return (
     <div className="lc-scroll" style={{ maxHeight: 280, overflow: "auto" }}>
       <table
@@ -23,11 +25,11 @@ export function ArtifactTable({ payload }: { payload: ArtifactTablePayload }) {
             {columns.map((c) => (
               <th
                 key={c.key}
-                className="whitespace-nowrap px-3 py-2"
+                className="px-3 py-2 whitespace-nowrap"
                 style={{
                   position: "sticky",
                   top: 0,
-                  background: "#fff",
+                  background: "var(--surface)",
                   borderBottom: "1px solid var(--border)",
                   textAlign: c.numeric ? "right" : "left",
                   color: "var(--ink-2)",
@@ -45,7 +47,7 @@ export function ArtifactTable({ payload }: { payload: ArtifactTablePayload }) {
               {columns.map((c) => (
                 <td
                   key={c.key}
-                  className="whitespace-nowrap px-3 py-1.5"
+                  className="px-3 py-1.5 whitespace-nowrap"
                   style={{
                     textAlign: c.numeric ? "right" : "left",
                     color: "var(--ink)",
@@ -59,5 +61,5 @@ export function ArtifactTable({ payload }: { payload: ArtifactTablePayload }) {
         </tbody>
       </table>
     </div>
-  );
+  )
 }

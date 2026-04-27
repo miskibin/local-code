@@ -1,6 +1,6 @@
-"use client";
+"use client"
 
-import { Circle, CircleCheck, Loader2 } from "lucide-react";
+import { Circle, CircleCheck, Loader2 } from "lucide-react"
 import {
   Plan,
   PlanAction,
@@ -9,14 +9,14 @@ import {
   PlanHeader,
   PlanTitle,
   PlanTrigger,
-} from "@/components/ai-elements/plan";
-import type { Todo } from "@/lib/types";
+} from "@/components/ai-elements/plan"
+import type { Todo } from "@/lib/types"
 
 function progressLabel(todos: Todo[]): string {
-  const total = todos.length;
-  const done = todos.filter((t) => t.status === "completed").length;
-  if (done === total) return `All done · ${done}/${total}`;
-  return `In progress · ${done}/${total}`;
+  const total = todos.length
+  const done = todos.filter((t) => t.status === "completed").length
+  if (done === total) return `All done · ${done}/${total}`
+  return `In progress · ${done}/${total}`
 }
 
 function StatusIcon({ status }: { status: Todo["status"] }) {
@@ -26,7 +26,7 @@ function StatusIcon({ status }: { status: Todo["status"] }) {
         className="h-4 w-4 shrink-0"
         style={{ color: "var(--accent-ink)" }}
       />
-    );
+    )
   }
   if (status === "in_progress") {
     return (
@@ -34,18 +34,15 @@ function StatusIcon({ status }: { status: Todo["status"] }) {
         className="lc-spin h-4 w-4 shrink-0"
         style={{ color: "var(--accent)" }}
       />
-    );
+    )
   }
   return (
-    <Circle
-      className="h-4 w-4 shrink-0"
-      style={{ color: "var(--ink-3)" }}
-    />
-  );
+    <Circle className="h-4 w-4 shrink-0" style={{ color: "var(--ink-3)" }} />
+  )
 }
 
 function TodoRow({ todo }: { todo: Todo }) {
-  const completed = todo.status === "completed";
+  const completed = todo.status === "completed"
   return (
     <li
       className="flex items-start gap-2.5 py-1.5 text-[14px]"
@@ -63,17 +60,17 @@ function TodoRow({ todo }: { todo: Todo }) {
         {todo.content}
       </span>
     </li>
-  );
+  )
 }
 
 export function PlanCard({
   todos,
   streaming,
 }: {
-  todos: Todo[];
-  streaming: boolean;
+  todos: Todo[]
+  streaming: boolean
 }) {
-  if (todos.length === 0) return null;
+  if (todos.length === 0) return null
   return (
     <div className="lc-reveal my-1.5 mb-3.5">
       <Plan
@@ -99,8 +96,11 @@ export function PlanCard({
           </PlanAction>
         </PlanHeader>
         <PlanContent
-          className="px-3.5 pb-3 pt-0"
-          style={{ borderTop: "1px solid var(--tool-border)", background: "#fff" }}
+          className="px-3.5 pt-0 pb-3"
+          style={{
+            borderTop: "1px solid var(--tool-border)",
+            background: "var(--surface)",
+          }}
         >
           <ol className="m-0 list-none p-0 pt-2">
             {todos.map((t, i) => (
@@ -110,5 +110,5 @@ export function PlanCard({
         </PlanContent>
       </Plan>
     </div>
-  );
+  )
 }

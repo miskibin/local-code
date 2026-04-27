@@ -82,7 +82,7 @@ export function ToolCall({
               fontSize: 11.5,
               color: "var(--ink-3)",
               fontFamily: "var(--font-mono)",
-              background: "#fff",
+              background: "var(--surface)",
               border: "1px solid var(--border)",
             }}
           >
@@ -111,7 +111,7 @@ export function ToolCall({
           className="flex items-center gap-2 px-3.5 py-1.5"
           style={{
             borderTop: "1px solid var(--tool-border)",
-            background: "#fff",
+            background: "var(--surface)",
           }}
         >
           <span style={{ fontSize: 11, color: "var(--ink-3)" }}>artifact</span>
@@ -126,7 +126,7 @@ export function ToolCall({
         <div
           style={{
             borderTop: "1px solid var(--tool-border)",
-            background: "#fff",
+            background: "var(--surface)",
           }}
         >
           <Section label="Arguments">

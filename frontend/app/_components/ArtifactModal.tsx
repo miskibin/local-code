@@ -1,37 +1,37 @@
-"use client";
+"use client"
 
-import { formatDistanceToNow } from "date-fns";
-import { Database, FileText, Image as ImageIcon, RotateCw } from "lucide-react";
-import { useState } from "react";
-import { toast } from "sonner";
+import { formatDistanceToNow } from "date-fns"
+import { Database, FileText, Image as ImageIcon, RotateCw } from "lucide-react"
+import { useState } from "react"
+import { toast } from "sonner"
 
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { api } from "@/lib/api";
+} from "@/components/ui/dialog"
+import { api } from "@/lib/api"
 import type {
   Artifact,
   ArtifactTablePayload,
   ArtifactTextPayload,
-} from "@/lib/types";
+} from "@/lib/types"
 
-import { ArtifactImage } from "./ArtifactImage";
-import { ArtifactSourceCode } from "./ArtifactSourceCode";
-import { ArtifactTable } from "./ArtifactTable";
+import { ArtifactImage } from "./ArtifactImage"
+import { ArtifactSourceCode } from "./ArtifactSourceCode"
+import { ArtifactTable } from "./ArtifactTable"
 
 function KindIcon({ kind }: { kind: Artifact["kind"] }) {
-  if (kind === "table") return <Database className="h-4 w-4" />;
-  if (kind === "image") return <ImageIcon className="h-4 w-4" />;
-  return <FileText className="h-4 w-4" />;
+  if (kind === "table") return <Database className="h-4 w-4" />
+  if (kind === "image") return <ImageIcon className="h-4 w-4" />
+  return <FileText className="h-4 w-4" />
 }
 
 function UpdatedPill({ ts }: { ts?: string }) {
-  if (!ts) return null;
-  const d = new Date(ts);
-  if (Number.isNaN(d.getTime())) return null;
+  if (!ts) return null
+  const d = new Date(ts)
+  if (Number.isNaN(d.getTime())) return null
   return (
     <span
       className="rounded-full px-2 py-0.5 text-[11px]"
@@ -39,7 +39,7 @@ function UpdatedPill({ ts }: { ts?: string }) {
     >
       Updated {formatDistanceToNow(d, { addSuffix: true })}
     </span>
-  );
+  )
 }
 
 export function ArtifactModal({
@@ -47,32 +47,32 @@ export function ArtifactModal({
   onClose,
   onRefreshed,
 }: {
-  artifact: Artifact | null;
-  onClose: () => void;
-  onRefreshed?: (a: Artifact) => void;
+  artifact: Artifact | null
+  onClose: () => void
+  onRefreshed?: (a: Artifact) => void
 }) {
-  const [refreshing, setRefreshing] = useState(false);
-  const open = !!artifact;
+  const [refreshing, setRefreshing] = useState(false)
+  const open = !!artifact
 
   const handleRefresh = async () => {
-    if (!artifact) return;
-    setRefreshing(true);
+    if (!artifact) return
+    setRefreshing(true)
     try {
-      const fresh = await api.refreshArtifact(artifact.id);
-      onRefreshed?.(fresh);
-      toast.success("Artifact refreshed");
+      const fresh = await api.refreshArtifact(artifact.id)
+      onRefreshed?.(fresh)
+      toast.success("Artifact refreshed")
     } catch (e) {
-      toast.error(`Refresh failed: ${(e as Error).message}`);
+      toast.error(`Refresh failed: ${(e as Error).message}`)
     } finally {
-      setRefreshing(false);
+      setRefreshing(false)
     }
-  };
+  }
 
-  const canRefresh = !!artifact?.source_code && !!artifact?.source_kind;
+  const canRefresh = !!artifact?.source_code && !!artifact?.source_kind
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="w-[95vw] max-w-[1400px] sm:max-w-[1400px] max-h-[90vh] overflow-hidden p-0">
+      <DialogContent className="max-h-[90vh] w-[95vw] max-w-[1400px] overflow-hidden p-0 sm:max-w-[1400px]">
         <DialogHeader
           className="flex flex-row items-center gap-3 px-5 py-3.5"
           style={{ borderBottom: "1px solid var(--border)" }}
@@ -91,7 +91,7 @@ export function ArtifactModal({
               className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[12px] transition disabled:opacity-50"
               style={{
                 background: "var(--accent)",
-                color: "#fff",
+                color: "var(--accent-foreground)",
                 border: 0,
                 cursor: refreshing ? "default" : "pointer",
               }}
@@ -106,7 +106,7 @@ export function ArtifactModal({
           ) : null}
         </DialogHeader>
         <div
-          className="overflow-auto px-5 pb-5 pt-3"
+          className="overflow-auto px-5 pt-3 pb-5"
           style={{ maxHeight: "calc(90vh - 60px)" }}
         >
           {artifact?.kind === "table" ? (
@@ -115,7 +115,7 @@ export function ArtifactModal({
             <ArtifactImage artifact={artifact} fullSize />
           ) : artifact?.kind === "text" ? (
             <pre
-              className="whitespace-pre-wrap rounded-lg p-3"
+              className="rounded-lg p-3 whitespace-pre-wrap"
               style={{
                 background: "var(--bg-soft)",
                 fontFamily: "var(--font-mono)",
@@ -135,5 +135,5 @@ export function ArtifactModal({
         </div>
       </DialogContent>
     </Dialog>
-  );
+  )
 }

@@ -80,7 +80,7 @@ export function QuizCard({
       className="lc-reveal my-1.5 mb-3.5 overflow-hidden rounded-xl"
       style={{
         border: "1px solid var(--tool-border)",
-        background: "#fff",
+        background: "var(--surface)",
       }}
     >
       <div
@@ -111,7 +111,7 @@ export function QuizCard({
             fontSize: 11.5,
             color: "var(--ink-3)",
             fontFamily: "var(--font-mono)",
-            background: "#fff",
+            background: "var(--surface)",
             border: "1px solid var(--border)",
           }}
         >
@@ -121,7 +121,7 @@ export function QuizCard({
           className="ml-auto inline-flex items-center gap-1.5 rounded-full px-2 py-0.5"
           style={{
             fontSize: 11.5,
-            background: isAnswered || isErrored ? headerBg : "#fff",
+            background: isAnswered || isErrored ? headerBg : "var(--surface)",
             border: `1px solid ${accent}`,
             color: accentInk,
           }}
@@ -168,9 +168,7 @@ export function QuizCard({
             <CustomOption
               letter={LETTERS[customIdx] ?? "?"}
               selected={isCustomPicked}
-              answered={
-                isAnswered && !!answer && !options.includes(answer)
-              }
+              answered={isAnswered && !!answer && !options.includes(answer)}
               disabled={locked}
               value={isAnswered ? (answer ?? "") : custom}
               onPick={() => !locked && setPicked(customIdx)}
@@ -210,16 +208,14 @@ export function QuizCard({
             type="button"
             onClick={submit}
             disabled={!canSubmit}
-            className="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[13px] text-white"
+            className="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[13px] text-accent-foreground"
             style={{
               background: canSubmit ? "var(--accent)" : "var(--hover-strong)",
               border: 0,
               cursor: canSubmit ? "pointer" : "not-allowed",
             }}
           >
-            {submitting ? (
-              <Loader2 className="lc-spin h-3.5 w-3.5" />
-            ) : null}
+            {submitting ? <Loader2 className="lc-spin h-3.5 w-3.5" /> : null}
             Submit answer ›
           </button>
         )}
@@ -250,7 +246,7 @@ function Option({
       disabled={disabled}
       className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-left transition"
       style={{
-        background: answered ? "var(--accent-soft)" : "#fff",
+        background: answered ? "var(--accent-soft)" : "var(--surface)",
         border: `1px solid ${selected || answered ? "var(--accent)" : "var(--border)"}`,
         cursor: disabled ? "default" : "pointer",
         color: "var(--ink)",
@@ -264,11 +260,14 @@ function Option({
         }}
       >
         {answered ? (
-          <Check className="h-2.5 w-2.5" style={{ color: "#fff" }} />
+          <Check
+            className="h-2.5 w-2.5"
+            style={{ color: "var(--accent-foreground)" }}
+          />
         ) : selected ? (
           <span
             className="h-1.5 w-1.5 rounded-full"
-            style={{ background: "#fff" }}
+            style={{ background: "var(--accent-foreground)" }}
           />
         ) : null}
       </span>
@@ -311,6 +310,7 @@ function CustomOption({
     <div
       onClick={() => !disabled && onPick()}
       onKeyDown={(e) => {
+        if (e.target !== e.currentTarget) return
         if (disabled) return
         if (e.key === " " || e.key === "Enter") {
           e.preventDefault()
@@ -323,7 +323,7 @@ function CustomOption({
       tabIndex={disabled ? -1 : 0}
       className="flex items-start gap-3 rounded-lg px-3 py-2.5 transition"
       style={{
-        background: answered ? "var(--accent-soft)" : "#fff",
+        background: answered ? "var(--accent-soft)" : "var(--surface)",
         border: `1px solid ${active ? "var(--accent)" : "var(--border)"}`,
         cursor: disabled ? "default" : "text",
       }}
@@ -336,11 +336,14 @@ function CustomOption({
         }}
       >
         {answered ? (
-          <Check className="h-2.5 w-2.5" style={{ color: "#fff" }} />
+          <Check
+            className="h-2.5 w-2.5"
+            style={{ color: "var(--accent-foreground)" }}
+          />
         ) : selected ? (
           <span
             className="h-1.5 w-1.5 rounded-full"
-            style={{ background: "#fff" }}
+            style={{ background: "var(--accent-foreground)" }}
           />
         ) : null}
       </span>
@@ -356,9 +359,6 @@ function CustomOption({
         {letter}
       </span>
       <div className="flex flex-1 flex-col gap-1">
-        <span className="text-[14px]" style={{ color: "var(--ink)" }}>
-          Type your own answer
-        </span>
         <textarea
           value={value}
           onChange={(e) => onChange(e.target.value)}

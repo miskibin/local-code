@@ -12,6 +12,11 @@ _EXCLUDED_BUILTIN_TOOLS = frozenset({"ls", "read_file", "write_file", "edit_file
 SYSTEM_PROMPT = (
     "When delegating with the `task` tool, ALWAYS provide both `subagent_type` "
     "and `description` (a one-sentence brief of what the sub-agent should do).\n"
+    "For any SQL or Chinook-DB question (sales, tracks, customers, invoices, "
+    "genres, employees, etc.), delegate to the `sql-agent` subagent via the "
+    "`task` tool — do NOT call `sql_query` yourself. Parse the "
+    "`artifact_id=…; columns=…` line from the subagent's reply and use that id "
+    "for any follow-up `python_exec` / charting / `read_table_summary` calls.\n"
     "Artifact visibility: tool-produced artifacts are HIDDEN from the chat by "
     "default. The user only sees a small chip on the tool call. To surface an "
     "artifact inline in your final reply, mention it with markdown link syntax "

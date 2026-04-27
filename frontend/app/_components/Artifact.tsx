@@ -1,12 +1,16 @@
-"use client";
+"use client"
 
-import { Check, Cpu, Database, Image as ImageIcon, MoreHorizontal, Plus } from "lucide-react";
-import type {
-  Artifact as ArtifactT,
-  ArtifactTablePayload,
-} from "@/lib/types";
-import { ArtifactTable } from "./ArtifactTable";
-import { ArtifactImage } from "./ArtifactImage";
+import {
+  Check,
+  Cpu,
+  Database,
+  Image as ImageIcon,
+  MoreHorizontal,
+  Plus,
+} from "lucide-react"
+import type { Artifact as ArtifactT, ArtifactTablePayload } from "@/lib/types"
+import { ArtifactTable } from "./ArtifactTable"
+import { ArtifactImage } from "./ArtifactImage"
 
 export function ArtifactCard({
   artifact,
@@ -14,23 +18,28 @@ export function ArtifactCard({
   onSave,
   onOpen,
 }: {
-  artifact: ArtifactT;
-  saved: boolean;
-  onSave: (a: ArtifactT) => void;
-  onOpen: (a: ArtifactT) => void;
+  artifact: ArtifactT
+  saved: boolean
+  onSave: (a: ArtifactT) => void
+  onOpen: (a: ArtifactT) => void
 }) {
-  const isTable = artifact.kind === "table";
-  const isImage = artifact.kind === "image";
-  const tablePayload = isTable ? (artifact.payload as ArtifactTablePayload) : null;
+  const isTable = artifact.kind === "table"
+  const isImage = artifact.kind === "image"
+  const tablePayload = isTable
+    ? (artifact.payload as ArtifactTablePayload)
+    : null
   const meta = isTable
     ? `${tablePayload!.rows?.length ?? 0} rows · ${tablePayload!.columns?.length ?? 0} columns`
     : isImage
       ? "image · png"
-      : artifact.kind;
+      : artifact.kind
   return (
     <div
-      className="lc-reveal mb-3.5 mt-2 overflow-hidden rounded-xl"
-      style={{ border: "1px solid var(--border)", background: "#fff" }}
+      className="lc-reveal mt-2 mb-3.5 overflow-hidden rounded-xl"
+      style={{
+        border: "1px solid var(--border)",
+        background: "var(--surface)",
+      }}
     >
       <div
         className="flex items-center gap-2.5 px-3.5 py-2.5"
@@ -49,7 +58,10 @@ export function ArtifactCard({
           )}
         </span>
         <div className="flex min-w-0 flex-1 flex-col">
-          <div className="text-[13px] font-medium" style={{ color: "var(--ink)" }}>
+          <div
+            className="text-[13px] font-medium"
+            style={{ color: "var(--ink)" }}
+          >
             {artifact.title}
           </div>
           <div
@@ -77,7 +89,7 @@ export function ArtifactCard({
           className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 transition"
           style={{
             background: saved ? "transparent" : "var(--accent)",
-            color: saved ? "var(--ink-2)" : "#fff",
+            color: saved ? "var(--ink-2)" : "var(--accent-foreground)",
             fontSize: 12,
             fontWeight: 500,
             border: saved ? "1px solid var(--border)" : 0,
@@ -101,5 +113,5 @@ export function ArtifactCard({
         <ArtifactImage artifact={artifact} />
       ) : null}
     </div>
-  );
+  )
 }

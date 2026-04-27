@@ -109,7 +109,7 @@ export function UserMessage({
             <button
               onClick={save}
               disabled={!draft.trim()}
-              className="rounded-md px-3 py-1 text-[13px] text-white"
+              className="rounded-md px-3 py-1 text-[13px] text-accent-foreground"
               style={{
                 background: draft.trim()
                   ? "var(--accent)"
