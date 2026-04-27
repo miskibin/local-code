@@ -76,19 +76,36 @@ export function ToolCall({
             {step.taskTitle}
           </span>
         )}
-        <span className="text-[13.5px]" style={{ color: "var(--ink-2)" }}>
-          {running ? "Calling" : errored ? "Failed" : "Called"}
-        </span>
-        <code
-          className="font-medium"
-          style={{
-            fontFamily: "var(--font-mono)",
-            fontSize: 12.5,
-            color: errored ? "var(--red)" : "var(--accent-ink)",
-          }}
-        >
-          {step.tool}
-        </code>
+        {(() => {
+          const customLabel = renderer.getHeaderLabel?.(step)
+          if (customLabel) {
+            return (
+              <span className="text-[13.5px]" style={{ color: "var(--ink)" }}>
+                {customLabel}
+              </span>
+            )
+          }
+          return (
+            <>
+              <span
+                className="text-[13.5px]"
+                style={{ color: "var(--ink-2)" }}
+              >
+                {running ? "Calling" : errored ? "Failed" : "Called"}
+              </span>
+              <code
+                className="font-medium"
+                style={{
+                  fontFamily: "var(--font-mono)",
+                  fontSize: 12.5,
+                  color: errored ? "var(--red)" : "var(--accent-ink)",
+                }}
+              >
+                {step.tool}
+              </code>
+            </>
+          )
+        })()}
         {step.server && (
           <span
             className="rounded-md px-1.5 py-0.5"
@@ -132,9 +149,11 @@ export function ToolCall({
             background: "var(--surface)",
           }}
         >
-          <Section label="Arguments">
-            <ArgsView args={step.args} step={step} />
-          </Section>
+          {!renderer.hideArgs && (
+            <Section label="Arguments">
+              <ArgsView args={step.args} step={step} />
+            </Section>
+          )}
           <Section label="Result">
             <ResultView result={step.result} status={status} step={step} />
           </Section>

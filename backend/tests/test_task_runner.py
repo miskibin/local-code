@@ -331,6 +331,66 @@ async def test_runner_subagent_inner_tool_carries_parent_link(monkeypatch, stub_
 
 
 @pytest.mark.asyncio
+async def test_runner_tool_step_exposes_artifact_id_for_chaining(monkeypatch, stub_state):
+    """A content_and_artifact tool step must surface artifact_id so downstream
+    {{stepId.artifact_id}} substitution resolves — the generator now produces
+    direct sql_query tool steps, so this is the chain that must hold."""
+    await reset_task_tables(SavedTask, SavedArtifact)
+
+    from langchain_core.tools import tool as lc_tool
+
+    @lc_tool(response_format="content_and_artifact")
+    async def fake_sql(sql: str) -> tuple[str, dict]:
+        """Fake SQL that returns a table artifact."""
+        return ("art_fake5678 · sql 1 row", {"id": "art_fake5678", "kind": "table"})
+
+    @lc_tool
+    def echo_id(artifact_id: str) -> str:
+        """Echo the supplied artifact_id."""
+        return f"got:{artifact_id}"
+
+    monkeypatch.setattr(
+        "app.tasks.runner.tool_registry.discover_tools",
+        lambda: [fake_sql, echo_id],
+    )
+    task = await _persist_task(
+        steps=[
+            TaskStep(
+                id="s1",
+                kind="tool",
+                title="SQL",
+                tool="fake_sql",
+                args_template={"sql": "SELECT 1"},
+                output_name="rows",
+                output_kind="rows",
+            ),
+            TaskStep(
+                id="s2",
+                kind="tool",
+                title="Plot",
+                tool="echo_id",
+                args_template={"artifact_id": "{{s1.artifact_id}}"},
+                output_name="echoed",
+                output_kind="text",
+            ),
+        ],
+        variables=[],
+    )
+    events = await _collect(
+        run_task(
+            task,
+            {},
+            state=stub_state,
+            session_id="run-tool-chain",
+            llm=FakeListChatModel(responses=["unused"]),
+        )
+    )
+    assert not [e for e in events if e["type"] == "tool-output-error"], events
+    s2 = next(e for e in events if e["type"] == "tool-input-available" and e["toolCallId"] == "s2")
+    assert s2["input"]["artifact_id"] == "art_fake5678"
+
+
+@pytest.mark.asyncio
 async def test_runner_appends_lc_messages_for_persistence(monkeypatch, stub_state):
     """run_task fills caller-supplied lc_messages with Human/AI/Tool LC messages
     so the chat route can persist them to the LangGraph checkpointer."""
@@ -407,6 +467,73 @@ async def test_runner_lc_messages_marks_failed_step_as_error(monkeypatch, stub_s
     tm = next(m for m in lc if isinstance(m, ToolMessage))
     assert tm.status == "error"
     assert tm.tool_call_id == "s1"
+
+
+@pytest.mark.asyncio
+async def test_runner_report_step_emits_text_delta_with_artifact_links(monkeypatch, stub_state):
+    """A `kind=report` step substitutes prior artifact ids and streams as text-delta.
+    No tool-input / tool-output events — it renders inline in the assistant text."""
+    await reset_task_tables(SavedTask, SavedArtifact)
+    monkeypatch.setattr("app.tasks.runner.tool_registry.discover_tools", lambda: [echo_tool])
+
+    @tool(response_format="content_and_artifact")
+    def make_table() -> tuple[str, dict]:
+        """Return a fake table artifact."""
+        return ("ok", {"id": "art_rep111111", "kind": "table", "title": "Rev"})
+
+    monkeypatch.setattr("app.tasks.runner.tool_registry.discover_tools", lambda: [make_table])
+
+    task = await _persist_task(
+        steps=[
+            TaskStep(
+                id="s1",
+                kind="tool",
+                title="Build table",
+                tool="make_table",
+                args_template={},
+                output_name="table",
+                output_kind="rows",
+            ),
+            TaskStep(
+                id="s2",
+                kind="report",
+                title="Results",
+                prompt="### Revenue\n\n[Rev](artifact:{{s1.artifact_id}})\n",
+                output_name="report",
+                output_kind="text",
+            ),
+        ],
+        variables=[],
+    )
+
+    events = await _collect(
+        run_task(
+            task,
+            {},
+            state=stub_state,
+            session_id="run-report-1",
+            llm=FakeListChatModel(responses=["unused"]),
+        )
+    )
+    types = [e["type"] for e in events]
+    # Report step must NOT emit tool-input/output for s2 — it streams as text.
+    tool_inputs = [e for e in events if e["type"] == "tool-input-available"]
+    assert all(e["toolCallId"] != "s2" for e in tool_inputs)
+    assert "tool-output-error" not in types
+    # The report's text part must open AFTER the preceding tool-output so the
+    # AI SDK renders it below the tool card, not at the top of the message.
+    s1_output_idx = next(
+        i
+        for i, e in enumerate(events)
+        if e["type"] == "tool-output-available" and e["toolCallId"] == "s1"
+    )
+    text_starts = [i for i, e in enumerate(events) if e["type"] == "text-start"]
+    report_text_start = next(i for i in text_starts if i > s1_output_idx)
+    report_id = events[report_text_start]["id"]
+    report_deltas = [e for e in events if e["type"] == "text-delta" and e["id"] == report_id]
+    body = "".join(e["delta"] for e in report_deltas)
+    assert "[Rev](artifact:art_rep111111)" in body
+    assert "### Revenue" in body
 
 
 @pytest.mark.asyncio

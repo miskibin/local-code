@@ -161,6 +161,8 @@ import tempfile  # noqa: E402
 
 _ART_ID_PATTERN = re.compile(r"art_[0-9a-f]{8,}")
 _ART_PATHS_ENV = "LC_ARTIFACT_PATHS"
+_FONT_DIR_ENV = "LC_MPL_FONT_DIR"
+_FONT_DIR = Path(__file__).resolve().parent / "assets" / "fonts"
 
 _PY_PRELUDE = textwrap.dedent(
     f"""
@@ -171,10 +173,53 @@ _PY_PRELUDE = textwrap.dedent(
         _sys.stdout.write({ARTIFACT_END!r})
         _sys.stdout.write("\\n")
 
+    def _apply_app_mpl_style():
+        import os as _os, glob as _glob
+        try:
+            import matplotlib as _mpl
+            _mpl.use("Agg")
+        except ImportError:
+            return
+        _font_dir = _os.environ.get({_FONT_DIR_ENV!r})
+        if _font_dir:
+            try:
+                from matplotlib import font_manager as _fm
+                for _ttf in _glob.glob(_os.path.join(_font_dir, "*.ttf")):
+                    _fm.fontManager.addfont(_ttf)
+            except Exception:
+                pass
+        from cycler import cycler as _cycler
+        _mpl.rcParams.update({{
+            "figure.facecolor": "none",
+            "figure.edgecolor": "none",
+            "figure.dpi": 120,
+            "axes.facecolor": "none",
+            "axes.edgecolor": "#71717a",
+            "axes.labelcolor": "#71717a",
+            "axes.titlecolor": "#71717a",
+            "axes.spines.top": False,
+            "axes.spines.right": False,
+            "axes.grid": True,
+            "axes.prop_cycle": _cycler(color=[
+                "#3b82f6", "#10b981", "#f59e0b",
+                "#ec4899", "#8b5cf6", "#06b6d4",
+            ]),
+            "grid.color": "#71717a",
+            "grid.alpha": 0.2,
+            "grid.linestyle": ":",
+            "text.color": "#71717a",
+            "xtick.color": "#71717a",
+            "ytick.color": "#71717a",
+            "font.family": ["Geist Mono", "DejaVu Sans Mono", "monospace"],
+            "savefig.facecolor": "none",
+            "savefig.edgecolor": "none",
+            "savefig.transparent": True,
+        }})
+
+    _apply_app_mpl_style()
+
     def out_image(fig=None, *, title=None, caption=None):
         import io as _io, base64 as _b64
-        import matplotlib
-        matplotlib.use("Agg")
         import matplotlib.pyplot as _plt
         f = fig if fig is not None else _plt.gcf()
         buf = _io.BytesIO()
@@ -281,6 +326,8 @@ def _run_python_sync(code: str, staged: dict[str, str]) -> dict[str, Any]:
     # Avoids leaking secrets (API keys, DB URLs, .env) to LLM-controlled code.
     env = {k: os.environ[k] for k in _SAFE_ENV_KEYS if k in os.environ}
     env[_ART_PATHS_ENV] = json.dumps(staged)
+    if _FONT_DIR.is_dir():
+        env[_FONT_DIR_ENV] = str(_FONT_DIR)
     try:
         proc = subprocess.run(
             [sys.executable, "-I", "-c", wrapped],

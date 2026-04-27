@@ -4,6 +4,7 @@ import type {
   SavedTask,
   Session,
   SessionPatch,
+  Skill,
   StoredMessage,
   TaskListItem,
   Tool,
@@ -53,6 +54,14 @@ export const api = {
   listTools: () => jsonFetch<Tool[]>("/tools"),
   setTool: (name: string, enabled: boolean) =>
     jsonFetch<Tool>(`/tools/${encodeURIComponent(name)}`, {
+      method: "PATCH",
+      json: { enabled },
+    }),
+
+  // Skills
+  listSkills: () => jsonFetch<Skill[]>("/skills"),
+  setSkill: (name: string, enabled: boolean) =>
+    jsonFetch<Skill>(`/skills/${encodeURIComponent(name)}`, {
       method: "PATCH",
       json: { enabled },
     }),

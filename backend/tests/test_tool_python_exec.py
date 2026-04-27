@@ -76,6 +76,30 @@ async def test_python_exec_emits_matplotlib_image_artifact():
 
 
 @pytest.mark.asyncio
+async def test_python_exec_image_transparent_bg_app_theme():
+    import base64
+    import io
+
+    from PIL import Image
+
+    from app.tools.python_exec import python_exec
+
+    code = (
+        "import matplotlib.pyplot as plt\n"
+        "plt.plot([1, 2, 3], [4, 5, 6])\n"
+        "out_image()\n"
+    )
+    msg = await python_exec.ainvoke(
+        dict(type="tool_call", id="theme1", name="python_exec", args={"code": code})
+    )
+    assert msg.artifact["kind"] == "image"
+    raw = base64.b64decode(msg.artifact["payload"]["data_b64"])
+    img = Image.open(io.BytesIO(raw))
+    assert img.mode == "RGBA"
+    assert img.getpixel((0, 0))[3] == 0
+
+
+@pytest.mark.asyncio
 async def test_python_exec_image_oversize_returns_tool_error():
     from app.tools.python_exec import python_exec
 

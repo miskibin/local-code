@@ -27,6 +27,8 @@ async def python_exec(code: str, config: RunnableConfig) -> tuple[str, dict]:
       doesn't exist.
 
     matplotlib and pandas are available; the Agg backend is set automatically.
+    App theme (transparent bg, Geist Mono, blue-led color cycle) is preset on
+    `matplotlib.rcParams`; override in your code if you need custom styling.
     Subprocess, 20-second timeout, no state between calls. The summary you see
     starts with the artifact id (looks like `art_abc123def456`).
     """

@@ -164,9 +164,19 @@ async def _run_tool_step(
     if tool is None:
         raise LookupError(f"tool {step.tool!r} not available (server={step.server})")
     config = {"configurable": {"thread_id": session_id}}
-    raw = await tool.ainvoke(args, config=config)
+    # Invoke as a ToolCall so content_and_artifact tools return a ToolMessage
+    # with both .content and .artifact populated (a bare args dict drops the
+    # artifact). Plain tools still return the raw value.
+    raw = await tool.ainvoke(
+        {"name": tool.name, "args": args, "type": "tool_call", "id": step.id},
+        config=config,
+    )
     artifact: dict[str, Any] | None = None
-    if isinstance(raw, tuple) and len(raw) == _CONTENT_AND_ARTIFACT_LEN:
+    if isinstance(raw, ToolMessage):
+        summary = raw.content
+        if isinstance(raw.artifact, dict):
+            artifact = raw.artifact
+    elif isinstance(raw, tuple) and len(raw) == _CONTENT_AND_ARTIFACT_LEN:
         summary, artifact = raw
     else:
         summary = raw
@@ -377,6 +387,16 @@ async def run_task(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits woul
                 yield _emit_text_delta(text_id, summary)
                 yield _emit_text_delta(text_id, "\n\n")
                 prompt_texts.append(f"**{step.title}**\n\n{summary}")
+
+            elif step.kind == "report":
+                body = resolved_prompt or ""
+                report_text_id = f"r_{uuid4().hex}"
+                yield sse({"type": "text-start", "id": report_text_id})
+                yield _emit_text_delta(report_text_id, body)
+                yield sse({"type": "text-end", "id": report_text_id})
+                summary = body
+                step_outputs = {step.output_name: body}
+                prompt_texts.append(body)
 
             else:
                 raise ValueError(f"unknown step kind {step.kind!r}")  # noqa: TRY301 -- intentional in-loop validation

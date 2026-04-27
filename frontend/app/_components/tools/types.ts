@@ -21,4 +21,12 @@ export type ToolResultProps = {
 export type ToolRenderer = {
   Args?: React.ComponentType<ToolArgsProps>;
   Result?: React.ComponentType<ToolResultProps>;
+  /**
+   * Optional override for the chrome's "Called <tool>" label. Return a
+   * React node to replace the verb + tool-name cluster in the header, or
+   * `null` to fall back to default rendering.
+   */
+  getHeaderLabel?: (step: ToolStep) => React.ReactNode | null;
+  /** Hide the "Arguments" section entirely when expanded. */
+  hideArgs?: boolean;
 };

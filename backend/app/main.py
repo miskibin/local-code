@@ -15,6 +15,7 @@ from app.routes.artifacts import router as artifacts_router
 from app.routes.chat import router as chat_router
 from app.routes.mcp import router as mcp_router
 from app.routes.sessions import router as sessions_router
+from app.routes.skills import router as skills_router
 from app.routes.tasks import router as tasks_router
 from app.routes.tools import router as tools_router
 from app.tools.sql_subagent_query import schema_blob
@@ -65,6 +66,7 @@ def create_app() -> FastAPI:
     app.include_router(sessions_router)
     app.include_router(artifacts_router)
     app.include_router(tasks_router)
+    app.include_router(skills_router)
     return app
 
 

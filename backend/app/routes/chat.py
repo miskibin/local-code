@@ -4,6 +4,7 @@ from loguru import logger
 from sqlmodel import select
 
 from app import tool_registry
+from app.config import get_settings
 from app.db import async_session
 from app.graphs.main_agent import (
     build_agent as build_agent_for_turn,
@@ -12,8 +13,9 @@ from app.graphs.main_agent import (
     default_subagents,
 )
 from app.llm import resolve_llm
-from app.models import ToolFlag
+from app.models import SkillFlag, ToolFlag
 from app.schemas.chat import ChatRequest
+from app.skills_registry import discover_skills, filter_enabled
 from app.streaming import stream_chat
 from app.tasks.runner import persist_run_messages, persist_task_run_checkpoint, run_task
 from app.tasks.storage import get_task
@@ -25,6 +27,17 @@ async def _flags() -> dict[str, bool]:
     async with async_session() as s:
         rows = (await s.execute(select(ToolFlag))).scalars().all()
     return {r.name: r.enabled for r in rows}
+
+
+async def _skill_flags() -> dict[str, bool]:
+    async with async_session() as s:
+        rows = (await s.execute(select(SkillFlag))).scalars().all()
+    return {r.name: r.enabled for r in rows}
+
+
+async def _enabled_skills():
+    flags = await _skill_flags()
+    return filter_enabled(discover_skills(get_settings().skills_dir), flags)
 
 
 _STREAM_HEADERS = {
@@ -86,11 +99,13 @@ async def chat(req: ChatRequest, request: Request):
         if "tools" in resolved:
             resolved["tools"] = [tools_by_name[n] for n in resolved["tools"] if n in tools_by_name]
         subagents.append(resolved)
+    enabled_skills = await _enabled_skills()
     graph = build_agent_for_turn(
         llm=llm,
         tools=tools,
         checkpointer=state.checkpointer,
         subagents=subagents,
+        enabled_skills=enabled_skills,
     )
     logger.debug(f"agent built thread={req.id} subagents={[s.get('name') for s in subagents]}")
     if req.resume is not None:

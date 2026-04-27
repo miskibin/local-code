@@ -26,7 +26,15 @@ router = APIRouter()
 async def list_tasks_route():
     rows = await list_tasks()
     return [
-        TaskListItem(id=r.id, title=r.title, description=r.description, updated_at=r.updated_at)
+        TaskListItem(
+            id=r.id,
+            title=r.title,
+            description=r.description,
+            tags=r.tags or [],
+            role=r.role,
+            creator=r.creator,
+            updated_at=r.updated_at,
+        )
         for r in rows
     ]
 

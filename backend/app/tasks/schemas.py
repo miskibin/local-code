@@ -4,7 +4,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 VariableType = Literal["string", "number", "boolean"]
-StepKind = Literal["tool", "code", "subagent", "prompt"]
+StepKind = Literal["tool", "code", "subagent", "prompt", "report"]
 OutputKind = Literal["rows", "text", "chart", "json", "file"]
 
 
@@ -37,6 +37,9 @@ class TaskDTO(BaseModel):
     source_session_id: str | None = None
     variables: list[TaskVariable] = Field(default_factory=list)
     steps: list[TaskStep] = Field(default_factory=list)
+    tags: list[str] = Field(default_factory=list)
+    role: str | None = None
+    creator: str | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
 
@@ -45,6 +48,9 @@ class TaskListItem(BaseModel):
     id: str
     title: str
     description: str = ""
+    tags: list[str] = Field(default_factory=list)
+    role: str | None = None
+    creator: str | None = None
     updated_at: datetime | None = None
 
 

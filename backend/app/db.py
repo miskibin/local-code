@@ -26,6 +26,11 @@ _COLUMN_BACKFILLS = {
     "savedartifact": [
         ("pinned", "BOOLEAN NOT NULL DEFAULT 0"),
     ],
+    "savedtask": [
+        ("tags", "JSON NOT NULL DEFAULT '[]'"),
+        ("role", "VARCHAR"),
+        ("creator", "VARCHAR"),
+    ],
 }
 
 

@@ -21,11 +21,17 @@ async def test_chat_skips_disabled_tool(monkeypatch):
 
     captured: list[list] = []
 
-    def fake_build_agent(*, llm, tools, checkpointer, subagents=None):
+    def fake_build_agent(*, llm, tools, checkpointer, subagents=None, enabled_skills=None):
         captured.append([t.name for t in tools])
         from app.graphs.main_agent import build_agent as real
 
-        return real(llm=llm, tools=tools, checkpointer=checkpointer, subagents=subagents)
+        return real(
+            llm=llm,
+            tools=tools,
+            checkpointer=checkpointer,
+            subagents=subagents,
+            enabled_skills=enabled_skills,
+        )
 
     monkeypatch.setattr("app.routes.chat.build_agent_for_turn", fake_build_agent)
 
