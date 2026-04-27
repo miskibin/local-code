@@ -7,6 +7,7 @@ from langchain_core.messages import AIMessage, AIMessageChunk, ToolMessage
 from loguru import logger
 
 from app.artifact_store import get_artifact, persist_tool_artifact
+from app.tasks import coerce_lc_content
 
 
 def sse(obj: dict) -> str:
@@ -219,19 +220,25 @@ async def stream_chat(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits w
             if isinstance(chunk, AIMessageChunk):
                 # User-visible text only from the top-level model — subagents'
                 # internal LLM tokens stay inside their tool result.
+                # langchain-google-genai emits content as list[dict] blocks
+                # (e.g. [{"type":"text","text":"..."}, {"extras":{"signature":...}}]);
+                # the Vercel AI SDK 6 text-delta schema requires `delta: string`,
+                # so flatten via the shared helper. Empty results (signature-only
+                # blocks) are skipped to avoid opening empty text parts.
                 if is_top_level and node == "model" and chunk.content:
-                    if text_id is None:
-                        yield _open_text()
-                    yield sse({"type": "text-delta", "id": text_id, "delta": chunk.content})
-                    counters["text_chunks"] += 1
-                    last_step = "text"
-                    # Diagnostic: surface what the model is actually emitting at
-                    # top-level so we can tell silent-truncation from real text.
-                    logger.debug(
-                        f"top_text_delta thread={thread_id} "
-                        f"chars={len(str(chunk.content))} "
-                        f"preview={str(chunk.content)[:120]!r}"
-                    )
+                    delta_text = coerce_lc_content(chunk.content)
+                    if delta_text:
+                        if text_id is None:
+                            yield _open_text()
+                        yield sse(
+                            {"type": "text-delta", "id": text_id, "delta": delta_text}
+                        )
+                        counters["text_chunks"] += 1
+                        last_step = "text"
+                        logger.debug(
+                            f"top_text_delta thread={thread_id} "
+                            f"chars={len(delta_text)} preview={delta_text[:120]!r}"
+                        )
 
                 for tcc in chunk.tool_call_chunks or []:
                     cid = tcc.get("id")

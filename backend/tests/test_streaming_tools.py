@@ -270,6 +270,101 @@ async def test_stream_emits_output_error_for_failed_tool_message():
 
 
 @pytest.mark.asyncio
+async def test_text_delta_flattens_list_dict_content_from_gemini():
+    """`langchain-google-genai` yields AIMessageChunks whose `content` is a
+    list[dict] like [{"type": "text", "text": "hello"}] (sometimes with extra
+    `extras`/`signature` blocks for signed responses). The Vercel AI SDK 6
+    `text-delta` event requires `delta: string`; emitting the raw list silently
+    drops the chunk client-side and renders an empty bubble."""
+    from app.streaming import stream_chat
+
+    items = [
+        (
+            AIMessageChunk(content=[{"type": "text", "text": "hello "}]),
+            {"langgraph_node": "model"},
+        ),
+        (
+            AIMessageChunk(
+                content=[
+                    {"type": "text", "text": "world"},
+                    {"type": "text", "text": "", "extras": {"signature": "sig=="}},
+                ]
+            ),
+            {"langgraph_node": "model"},
+        ),
+    ]
+    events = []
+    async for line in stream_chat(
+        graph=_FakeGraph(items), thread_id="t1", lc_messages=[("user", "go")]
+    ):
+        events.append(line)
+    parsed = [
+        json.loads(e.removeprefix("data: ").strip())
+        for e in events
+        if e.startswith("data: {")
+    ]
+    deltas = [e["delta"] for e in parsed if e["type"] == "text-delta"]
+    # Each delta must be a string (Vercel AI SDK schema), and the joined text
+    # must equal what the model actually emitted across blocks.
+    assert all(isinstance(d, str) for d in deltas), f"non-str deltas: {deltas!r}"
+    assert "".join(deltas) == "hello world"
+
+
+@pytest.mark.asyncio
+async def test_text_delta_passes_string_content_through_unchanged():
+    """Ollama / Anthropic emit string `content` directly. The coercion path
+    must not mangle a plain string."""
+    from app.streaming import stream_chat
+
+    items = [
+        (AIMessageChunk(content="plain string"), {"langgraph_node": "model"}),
+    ]
+    events = []
+    async for line in stream_chat(
+        graph=_FakeGraph(items), thread_id="t1", lc_messages=[("user", "go")]
+    ):
+        events.append(line)
+    parsed = [
+        json.loads(e.removeprefix("data: ").strip())
+        for e in events
+        if e.startswith("data: {")
+    ]
+    deltas = [e["delta"] for e in parsed if e["type"] == "text-delta"]
+    assert deltas == ["plain string"]
+
+
+@pytest.mark.asyncio
+async def test_text_delta_skips_chunk_when_coercion_yields_empty_string():
+    """A chunk whose blocks carry only metadata (e.g. signed-response signature
+    with empty text) coerces to "" — emitting an empty text-delta would open
+    a part with no body. Skip it instead so we don't fragment the run."""
+    from app.streaming import stream_chat
+
+    items = [
+        (
+            AIMessageChunk(
+                content=[{"type": "text", "text": "", "extras": {"signature": "sig=="}}]
+            ),
+            {"langgraph_node": "model"},
+        ),
+        (AIMessageChunk(content=[{"type": "text", "text": "after"}]),
+         {"langgraph_node": "model"}),
+    ]
+    events = []
+    async for line in stream_chat(
+        graph=_FakeGraph(items), thread_id="t1", lc_messages=[("user", "go")]
+    ):
+        events.append(line)
+    parsed = [
+        json.loads(e.removeprefix("data: ").strip())
+        for e in events
+        if e.startswith("data: {")
+    ]
+    deltas = [e["delta"] for e in parsed if e["type"] == "text-delta"]
+    assert deltas == ["after"]
+
+
+@pytest.mark.asyncio
 async def test_stream_emits_tool_events_when_only_tool_message():
     from app.streaming import stream_chat
 
