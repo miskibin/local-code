@@ -14,6 +14,7 @@ import { useEffect, useRef, useState } from "react"
 import type { Artifact, AssistantStep, Todo } from "@/lib/types"
 import { Markdown } from "./Markdown"
 import { PlanCard } from "./PlanCard"
+import { QuizCard } from "./QuizCard"
 import { Subagent } from "./Subagent"
 import { ThinkingIndicator } from "./ThinkingIndicator"
 import { ToolCall } from "./ToolCall"
@@ -252,6 +253,15 @@ export type ContentBlock =
   | { type: "text"; text: string }
   | { type: "step"; step: AssistantStep }
   | { type: "plan"; todos: Todo[]; streaming: boolean }
+  | {
+      type: "quiz"
+      toolCallId: string
+      question: string
+      options: string[]
+      allowCustom: boolean
+      status: "running" | "done" | "error"
+      answer?: string
+    }
 
 export function contentBlocksToPlainText(blocks: ContentBlock[]): string {
   return blocks
@@ -280,6 +290,7 @@ export function AssistantMessage({
   onRegenerate,
   onSaveAsTask,
   saveAsTaskBusy,
+  onQuizAnswer,
 }: {
   msg: AssistantMsg
   expanded: Record<string, boolean>
@@ -293,6 +304,7 @@ export function AssistantMessage({
   onRegenerate?: () => void
   onSaveAsTask?: () => void
   saveAsTaskBusy?: boolean
+  onQuizAnswer?: (toolCallId: string, value: string) => void
 }) {
   const plainText = contentBlocksToPlainText(msg.contentBlocks)
   const showThinking = streaming && isLast && !plainText
@@ -309,6 +321,17 @@ export function AssistantMessage({
             ) : null
           ) : b.type === "plan" ? (
             <PlanCard key={i} todos={b.todos} streaming={b.streaming} />
+          ) : b.type === "quiz" ? (
+            <QuizCard
+              key={i}
+              toolCallId={b.toolCallId}
+              question={b.question}
+              options={b.options}
+              allowCustom={b.allowCustom}
+              status={b.status}
+              answer={b.answer}
+              onSubmit={onQuizAnswer}
+            />
           ) : b.step.kind === "subagent" ? (
             <Subagent
               key={i}

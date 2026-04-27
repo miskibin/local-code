@@ -77,7 +77,7 @@ def default_subagents() -> list[dict]:
             "name": "research-agent",
             "description": "Use for in-depth research that needs its own context window.",
             "system_prompt": "You are a thorough researcher. Use web_fetch liberally. Return a tight, sourced summary.",
-            "tools": ["web_fetch"],
+            "tools": ["web_fetch", "quiz"],
         },
         {
             "name": "sql-agent",
@@ -96,7 +96,7 @@ def default_subagents() -> list[dict]:
                 "Copy the id verbatim from the sql_query summary (the token before ` · `). "
                 "Never invent ids; never wrap them in brackets or quotes."
             ),
-            "tools": ["sql_db_list_tables", "sql_db_schema", "sql_query"],
+            "tools": ["sql_db_list_tables", "sql_db_schema", "sql_query", "quiz"],
         },
     ]
 

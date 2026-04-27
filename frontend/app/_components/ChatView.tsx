@@ -153,6 +153,40 @@ function partToToolStep(p: AnyPart): ToolStep | null {
  * Order matches the stream — children always appear inside their parent's
  * SubagentStep regardless of where they fell in the part array.
  */
+function extractQuizBlock(p: AnyPart): Extract<ContentBlock, { type: "quiz" }> | null {
+  if (getToolName(p) !== "quiz" || !p.toolCallId) return null
+  const input = (p.input ?? {}) as {
+    question?: unknown
+    options?: unknown
+    allow_custom?: unknown
+  }
+  const question = typeof input.question === "string" ? input.question : ""
+  const options = Array.isArray(input.options)
+    ? input.options.filter((o): o is string => typeof o === "string")
+    : []
+  const allowCustom = input.allow_custom !== false
+  const state = p.state ?? "input-available"
+  const status: "running" | "done" | "error" =
+    state === "output-available"
+      ? "done"
+      : state === "output-error"
+        ? "error"
+        : "running"
+  const answer =
+    state === "output-available" && typeof p.output === "string"
+      ? p.output
+      : undefined
+  return {
+    type: "quiz",
+    toolCallId: p.toolCallId,
+    question,
+    options,
+    allowCustom,
+    status,
+    answer,
+  }
+}
+
 function partsToContentBlocks(parts: AnyPart[]): ContentBlock[] {
   // Pass 1 — collect every tool part keyed by its toolCallId, plus its parent
   // link if any.
@@ -237,6 +271,23 @@ function partsToContentBlocks(parts: AnyPart[]): ContentBlock[] {
         })
       }
       continue
+    }
+
+    // Quiz blocks render as their own user-facing card, even when emitted
+    // from inside a subagent — they need to be prominent for the user to
+    // answer.
+    if (getToolName(p) === "quiz") {
+      const quiz = extractQuizBlock(p)
+      if (quiz) {
+        // Ghost quiz parts can appear in the new assistant message during a
+        // resume turn (the tool-output flows into a fresh msg with no input).
+        // Skip rendering until the post-stream refetch reconciles state.
+        if (quiz.question) {
+          flush()
+          out.push(quiz)
+        }
+        continue
+      }
     }
 
     // Has a parent that we know about → consumed by parent's SubagentStep.
@@ -331,12 +382,26 @@ export function ChatView({
                   task_id: string
                   variables: Record<string, unknown>
                 }
+                resume?: { toolCallId: string; value: string }
               }
             | undefined
+          // Strip placeholder user messages used to drive resume turns; the
+          // backend reads `resume` and ignores `messages` in that case.
+          const cleanMessages = messages.filter(
+            (m) =>
+              !(
+                m.role === "user" &&
+                (m.parts ?? []).some(
+                  (p) =>
+                    p.type === "text" &&
+                    (p as { text: string }).text === "__resume__"
+                )
+              )
+          )
           return {
             body: {
               id,
-              messages: messages.map((m) => ({
+              messages: cleanMessages.map((m) => ({
                 id: m.id,
                 role: m.role,
                 parts: (m.parts ?? [])
@@ -349,6 +414,7 @@ export function ChatView({
               reset: trigger === "regenerate-message" || b?.reset === true,
               model: b?.model ?? selectedModel,
               ...(b?.task_run ? { task_run: b.task_run } : {}),
+              ...(b?.resume ? { resume: b.resume } : {}),
             },
           }
         },
@@ -359,10 +425,19 @@ export function ChatView({
     "incomplete" | "unreachable" | null
   >(null)
   const messagesRef = useRef<{ role: string }[]>([])
+  const resumePendingRef = useRef(false)
   const { messages, sendMessage, regenerate, setMessages, status, stop } =
     useChat({
       id: sessionId,
       transport,
+      onFinish: () => {
+        if (!resumePendingRef.current) return
+        resumePendingRef.current = false
+        api
+          .getMessages(sessionId)
+          .then((m) => setMessages(m))
+          .catch(() => {})
+      },
       onError: (e) => {
         const msg = e?.message ?? ""
         const isNetwork =
@@ -516,6 +591,31 @@ export function ChatView({
     sendMessage({ text })
   }
 
+  const submitQuizAnswer = (toolCallId: string, value: string) => {
+    setStreamFault(null)
+    resumePendingRef.current = true
+    sendMessage(
+      { text: "__resume__" },
+      { body: { resume: { toolCallId, value } } }
+    )
+  }
+
+  const pendingQuiz = useMemo(() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const m = messages[i]
+      if (m.role !== "assistant") continue
+      for (const p of (m.parts ?? []) as AnyPart[]) {
+        if (getToolName(p) !== "quiz") continue
+        const state = p.state ?? "input-available"
+        if (state !== "output-available" && state !== "output-error") {
+          return true
+        }
+      }
+      break
+    }
+    return false
+  }, [messages])
+
   const handleRegenerate = (assistantId: string) => {
     setStreamFault(null)
     void regenerate({ messageId: assistantId })
@@ -596,6 +696,7 @@ export function ChatView({
                   const parts = (m.parts ?? []) as AnyPart[]
                   const text = partsToText(parts)
                   if (m.role === "user") {
+                    if (text === "__resume__") return null
                     return (
                       <UserMessage
                         key={m.id}
@@ -642,6 +743,7 @@ export function ChatView({
                         streaming ? undefined : () => void handleSaveAsTask()
                       }
                       saveAsTaskBusy={generatingTask}
+                      onQuizAnswer={submitQuizAnswer}
                     />
                   )
                 })}
@@ -692,7 +794,7 @@ export function ChatView({
           <Composer
             onSend={send}
             onStop={() => stop()}
-            streaming={streaming}
+            streaming={streaming || pendingQuiz}
             model={selectedModel}
             onModelChange={setSelectedModel}
           />

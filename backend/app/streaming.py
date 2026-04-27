@@ -4,6 +4,7 @@ from collections.abc import AsyncIterator
 from uuid import uuid4
 
 from langchain_core.messages import AIMessage, AIMessageChunk, ToolMessage
+from langgraph.types import Command
 from loguru import logger
 
 from app.artifact_store import get_artifact, persist_tool_artifact
@@ -40,6 +41,7 @@ async def stream_chat(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits w
     thread_id: str,
     lc_messages: list,
     session_id: str | None = None,
+    resume_value: object = None,
 ) -> AsyncIterator[str]:
     msg_id = f"msg_{uuid4().hex}"
     logger.info(f"stream start thread={thread_id} msg_id={msg_id} input_msgs={len(lc_messages)}")
@@ -154,9 +156,12 @@ async def stream_chat(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits w
         text_id = None
         return ev
 
+    graph_input: object = (
+        Command(resume=resume_value) if resume_value is not None else {"messages": lc_messages}
+    )
     try:
         async for event in graph.astream(
-            {"messages": lc_messages},
+            graph_input,
             stream_mode="messages",
             subgraphs=True,
             config={"configurable": {"thread_id": thread_id}},
@@ -196,11 +201,7 @@ async def stream_chat(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits w
             # Subagents emit their own terminal chunks (often with SAFETY /
             # MAX_TOKENS), and conflating them with the parent turn produces
             # false-positive ANOMALY warnings on a state the user never saw.
-            if (
-                isinstance(chunk, (AIMessage, AIMessageChunk))
-                and is_top_level
-                and node == "model"
-            ):
+            if isinstance(chunk, (AIMessage, AIMessageChunk)) and is_top_level and node == "model":
                 rmd = getattr(chunk, "response_metadata", None) or {}
                 if rmd:
                     last_response_metadata = rmd
@@ -237,9 +238,7 @@ async def stream_chat(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits w
                     if delta_text:
                         if text_id is None:
                             yield _open_text()
-                        yield sse(
-                            {"type": "text-delta", "id": text_id, "delta": delta_text}
-                        )
+                        yield sse({"type": "text-delta", "id": text_id, "delta": delta_text})
                         counters["text_chunks"] += 1
                         last_step = "text"
                         logger.debug(

@@ -85,6 +85,18 @@ async def chat(req: ChatRequest, request: Request):
         subagents=subagents,
     )
     logger.debug(f"agent built thread={req.id} subagents={[s.get('name') for s in subagents]}")
+    if req.resume is not None:
+        return StreamingResponse(
+            stream_chat(
+                graph=graph,
+                thread_id=req.id,
+                lc_messages=[],
+                session_id=req.id,
+                resume_value=req.resume.value,
+            ),
+            media_type="text/event-stream",
+            headers=_STREAM_HEADERS,
+        )
     lc_messages = await req.to_lc_messages()
     return StreamingResponse(
         stream_chat(
