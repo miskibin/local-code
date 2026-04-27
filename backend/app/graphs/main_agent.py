@@ -140,7 +140,11 @@ def default_subagents() -> list[dict]:
                 "Copy the id verbatim from the sql_query summary (the token before ` · `). "
                 "The artifact_id line MUST be the last non-empty line. "
                 "Never invent ids or rows; never wrap in brackets or quotes. "
-                "If the result has no rows, omit the head table."
+                "If the result has no rows, omit the head table.\n"
+                "On `sql_query` error: do NOT re-issue the same SQL. Read the error, "
+                "change the query (fix syntax, drop offending tokens like markdown links, "
+                "simplify), or stop and return one sentence explaining why it cannot run. "
+                "Never emit the same SQL twice in a row."
             ),
             "tools": ["sql_query", "quiz"],
         },

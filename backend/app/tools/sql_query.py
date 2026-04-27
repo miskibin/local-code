@@ -17,7 +17,9 @@ async def sql_query(sql: str, config: RunnableConfig) -> tuple[str, dict]:
     try:
         result = await run_sql_artifact(sql)
     except (FileNotFoundError, SQLAlchemyError) as e:
-        raise ToolException(f"sql error: {e}") from e
+        raise ToolException(
+            f"sql error: {e} — change the query, do not retry the same SQL verbatim"
+        ) from e
     return await build_and_persist_tool_artifact(
         result=result,
         source_kind="sql",

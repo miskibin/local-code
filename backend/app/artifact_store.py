@@ -425,11 +425,12 @@ _SQLITE_ATTACH = 24
 _chinook_engine = None
 
 
-def _chinook_path() -> str:
-    p = Path(get_settings().chinook_db_path)
-    if not p.exists():
+def _chinook_path() -> Path:
+    # Resolve to absolute so URI works regardless of CWD when the engine is built.
+    p = Path(get_settings().chinook_db_path).resolve()
+    if not p.is_file():
         raise FileNotFoundError(f"Chinook DB not found at {p}")
-    return str(p)
+    return p
 
 
 def _get_chinook_engine():
@@ -438,8 +439,8 @@ def _get_chinook_engine():
         return _chinook_engine
     # Read-only via URI; authorizer also blocks ATTACH so adversarial SQL
     # cannot pivot to other SQLite files (e.g. app.db, checkpoints.db).
-    path = _chinook_path().replace("\\", "/")
-    uri = f"sqlite:///file:/{path.lstrip('/')}?mode=ro&uri=true"
+    posix = _chinook_path().as_posix()
+    uri = f"sqlite:///file:/{posix.lstrip('/')}?mode=ro&uri=true"
     engine = create_engine(uri, future=True)
 
     @_sa_event.listens_for(engine, "connect")

@@ -3,6 +3,7 @@
 import Link from "next/link"
 
 import { Button } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 
 type ErrorStateProps = {
   kind: "404" | "500"
@@ -45,7 +46,7 @@ export default function ErrorState({
         </div>
 
         <div
-          className={`numeral lc-reveal${is500 ? "red" : ""}`}
+          className={cn("numeral lc-reveal", is500 && "red")}
           style={{ animationDelay: ".05s" }}
         >
           {code}
