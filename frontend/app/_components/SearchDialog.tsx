@@ -22,7 +22,11 @@ export function SearchDialog({
   onSelect: (id: string) => void;
 }) {
   return (
-    <CommandDialog open={open} onOpenChange={onOpenChange}>
+    <CommandDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      className="sm:max-w-[calc(24rem*1.2)]"
+    >
       <CommandInput placeholder="Search chats..." />
       <CommandList>
         <CommandEmpty>No results.</CommandEmpty>

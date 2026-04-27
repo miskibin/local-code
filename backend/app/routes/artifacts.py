@@ -3,7 +3,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Form, HTTPException, UploadFile
+from fastapi import APIRouter, Form, HTTPException, Request, UploadFile
 from loguru import logger
 from pydantic import BaseModel, Field
 from sqlmodel import select
@@ -110,9 +110,9 @@ async def upsert_artifact(dto: ArtifactDTO):
 
 
 @router.post("/artifacts/{aid}/refresh", response_model=ArtifactDTO)
-async def refresh_artifact_route(aid: str):
+async def refresh_artifact_route(aid: str, request: Request):
     try:
-        row = await refresh_artifact(aid)
+        row = await refresh_artifact(aid, sandbox=getattr(request.app.state, "pysandbox", None))
     except LookupError as e:
         raise HTTPException(404, str(e)) from e
     except ValueError as e:

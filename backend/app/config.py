@@ -28,6 +28,14 @@ class Settings(BaseSettings):
     langfuse_public_key: str = ""
     langfuse_base_url: str = "https://cloud.langfuse.com"
 
+    python_sessions_dir: str = "./data/python_sessions"
+    python_sandbox_timeout: int = 30
+    python_sandbox_allow_net: list[str] = [
+        "cdn.jsdelivr.net",
+        "pypi.org",
+        "files.pythonhosted.org",
+    ]
+
 
 @lru_cache
 def get_settings() -> Settings:

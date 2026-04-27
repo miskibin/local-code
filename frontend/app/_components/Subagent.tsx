@@ -42,25 +42,24 @@ export function Subagent({
   return (
     <>
       <div
-        className="lc-reveal mt-2.5 mb-3.5 overflow-hidden rounded-xl"
+        className="lc-reveal mt-1.5 mb-2 overflow-hidden rounded-lg"
         style={{
           border: "1px solid var(--accent)",
           borderLeft: "3px solid var(--accent)",
-          background: "var(--surface)",
-          boxShadow: "0 1px 0 rgba(0,0,0,.02)",
+          background: "transparent",
         }}
       >
         <button
           onClick={toggleCollapsed}
-          className="flex w-full cursor-pointer items-center gap-3 px-3.5 py-3 text-left"
+          className="flex w-full cursor-pointer items-center gap-2.5 px-2.5 py-2 text-left"
           style={{
-            background: "var(--accent-soft)",
+            background: "transparent",
             borderBottom: isCollapsed ? 0 : "1px solid var(--accent)",
             border: 0,
           }}
         >
           <div
-            className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-lg"
+            className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-md"
             style={{
               background: "var(--accent)",
               color: "var(--accent-foreground)",
@@ -80,8 +79,8 @@ export function Subagent({
                 className="rounded uppercase"
                 style={{
                   fontSize: 10.5,
-                  padding: "2px 7px",
-                  background: "var(--surface)",
+                  padding: "1px 6px",
+                  background: "transparent",
                   color: "var(--accent-ink)",
                   border: "1px solid var(--accent)",
                   fontWeight: 500,
@@ -134,20 +133,20 @@ export function Subagent({
         </button>
 
         {!isCollapsed && (
-          <div className="px-3.5 pt-2 pb-3">
+          <div className="px-2.5 pt-1.5 pb-2">
             {block.steps && block.steps.length > 0 && (
-              <div className="relative mt-1 pl-3.5">
+              <div className="relative mt-0.5 pl-3">
                 <div
-                  className="absolute top-3.5 bottom-3.5 left-1 w-0.5"
-                  style={{ background: "var(--accent-soft)" }}
+                  className="absolute top-3 bottom-3 left-1 w-px"
+                  style={{ background: "var(--accent)" }}
                 />
                 {block.steps.map((s, i) => (
                   <div key={i} className="relative mb-1.5">
                     <div
                       className="absolute h-2.5 w-2.5 rounded-full"
                       style={{
-                        left: -14,
-                        top: 18,
+                        left: -13,
+                        top: 15,
                         background:
                           s.status === "running"
                             ? "var(--accent-soft)"
@@ -187,17 +186,17 @@ export function Subagent({
 
             {block.summary && status === "done" && (
               <details
-                className="mt-2 rounded-lg"
-                style={{ border: "1px solid var(--accent-soft)" }}
+                className="mt-1.5 rounded-md"
+                style={{ border: "1px solid var(--border)" }}
               >
                 <summary
-                  className="cursor-pointer px-3 py-2 text-[12px] font-medium select-none"
+                  className="cursor-pointer px-2 py-1.5 text-[12px] font-medium select-none"
                   style={{ color: "var(--accent-ink)" }}
                 >
                   Sub-agent reply
                 </summary>
                 <div
-                  className="px-3 pb-3"
+                  className="px-2 pb-2"
                   style={{ fontSize: 13, color: "var(--ink-2)" }}
                 >
                   <Markdown text={block.summary} />
@@ -209,7 +208,7 @@ export function Subagent({
       </div>
 
       {saArtifact && status === "done" && (
-        <div className="mb-2.5">
+        <div className="mb-2">
           <div
             className="mb-1.5 flex items-center gap-1.5 pl-0.5 uppercase"
             style={{

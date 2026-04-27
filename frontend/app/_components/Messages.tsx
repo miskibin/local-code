@@ -28,6 +28,27 @@ export type UserAttachment = {
   name?: string
 }
 
+const USER_MESSAGE_PREVIEW_MAX_WORDS = 200
+
+function previewUserMessageText(
+  text: string,
+  maxWords: number
+): { preview: string; remainder: string | null } {
+  const re = /\S+/g
+  let m: RegExpExecArray | null
+  let count = 0
+  while ((m = re.exec(text)) !== null) {
+    count += 1
+    if (count === maxWords) {
+      const end = m.index + m[0].length
+      const remainder = text.slice(end)
+      if (!remainder.trim()) return { preview: text, remainder: null }
+      return { preview: text.slice(0, end), remainder }
+    }
+  }
+  return { preview: text, remainder: null }
+}
+
 export function UserMessage({
   text,
   attachments,
@@ -41,7 +62,12 @@ export function UserMessage({
 }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(text)
+  const [longPromptExpanded, setLongPromptExpanded] = useState(false)
   const taRef = useRef<HTMLTextAreaElement>(null)
+  const { preview: textPreview, remainder: textRemainder } = previewUserMessageText(
+    text,
+    USER_MESSAGE_PREVIEW_MAX_WORDS
+  )
 
   useEffect(() => {
     if (!editing) return
@@ -177,7 +203,18 @@ export function UserMessage({
               lineHeight: "var(--density-line)",
             }}
           >
-            {text}
+            {textRemainder && !longPromptExpanded ? textPreview : text}
+            {textRemainder && (
+              <button
+                type="button"
+                className="mt-2 block w-full rounded-md py-1 text-left text-[13px] font-medium underline-offset-2 hover:underline"
+                style={{ color: "var(--accent)" }}
+                aria-expanded={longPromptExpanded}
+                onClick={() => setLongPromptExpanded((v) => !v)}
+              >
+                {longPromptExpanded ? "Show less" : "Show more"}
+              </button>
+            )}
           </div>
         )}
       </div>

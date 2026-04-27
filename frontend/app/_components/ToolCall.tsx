@@ -30,26 +30,27 @@ export function ToolCall({
   const ResultView = renderer.Result ?? DefaultResult
   const refs = useArtifactRefs()
   const artRef = toolCallId ? refs?.getToolArtifact(toolCallId) : undefined
+  const frameBorder = errored
+    ? "var(--red)"
+    : warning
+      ? "var(--amber)"
+      : "var(--accent)"
 
   return (
     <div
-      className="lc-reveal my-1.5 mb-3.5 overflow-hidden rounded-xl"
+      className="lc-reveal my-1 mb-2 overflow-hidden rounded-lg"
       style={{
-        border: "1px solid var(--tool-border)",
-        background: "var(--tool-bg)",
+        border: `1px solid ${frameBorder}`,
+        background: "transparent",
       }}
     >
       <button
         onClick={onToggle}
-        className="flex w-full cursor-pointer items-center gap-2 px-3.5 py-2.5 text-left"
+        className="flex w-full cursor-pointer items-center gap-2 px-2.5 py-1.5 text-left"
         style={{
-          background: errored
-            ? "var(--red-soft)"
-            : warning
-              ? "var(--amber-soft)"
-              : "var(--accent-soft)",
+          background: "transparent",
           border: 0,
-          borderBottom: expanded ? "1px solid var(--tool-border)" : 0,
+          borderBottom: expanded ? `1px solid ${frameBorder}` : 0,
           color: "var(--ink)",
         }}
       >
@@ -169,12 +170,7 @@ export function ToolCall({
         </div>
       </button>
       {expanded && (
-        <div
-          style={{
-            borderTop: "1px solid var(--tool-border)",
-            background: "var(--surface)",
-          }}
-        >
+        <div style={{ background: "var(--surface)" }}>
           {!renderer.hideArgs && (
             <Section label="Arguments">
               <ArgsView args={step.args} step={step} />
@@ -197,7 +193,7 @@ function Section({
   children: React.ReactNode
 }) {
   return (
-    <div className="px-3.5 pt-2.5 pb-2.5 last:pb-3">
+    <div className="px-2.5 pt-2 pb-2 last:pb-2.5">
       <div
         className="mb-1.5 uppercase"
         style={{

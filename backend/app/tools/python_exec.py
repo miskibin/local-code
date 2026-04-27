@@ -2,6 +2,11 @@ from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import ToolException, tool
 
 from app.artifact_store import build_and_persist_tool_artifact, run_python_artifact
+from app.runtime import get_sandbox
+
+
+def _thread_id_from_config(config: RunnableConfig | None) -> str | None:
+    return ((config or {}).get("configurable") or {}).get("thread_id")
 
 
 @tool(response_format="content_and_artifact")
@@ -27,13 +32,20 @@ async def python_exec(code: str, config: RunnableConfig) -> tuple[str, dict]:
       doesn't exist.
 
     matplotlib and pandas are available; the Agg backend is set automatically.
-    App theme (transparent bg, Geist Mono, blue-led color cycle) is preset on
+    App theme (transparent bg, blue-led color cycle) is preset on
     `matplotlib.rcParams`; override in your code if you need custom styling.
-    Subprocess, 20-second timeout, no state between calls. The summary you see
-    starts with the artifact id (looks like `art_abc123def456`).
+
+    State PERSISTS across calls within one chat thread: variables, imports
+    and DataFrames stay alive between runs. Reset the thread to clear.
+    Sandboxed in Pyodide (Deno+WASM); no host filesystem access, no env
+    vars, no arbitrary network.
     """
     try:
-        result = await run_python_artifact(code)
+        result = await run_python_artifact(
+            code,
+            sandbox=get_sandbox(),
+            session_id=_thread_id_from_config(config),
+        )
     except (RuntimeError, TimeoutError) as e:
         raise ToolException(f"error: {e}") from e
     return await build_and_persist_tool_artifact(

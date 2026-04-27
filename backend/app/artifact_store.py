@@ -8,15 +8,14 @@ from __future__ import annotations
 
 import asyncio
 import json
-import subprocess
-import sys
 import textwrap
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
 from langchain_core.runnables import RunnableConfig
+from loguru import logger
 from sqlalchemy import create_engine, text
 from sqlmodel import select
 
@@ -24,10 +23,13 @@ from app.config import get_settings
 from app.db import async_session
 from app.models import SavedArtifact
 
+if TYPE_CHECKING:
+    from langchain_sandbox import PyodideSandbox
+
 SOURCE_CODE_MAX = 64 * 1024
 PAYLOAD_MAX_BYTES = 1 * 1024 * 1024
 SQL_ROW_CAP = 200
-PY_TIMEOUT_SECONDS = 20
+STDOUT_CAP_BYTES = 1 * 1024 * 1024
 ARTIFACT_START = "<<ARTIFACT::start>>"
 ARTIFACT_END = "<<ARTIFACT::end>>"
 
@@ -105,7 +107,11 @@ async def get_artifact(artifact_id: str) -> SavedArtifact | None:
         return await s.get(SavedArtifact, artifact_id)
 
 
-async def refresh_artifact(artifact_id: str) -> SavedArtifact:
+async def refresh_artifact(
+    artifact_id: str,
+    *,
+    sandbox: "PyodideSandbox | None" = None,
+) -> SavedArtifact:
     async with async_session() as s:
         row = await s.get(SavedArtifact, artifact_id)
         if row is None:
@@ -115,8 +121,17 @@ async def refresh_artifact(artifact_id: str) -> SavedArtifact:
         source_kind = row.source_kind
         source_code = row.source_code
         parent_ids = list(row.parent_artifact_ids or [])
+        # Refresh runs without an attached chat thread — use a stable per-artifact
+        # session so re-running a refresh keeps the same Python globals.
+        refresh_session_id = f"refresh_{artifact_id}"
 
-    result = await _run_executor(source_kind, source_code, parent_artifact_ids=parent_ids)
+    result = await _run_executor(
+        source_kind,
+        source_code,
+        parent_artifact_ids=parent_ids,
+        sandbox=sandbox,
+        session_id=refresh_session_id,
+    )
 
     async with async_session() as s:
         row = await s.get(SavedArtifact, artifact_id)
@@ -136,10 +151,17 @@ async def refresh_artifact(artifact_id: str) -> SavedArtifact:
 
 
 async def _run_executor(
-    source_kind: str, source_code: str, parent_artifact_ids: list[str]
+    source_kind: str,
+    source_code: str,
+    parent_artifact_ids: list[str],
+    *,
+    sandbox: "PyodideSandbox | None" = None,
+    session_id: str | None = None,
 ) -> dict[str, Any]:
     if source_kind == "python":
-        return await run_python_artifact(source_code)
+        if sandbox is None:
+            raise RuntimeError("python executor requires sandbox")
+        return await run_python_artifact(source_code, sandbox=sandbox, session_id=session_id)
     if source_kind == "sql":
         return await run_sql_artifact(source_code)
     if source_kind == "text":
@@ -154,19 +176,15 @@ async def _run_executor(
 
 # ---------- Python executor ----------
 
-import os  # noqa: E402
 import re  # noqa: E402
-import shutil  # noqa: E402
-import tempfile  # noqa: E402
 
 _ART_ID_PATTERN = re.compile(r"art_[0-9a-f]{8,}")
-_ART_PATHS_ENV = "LC_ARTIFACT_PATHS"
-_FONT_DIR_ENV = "LC_MPL_FONT_DIR"
-_FONT_DIR = Path(__file__).resolve().parent / "assets" / "fonts"
 
-_PY_PRELUDE = textwrap.dedent(
+_PY_PRELUDE_TEMPLATE = textwrap.dedent(
     f"""
     import json as _json, sys as _sys
+    _STAGED = _json.loads({{staged_literal}})
+
     def out(_obj):
         _sys.stdout.write({ARTIFACT_START!r})
         _sys.stdout.write(_json.dumps(_obj, default=str))
@@ -174,26 +192,18 @@ _PY_PRELUDE = textwrap.dedent(
         _sys.stdout.write("\\n")
 
     def _apply_app_mpl_style():
-        import os as _os, glob as _glob
-        try:
-            import matplotlib as _mpl
-            _mpl.use("Agg")
-        except ImportError:
-            return
-        _font_dir = _os.environ.get({_FONT_DIR_ENV!r})
-        if _font_dir:
-            try:
-                from matplotlib import font_manager as _fm
-                for _ttf in _glob.glob(_os.path.join(_font_dir, "*.ttf")):
-                    _fm.fontManager.addfont(_ttf)
-            except Exception:
-                pass
-        from cycler import cycler as _cycler
-        # Split ink: body text reads on white; spines/grid stay softer so bars stay the focus.
+        # Imports go through importlib.import_module rather than top-level
+        # `import matplotlib` so that the sandbox wrapper's `find_imports` AST
+        # scan doesn't try to micropip-install matplotlib on every call.
+        # matplotlib loads lazily when the agent first calls out_image().
+        import importlib as _imp
+        _mpl = _imp.import_module("matplotlib")
+        _mpl.use("Agg")
+        _cycler = _imp.import_module("cycler").cycler
         _ink_text = "#1f1f1f"
         _ink_spine = "#6b6b6b"
         _grid = "#c8c8c8"
-        _mpl.rcParams.update({{
+        _mpl.rcParams.update({{{{
             "figure.facecolor": "none",
             "figure.edgecolor": "none",
             "figure.dpi": 120,
@@ -222,49 +232,44 @@ _PY_PRELUDE = textwrap.dedent(
             "ytick.labelsize": 10,
             "font.size": 11,
             "font.weight": "medium",
-            "font.family": ["Geist Mono", "DejaVu Sans Mono", "monospace"],
             "legend.frameon": False,
             "legend.fontsize": 10,
             "legend.labelcolor": _ink_text,
             "savefig.facecolor": "none",
             "savefig.edgecolor": "none",
             "savefig.transparent": True,
-        }})
-
-    _apply_app_mpl_style()
+        }}}})
 
     def out_image(fig=None, *, title=None, caption=None):
-        import io as _io, base64 as _b64
-        import matplotlib.pyplot as _plt
+        import io as _io, base64 as _b64, importlib as _imp
+        if "_app_mpl_style_applied" not in globals():
+            _apply_app_mpl_style()
+            globals()["_app_mpl_style_applied"] = True
+        _plt = _imp.import_module("matplotlib.pyplot")
         f = fig if fig is not None else _plt.gcf()
         buf = _io.BytesIO()
         f.savefig(buf, format="png", bbox_inches="tight", dpi=120)
-        out({{
+        out({{{{
             "_image_png_b64": _b64.b64encode(buf.getvalue()).decode("ascii"),
             "title": title,
             "caption": caption,
-        }})
+        }}}})
 
     def read_artifact(_id):
-        '''Load a prior artifact by id. Tables -> pandas DataFrame (or
-        list-of-dict if pandas missing); images -> raw PNG bytes; text -> str.
-        Only ids that appear literally in the script source are staged.'''
-        import json as _json
-        import os as _os
-        _paths = _json.loads(_os.environ.get({_ART_PATHS_ENV!r}, "{{}}"))
-        _path = _paths.get(_id)
-        if _path is None:
+        '''Load a prior artifact by id (literal in script source). Tables ->
+        pandas DataFrame; images -> raw PNG bytes; text -> str.'''
+        _meta = _STAGED.get(_id)
+        if _meta is None:
             raise LookupError(
-                f"artifact {{_id!r}} not staged; the runner only stages ids "
+                f"artifact {{{{_id!r}}}} not staged; the runner only stages ids "
                 f"that appear literally in the script source."
             )
-        with open(_path, "r", encoding="utf-8") as _f:
-            _meta = _json.load(_f)
         _kind = _meta.get("kind")
-        _payload = _meta.get("payload") or {{}}
+        _payload = _meta.get("payload") or {{{{}}}}
         if _kind == "table":
             try:
-                import pandas as _pd
+                import importlib as _imp
+                _pd = _imp.import_module("pandas")
                 return _pd.DataFrame(_payload.get("rows", []))
             except ImportError:
                 return _payload.get("rows", [])
@@ -278,86 +283,63 @@ _PY_PRELUDE = textwrap.dedent(
 ).strip()
 
 
-async def _stage_artifacts_for_code(
-    code: str,
-) -> tuple[dict[str, str], Path | None]:
+async def _stage_artifacts_for_code(code: str) -> dict[str, dict[str, Any]]:
+    """Resolve `art_<hex>` literals in the script and return id -> metadata.
+
+    Pyodide has no host filesystem, so artifacts are inlined as a JSON literal
+    in the prelude (see _PY_PRELUDE_TEMPLATE) instead of being written to a
+    tempdir + read via env var as we did under the old subprocess executor.
+    """
     ids = sorted(set(_ART_ID_PATTERN.findall(code)))
     if not ids:
-        return {}, None
-    tmp = Path(tempfile.mkdtemp(prefix="lc_art_"))
-    paths: dict[str, str] = {}
+        return {}
+    staged: dict[str, dict[str, Any]] = {}
     for aid in ids:
         row = await get_artifact(aid)
         if row is None:
             continue
-        path = tmp / f"{aid}.json"
-        path.write_text(
-            json.dumps(
-                {
-                    "id": row.id,
-                    "kind": row.kind,
-                    "title": row.title,
-                    "payload": row.payload,
-                }
-            ),
-            encoding="utf-8",
-        )
-        paths[aid] = str(path)
-    if not paths:
-        shutil.rmtree(tmp, ignore_errors=True)
-        return {}, None
-    return paths, tmp
+        staged[aid] = {
+            "id": row.id,
+            "kind": row.kind,
+            "title": row.title,
+            "payload": row.payload,
+        }
+    return staged
 
 
-async def run_python_artifact(code: str) -> dict[str, Any]:
-    paths, tmp = await _stage_artifacts_for_code(code)
+async def run_python_artifact(
+    code: str,
+    *,
+    sandbox: "PyodideSandbox",
+    session_id: str | None = None,
+) -> dict[str, Any]:
+    staged = await _stage_artifacts_for_code(code)
+    # JSON-encode the staged dict to a Python literal expression. We embed it
+    # via `json.loads(<literal>)` in the prelude rather than building a Python
+    # dict at the source level so we don't have to think about escaping.
+    staged_literal = repr(json.dumps(staged))
+    prelude = _PY_PRELUDE_TEMPLATE.format(staged_literal=staged_literal)
+    wrapped = prelude + "\n" + textwrap.dedent(code)
+
+    from app.python_sandbox import execute_code
+
+    timeout = get_settings().python_sandbox_timeout
     try:
-        return await asyncio.to_thread(_run_python_sync, code, paths)
-    finally:
-        if tmp is not None:
-            shutil.rmtree(tmp, ignore_errors=True)
-
-
-_SAFE_ENV_KEYS = (
-    "PATH",
-    "SystemRoot",
-    "SYSTEMROOT",
-    "TEMP",
-    "TMP",
-    "TMPDIR",
-    "HOME",
-    "USERPROFILE",
-    "APPDATA",
-    "LOCALAPPDATA",
-    "LANG",
-    "LC_ALL",
-    "LC_CTYPE",
-)
-
-
-def _run_python_sync(code: str, staged: dict[str, str]) -> dict[str, Any]:
-    wrapped = _PY_PRELUDE + "\n" + textwrap.dedent(code)
-    # Minimal env: subprocess inherits only what's needed to start Python.
-    # Avoids leaking secrets (API keys, DB URLs, .env) to LLM-controlled code.
-    env = {k: os.environ[k] for k in _SAFE_ENV_KEYS if k in os.environ}
-    env[_ART_PATHS_ENV] = json.dumps(staged)
-    if _FONT_DIR.is_dir():
-        env[_FONT_DIR_ENV] = str(_FONT_DIR)
-    try:
-        proc = subprocess.run(
-            [sys.executable, "-I", "-c", wrapped],
-            capture_output=True,
-            timeout=PY_TIMEOUT_SECONDS,
-            check=False,
-            env=env,
+        result = await asyncio.wait_for(
+            execute_code(sandbox, wrapped, session_id=session_id, timeout_seconds=timeout),
+            timeout=timeout + 5,
         )
-    except subprocess.TimeoutExpired as err:
-        raise TimeoutError(f"python_exec timed out after {PY_TIMEOUT_SECONDS}s") from err
+    except TimeoutError as err:
+        raise TimeoutError(f"python_exec timed out after {timeout}s") from err
 
-    stdout = proc.stdout.decode("utf-8", errors="replace") if proc.stdout else ""
-    stderr = proc.stderr.decode("utf-8", errors="replace") if proc.stderr else ""
-    if proc.returncode != 0:
-        raise RuntimeError(f"python failed (exit {proc.returncode}):\n{stderr or stdout}")
+    stdout = (result.stdout or "")[:STDOUT_CAP_BYTES]
+    stderr = (result.stderr or "")[:STDOUT_CAP_BYTES]
+    if result.status != "success":
+        # When status=="error" stdout/stderr may be empty (Pyodide failed
+        # before user code ran); surface whichever non-empty channel we have.
+        msg = stderr or stdout or "python_exec failed (no output)"
+        logger.warning(f"python_exec failed: {msg[:200]}")
+        raise RuntimeError(msg)
 
     artifact_blob: Any | None = None
     free_stdout = stdout
@@ -368,7 +350,15 @@ def _run_python_sync(code: str, staged: dict[str, str]) -> dict[str, Any]:
         artifact_blob = json.loads(body)
         free_stdout = free_stdout[:a] + free_stdout[b + len(ARTIFACT_END) :]
 
-    free_stdout = free_stdout.strip()
+    # Pyodide's loadPackage() prints "Loading X" / "Loaded X" lines to stdout
+    # the first time a package is imported in a session. Filter them so the
+    # agent's text artifact only shows code-produced output.
+    cleaned_lines = [
+        ln
+        for ln in free_stdout.splitlines()
+        if not (ln.startswith("Loading ") or ln.startswith("Loaded "))
+    ]
+    free_stdout = "\n".join(cleaned_lines).strip()
 
     return _classify_python_output(artifact_blob, free_stdout, stderr)
 
