@@ -51,9 +51,13 @@ def test_build_agent_extends_tool_exclusion_to_each_subagent(monkeypatch):
 
     captured: dict = {}
 
+    class _StubAgent:
+        def with_config(self, _):
+            return self
+
     def fake_create_deep_agent(**kwargs):
         captured["subagents"] = kwargs.get("subagents")
-        return object()
+        return _StubAgent()
 
     monkeypatch.setattr(main_agent, "create_deep_agent", fake_create_deep_agent)
     subs = [
@@ -78,12 +82,14 @@ def test_build_agent_extends_tool_exclusion_to_each_subagent(monkeypatch):
         subagents=subs,
     )
     captured_subs = captured["subagents"]
-    assert len(captured_subs) == 2
-    for s in captured_subs:
+    # build_agent prepends a stub `general-purpose` to override deepagents' default.
+    user_subs = [s for s in captured_subs if s["name"] != "general-purpose"]
+    assert len(user_subs) == 2
+    for s in user_subs:
         mws = s.get("middleware") or []
         excl = [m for m in mws if isinstance(m, _ToolExclusionMiddleware)]
         assert excl, f"subagent {s['name']!r} missing _ToolExclusionMiddleware"
         assert excl[0]._excluded == main_agent._EXCLUDED_BUILTIN_TOOLS
     # Caller-supplied middleware list is preserved (not clobbered).
-    sql_mws = captured_subs[1]["middleware"]
-    assert "pre-existing" in sql_mws
+    sql = next(s for s in user_subs if s["name"] == "sql-agent")
+    assert "pre-existing" in sql["middleware"]

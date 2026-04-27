@@ -272,6 +272,6 @@ def test_excluded_set_matches_documented_builtins():
     from app.graphs.main_agent import _EXCLUDED_BUILTIN_TOOLS
 
     assert (
-        frozenset({"ls", "read_file", "write_file", "edit_file", "glob", "grep"})
+        frozenset({"ls", "read_file", "write_file", "edit_file", "glob", "grep", "execute"})
         == _EXCLUDED_BUILTIN_TOOLS
     )

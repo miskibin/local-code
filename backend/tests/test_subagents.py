@@ -5,7 +5,7 @@ def test_default_subagents_is_only_sql_agent(chinook_path):
     assert len(subs) == 1
     sql = subs[0]
     assert sql["name"] == "sql-agent"
-    assert sql["tools"] == ["sql_query"]
+    assert sql["tools"] == ["sql_query", "quiz"]
 
 
 def test_sql_agent_system_prompt_bakes_chinook_schema(chinook_path):
