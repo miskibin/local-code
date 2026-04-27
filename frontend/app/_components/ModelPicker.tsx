@@ -3,26 +3,27 @@
 import { Check, ChevronDown, Cpu } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
 
-const DEFAULT_MODEL = process.env.NEXT_PUBLIC_OLLAMA_MODEL ?? "gemma4:e4b"
+const DEFAULT_MODEL =
+  process.env.NEXT_PUBLIC_OLLAMA_MODEL ?? "gemini-3.1-flash-lite-preview"
 
 const MODELS = [
   {
+    id: "gemini-3.1-flash-lite-preview",
+    name: "gemini-3.1-flash-lite-preview",
+    desc: "Google · cloud",
+    size: "—",
+    recommended: true,
+  },
+  {
     id: "gemma4-e4b",
-    name: DEFAULT_MODEL,
+    name: "gemma4:e4b",
     desc: "Native tools · 128k ctx",
     size: "9.6 GB",
-    recommended: true,
   },
   {
     id: "nemotron-3-super:cloud",
     name: "nemotron-3-super:cloud",
     desc: "Cloud · fast",
-    size: "—",
-  },
-  {
-    id: "gemini-3.1-flash-lite-preview",
-    name: "gemini-3.1-flash-lite-preview",
-    desc: "Google · cloud",
     size: "—",
   },
   {

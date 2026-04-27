@@ -79,13 +79,12 @@ async def test_e2e_prompt_task_resolves_var_refs():
             },
             session_id="sess-prompt-e2e",
         )
-        types = [e["type"] for e in events]
         errors = [e for e in events if e["type"] == "tool-output-error"]
         assert not errors, errors
-        outputs = [e for e in events if e["type"] == "tool-output-available"]
-        assert len(outputs) == 1
-        assert outputs[0]["toolCallId"] == "s1"
-        assert "tool-input-available" in types
+        # Prompt-kind steps stream as text deltas, no tool wrapper.
+        deltas = "".join(e["delta"] for e in events if e["type"] == "text-delta")
+        assert "A small CLI for time." in deltas
+        assert "Request Detailed CLI Requirements" in deltas
 
 
 @pytest.mark.asyncio

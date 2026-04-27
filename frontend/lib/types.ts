@@ -107,6 +107,7 @@ export type ToolStep = {
   duration?: string
   status?: "running" | "done" | "error"
   toolCallId?: string
+  taskTitle?: string
 }
 
 export type SubagentStep = {

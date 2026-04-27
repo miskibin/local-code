@@ -1,3 +1,5 @@
+import json
+import re
 from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
@@ -7,8 +9,11 @@ from loguru import logger
 from pydantic import BaseModel
 from sqlmodel import select
 
+from app.artifact_store import get_artifact
 from app.db import async_session
 from app.models import ChatSession
+
+_ART_DOT_PREFIX = re.compile(r"^\s*(art_[A-Za-z0-9]+)\s*·")
 
 router = APIRouter()
 
@@ -56,6 +61,40 @@ def _coerce_output(content) -> object:
                 parts.append(str(c))
         return "".join(parts)
     return str(content)
+
+
+def _artifact_id_from_tool_message(tm: Any) -> str | None:
+    """Recover artifact id from checkpoint ToolMessage (live SSE adds data-artifact separately)."""
+    raw = getattr(tm, "content", None)
+    if isinstance(raw, dict):
+        for key in ("artifact_id", "artifactId"):
+            v = raw.get(key)
+            if isinstance(v, str) and v.startswith("art_"):
+                return v
+        art = raw.get("artifact")
+        if isinstance(art, dict):
+            vid = art.get("id")
+            if isinstance(vid, str):
+                return vid
+    coerced = _coerce_output(raw)
+    if isinstance(coerced, str):
+        text = coerced.strip()
+        m = _ART_DOT_PREFIX.match(text)
+        if m:
+            return m.group(1)
+        if text.startswith("{"):
+            try:
+                obj = json.loads(text)
+            except json.JSONDecodeError:
+                obj = None
+            if isinstance(obj, dict):
+                v = obj.get("artifact_id") or obj.get("artifactId")
+                if isinstance(v, str):
+                    return v
+        m2 = re.search(r"\b(art_[A-Za-z0-9]+)\b", text)
+        if m2:
+            return m2.group(1)
+    return None
 
 
 @router.get("/sessions", response_model=list[SessionDTO])
@@ -168,6 +207,31 @@ async def get_messages(sid: str, request: Request):  # noqa: PLR0912 -- linear L
                     part["state"] = "output-available"
                     part["output"] = output
             parts.append(part)
+            if (
+                tm is not None
+                and getattr(tm, "status", None) != "error"
+                and part.get("state") == "output-available"
+            ):
+                aid = _artifact_id_from_tool_message(tm)
+                if aid:
+                    row = await get_artifact(aid)
+                    if row is not None and (
+                        row.session_id is None or row.session_id == sid
+                    ):
+                        parts.append(
+                            {
+                                "type": "data-artifact",
+                                "id": row.id,
+                                "data": {
+                                    "toolCallId": cid,
+                                    "artifactId": row.id,
+                                    "kind": row.kind,
+                                    "title": row.title,
+                                    "summary": row.summary,
+                                    "updatedAt": row.updated_at.isoformat(),
+                                },
+                            }
+                        )
 
         if not parts:
             continue

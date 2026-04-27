@@ -91,3 +91,42 @@ async def test_get_messages_extracts_text_from_block_content(app_with_msgs):
     assert r.json() == [
         {"id": "a1", "role": "assistant", "parts": [{"type": "text", "text": "part 1 part 2"}]}
     ]
+
+
+@pytest.mark.asyncio
+async def test_get_messages_emits_data_artifact_from_tool_output(app_with_msgs):
+    from app.artifact_store import create_artifact
+
+    app = app_with_msgs
+    aid = "art_reloadtest001"
+    await create_artifact(
+        kind="table",
+        title="Top 10 Genres",
+        payload={"columns": [{"key": "a", "label": "A"}], "rows": []},
+        summary="s",
+        source_kind="python",
+        source_code="x",
+        session_id="s1",
+        artifact_id=aid,
+    )
+    msgs = [
+        AIMessage(
+            id="a1",
+            content="",
+            tool_calls=[{"id": "tc1", "name": "python_exec", "args": {"code": "x"}}],
+        ),
+        ToolMessage(content=f"{aid} · plotted", tool_call_id="tc1"),
+    ]
+    app.state.checkpointer = _FakeCheckpointer(msgs)
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        r = await ac.get("/sessions/s1/messages")
+    assert r.status_code == 200
+    body = r.json()
+    assert len(body) == 1
+    parts = body[0]["parts"]
+    art_parts = [p for p in parts if p.get("type") == "data-artifact"]
+    assert len(art_parts) == 1
+    assert art_parts[0]["data"]["artifactId"] == aid
+    assert art_parts[0]["data"]["toolCallId"] == "tc1"
+    assert art_parts[0]["data"]["title"] == "Top 10 Genres"

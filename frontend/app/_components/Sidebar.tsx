@@ -144,18 +144,23 @@ export function Sidebar({
           Chats
         </SectionHead>
         {chatsOpen &&
-          sessions.map((s, i) => (
-            <ChatRow
-              key={s.id}
-              index={i + 1}
-              session={s}
-              active={s.id === activeId}
-              onSelect={() => onSelect(s.id)}
-              onDelete={() => onDeleteSession(s.id)}
-              onRename={(title) => onRenameSession(s.id, title)}
-              onTogglePin={() => onTogglePinSession(s.id, !s.is_pinned)}
-            />
-          ))}
+          sessions.map((s, i) => {
+            const listNumber = s.is_pinned
+              ? undefined
+              : sessions.slice(0, i).filter((x) => !x.is_pinned).length + 1
+            return (
+              <ChatRow
+                key={s.id}
+                listNumber={listNumber}
+                session={s}
+                active={s.id === activeId}
+                onSelect={() => onSelect(s.id)}
+                onDelete={() => onDeleteSession(s.id)}
+                onRename={(title) => onRenameSession(s.id, title)}
+                onTogglePin={() => onTogglePinSession(s.id, !s.is_pinned)}
+              />
+            )
+          })}
 
         <div className="h-3.5" />
 
@@ -256,7 +261,7 @@ function ArtifactRow({
 
 function ChatRow({
   session,
-  index,
+  listNumber,
   active,
   onSelect,
   onDelete,
@@ -264,7 +269,8 @@ function ChatRow({
   onTogglePin,
 }: {
   session: Session
-  index: number
+  /** 1-based index among unpinned chats only; omitted when pinned */
+  listNumber?: number
   active: boolean
   onSelect: () => void
   onDelete: () => void
@@ -355,16 +361,18 @@ function ChatRow({
               style={{ color: "var(--accent)" }}
             />
           )}
-          <span
-            className="flex-shrink-0 tabular-nums"
-            style={{
-              fontFamily: "var(--font-mono)",
-              fontSize: 11,
-              color: active ? "var(--accent)" : "var(--ink-4)",
-            }}
-          >
-            {String(index).padStart(2, "0")}
-          </span>
+          {listNumber != null && (
+            <span
+              className="flex-shrink-0 tabular-nums"
+              style={{
+                fontFamily: "var(--font-mono)",
+                fontSize: 11,
+                color: active ? "var(--accent)" : "var(--ink-4)",
+              }}
+            >
+              {String(listNumber).padStart(2, "0")}
+            </span>
+          )}
           <span className="flex-1 truncate">
             {session.title || "Untitled"}
           </span>

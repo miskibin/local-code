@@ -3,9 +3,10 @@
 TOOL/CODE steps run scripted (direct tool/python_exec invocation).
 SUBAGENT/PROMPT steps run through an LLM call (with optional tool binding).
 
-All steps emit SSE events compatible with the existing chat stream so the
-frontend renders them as ordinary tool calls / artifacts. On any step
-failure we halt and surface the error — no retry, no skip.
+All steps emit SSE events that match the chat tool-call protocol bit-for-bit
+so the frontend renders them through the same per-tool renderers as ordinary
+chat tool calls. Step title rides along as `providerMetadata.task.title`.
+On any step failure we halt and surface the error — no retry, no skip.
 """
 
 from __future__ import annotations
@@ -68,31 +69,54 @@ async def _all_tools(state) -> list[BaseTool]:
     return local + mcp
 
 
+def _task_md(step: TaskStep) -> dict:
+    return {"task": {"stepId": step.id, "title": step.title, "kind": step.kind}}
+
+
+def _subagent_md(step: TaskStep) -> dict:
+    return {
+        "subagent": {
+            "namespace": [f"task:{step.id}"],
+            "parentToolCallId": step.id,
+        }
+    }
+
+
 def _emit_text_delta(text_id: str, delta: str) -> str:
     return sse({"type": "text-delta", "id": text_id, "delta": delta})
 
 
-def _emit_input_start(step_id: str, name: str) -> str:
-    return sse({"type": "tool-input-start", "toolCallId": step_id, "toolName": name})
+def _emit_input_start(call_id: str, name: str, *, provider_md: dict | None = None) -> str:
+    evt: dict = {"type": "tool-input-start", "toolCallId": call_id, "toolName": name}
+    if provider_md:
+        evt["providerMetadata"] = provider_md
+    return sse(evt)
 
 
-def _emit_input(step_id: str, name: str, args: object) -> str:
-    return sse(
-        {
-            "type": "tool-input-available",
-            "toolCallId": step_id,
-            "toolName": name,
-            "input": args,
-        }
-    )
+def _emit_input(call_id: str, name: str, args: object, *, provider_md: dict | None = None) -> str:
+    evt: dict = {
+        "type": "tool-input-available",
+        "toolCallId": call_id,
+        "toolName": name,
+        "input": args,
+    }
+    if provider_md:
+        evt["providerMetadata"] = provider_md
+    return sse(evt)
 
 
-def _emit_output(step_id: str, output: object) -> str:
-    return sse({"type": "tool-output-available", "toolCallId": step_id, "output": output})
+def _emit_output(call_id: str, output: object, *, provider_md: dict | None = None) -> str:
+    evt: dict = {"type": "tool-output-available", "toolCallId": call_id, "output": output}
+    if provider_md:
+        evt["providerMetadata"] = provider_md
+    return sse(evt)
 
 
-def _emit_error(step_id: str, error_text: str) -> str:
-    return sse({"type": "tool-output-error", "toolCallId": step_id, "errorText": error_text})
+def _emit_error(call_id: str, error_text: str, *, provider_md: dict | None = None) -> str:
+    evt: dict = {"type": "tool-output-error", "toolCallId": call_id, "errorText": error_text}
+    if provider_md:
+        evt["providerMetadata"] = provider_md
+    return sse(evt)
 
 
 def _emit_artifact(step_id: str, row) -> str:
@@ -170,7 +194,7 @@ async def _run_prompt_step(
     prompt: str,
     *,
     llm: BaseChatModel,
-) -> tuple[Any, dict[str, Any]]:
+) -> tuple[str, dict[str, Any]]:
     if not prompt:
         raise ValueError(f"step {step.id}: prompt required for kind=prompt")
     response = await llm.ainvoke([HumanMessage(content=prompt)])
@@ -185,7 +209,13 @@ async def _run_subagent_step(
     llm: BaseChatModel,
     all_tools: list[BaseTool],
     session_id: str,
-) -> tuple[Any, dict[str, Any]]:
+) -> AsyncIterator[str | tuple[str, dict[str, Any]]]:
+    """Run a subagent ReAct loop, yielding SSE strings for each inner tool call.
+
+    Final yield is a `(summary, outputs)` tuple — the caller forwards SSE
+    strings to the client and uses the tuple to populate the dispatcher
+    output event and outputs map.
+    """
     if not prompt:
         raise ValueError(f"step {step.id}: prompt required for kind=subagent")
     target = step.subagent or ""
@@ -195,6 +225,7 @@ async def _run_subagent_step(
     bound_tools = [t for t in all_tools if t.name in tool_names]
     chain = llm.bind_tools(bound_tools) if bound_tools else llm
 
+    sub_md = _subagent_md(step)
     messages: list[Any] = [HumanMessage(content=f"{system}\n\n{prompt}")]
     last_text = ""
     for _ in range(4):  # cap subagent ReAct loop to keep tasks deterministic-ish
@@ -207,22 +238,27 @@ async def _run_subagent_step(
             break
         config = {"configurable": {"thread_id": session_id}}
         for tc in tool_calls:
-            tool = next((t for t in bound_tools if t.name == tc["name"]), None)
+            inner_id = tc.get("id") or f"sa_{uuid4().hex}"
+            inner_name = tc["name"]
+            inner_args = tc.get("args") or {}
+            yield _emit_input_start(inner_id, inner_name, provider_md=sub_md)
+            yield _emit_input(inner_id, inner_name, inner_args, provider_md=sub_md)
+            tool = next((t for t in bound_tools if t.name == inner_name), None)
             if tool is None:
-                messages.append(
-                    ToolMessage(content=f"tool {tc['name']} not bound", tool_call_id=tc["id"])
-                )
+                err_text = f"tool {inner_name} not bound"
+                yield _emit_error(inner_id, err_text, provider_md=sub_md)
+                messages.append(ToolMessage(content=err_text, tool_call_id=inner_id))
                 continue
-            raw = await tool.ainvoke(tc.get("args") or {}, config=config)
+            raw = await tool.ainvoke(inner_args, config=config)
             if isinstance(raw, tuple) and len(raw) == _CONTENT_AND_ARTIFACT_LEN:
                 tool_text, _ = raw
             else:
                 tool_text = raw
-            messages.append(
-                ToolMessage(content=coerce_lc_content(tool_text), tool_call_id=tc["id"])
-            )
+            tool_text_str = coerce_lc_content(tool_text)
+            yield _emit_output(inner_id, tool_text_str, provider_md=sub_md)
+            messages.append(ToolMessage(content=tool_text_str, tool_call_id=inner_id))
     outputs = {step.output_name: last_text, **_extract_subagent_outputs(last_text)}
-    return last_text, outputs
+    yield (last_text, outputs)
 
 
 async def run_task(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits would fragment SSE state
@@ -252,58 +288,63 @@ async def run_task(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits woul
     for step_dto in dto.steps:
         step = step_dto
         step_id = step.id
-        yield _emit_input_start(step_id, step.title or step.kind)
+        task_md = _task_md(step)
+
         try:
             args_template = step.args_template or {}
             resolved_args = substitute(args_template, variables, outputs) if args_template else {}
             resolved_code = substitute(step.code, variables, outputs) if step.code else None
             resolved_prompt = substitute(step.prompt, variables, outputs) if step.prompt else None
 
-            display_input: dict[str, Any] = {"kind": step.kind, "title": step.title}
             if step.kind == "tool":
-                display_input |= {
-                    "server": step.server,
-                    "tool": step.tool,
-                    "args": resolved_args,
-                }
-            elif step.kind == "code":
-                display_input |= {"code": resolved_code}
-            elif step.kind == "subagent":
-                display_input |= {
-                    "subagent": step.subagent,
-                    "prompt": resolved_prompt,
-                }
-            elif step.kind == "prompt":
-                display_input |= {"prompt": resolved_prompt}
-
-            yield _emit_input(step_id, step.title or step.kind, display_input)
-
-            if step.kind == "tool":
+                tool_name = step.tool or step.kind
+                args_dict = resolved_args if isinstance(resolved_args, dict) else {}
+                yield _emit_input_start(step_id, tool_name, provider_md=task_md)
+                yield _emit_input(step_id, tool_name, args_dict, provider_md=task_md)
                 summary, step_outputs = await _run_tool_step(
-                    step,
-                    resolved_args if isinstance(resolved_args, dict) else {},
-                    tools_by_key=tools_by_key,
-                    session_id=session_id,
+                    step, args_dict, tools_by_key=tools_by_key, session_id=session_id
                 )
+                yield _emit_output(step_id, summary, provider_md=task_md)
+
             elif step.kind == "code":
-                summary, step_outputs = await _run_code_step(
-                    step, resolved_code or "", session_id=session_id
-                )
-            elif step.kind == "prompt":
-                summary, step_outputs = await _run_prompt_step(step, resolved_prompt or "", llm=llm)
+                code_str = resolved_code or ""
+                yield _emit_input_start(step_id, "python_exec", provider_md=task_md)
+                yield _emit_input(step_id, "python_exec", {"code": code_str}, provider_md=task_md)
+                summary, step_outputs = await _run_code_step(step, code_str, session_id=session_id)
+                yield _emit_output(step_id, summary, provider_md=task_md)
+
             elif step.kind == "subagent":
-                summary, step_outputs = await _run_subagent_step(
+                dispatch_input = {
+                    "subagent_type": step.subagent or "",
+                    "description": step.title or (step.prompt or "")[:80],
+                }
+                yield _emit_input_start(step_id, "task", provider_md=task_md)
+                yield _emit_input(step_id, "task", dispatch_input, provider_md=task_md)
+                summary = ""
+                step_outputs = {}
+                async for evt in _run_subagent_step(
                     step,
                     resolved_prompt or "",
                     llm=llm,
                     all_tools=all_tools,
                     session_id=session_id,
-                )
+                ):
+                    if isinstance(evt, str):
+                        yield evt
+                    else:
+                        summary, step_outputs = evt
+                yield _emit_output(step_id, summary, provider_md=task_md)
+
+            elif step.kind == "prompt":
+                yield _emit_text_delta(text_id, f"\n**{step.title}**\n\n")
+                summary, step_outputs = await _run_prompt_step(step, resolved_prompt or "", llm=llm)
+                yield _emit_text_delta(text_id, summary)
+                yield _emit_text_delta(text_id, "\n\n")
+
             else:
                 raise ValueError(f"unknown step kind {step.kind!r}")  # noqa: TRY301 -- intentional in-loop validation
 
             outputs[step_id] = step_outputs
-            yield _emit_output(step_id, summary)
 
             for value in step_outputs.values():
                 if isinstance(value, dict) and value.get("id") and value.get("kind"):
@@ -320,13 +361,13 @@ async def run_task(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits woul
 
         except SubstitutionError as e:
             failed = True
-            yield _emit_error(step_id, f"variable error: {e}")
+            yield _emit_error(step_id, f"variable error: {e}", provider_md=task_md)
             yield _emit_text_delta(text_id, f"\n\nStep `{step.id}` failed: {e}\n")
             break
         except Exception as e:  # noqa: BLE001 -- surface every step failure to UI
             logger.exception(f"task step {step_id} failed")
             failed = True
-            yield _emit_error(step_id, str(e))
+            yield _emit_error(step_id, str(e), provider_md=task_md)
             yield _emit_text_delta(text_id, f"\n\nStep `{step.id}` failed: {e}\n")
             break
 

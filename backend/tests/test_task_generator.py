@@ -88,3 +88,99 @@ async def test_generate_task_raises_on_garbage():
     llm = FakeListChatModel(responses=["not json at all"])
     with pytest.raises(ValueError):
         await generate_task_from_run(session_id="sess-bad", messages=_trace_messages(), llm=llm)
+
+
+def _sql_subagent_trace(artifact_id: str = "art_genx111111"):
+    return [
+        HumanMessage(content="top genres by revenue"),
+        AIMessage(
+            content="",
+            tool_calls=[
+                {
+                    "id": "call1",
+                    "name": "task",
+                    "args": {
+                        "subagent_type": "sql-agent",
+                        "description": "Calculate revenue by genre",
+                    },
+                }
+            ],
+        ),
+        ToolMessage(
+            content=f"Top genres computed.\nartifact_id={artifact_id}; columns=Genre,TotalRevenue",
+            tool_call_id="call1",
+        ),
+        AIMessage(content="See the table."),
+    ]
+
+
+def _subagent_task_json() -> str:
+    return json.dumps(
+        {
+            "title": "Genre Revenue",
+            "description": "",
+            "variables": [],
+            "steps": [
+                {
+                    "id": "s1",
+                    "kind": "subagent",
+                    "title": "Calculate Revenue by Genre",
+                    "subagent": "sql-agent",
+                    "prompt": "Join InvoiceLine, Track, Genre and total revenue per genre.",
+                    "output_name": "revenue_data",
+                    "output_kind": "rows",
+                }
+            ],
+        }
+    )
+
+
+@pytest.mark.asyncio
+async def test_subagent_sql_step_replaced_with_sql_query_tool():
+    """Generator post-processing should bake the captured SQL into a sql_query tool step."""
+    from app.artifact_store import create_artifact
+
+    await reset_task_tables(SavedTask, SavedArtifact)
+    captured_sql = (
+        "SELECT g.Name AS Genre, SUM(il.UnitPrice * il.Quantity) AS TotalRevenue "
+        "FROM InvoiceLine il JOIN Track t ON t.TrackId = il.TrackId "
+        "JOIN Genre g ON g.GenreId = t.GenreId GROUP BY g.Name LIMIT 200"
+    )
+    await create_artifact(
+        kind="table",
+        title="Genre Revenue",
+        payload={"columns": [{"key": "Genre", "label": "Genre"}], "rows": []},
+        summary="t",
+        source_kind="sql",
+        source_code=captured_sql,
+        session_id="sess-genre",
+        artifact_id="art_genx111111",
+    )
+
+    llm = FakeListChatModel(responses=[_subagent_task_json()])
+    dto = await generate_task_from_run(
+        session_id="sess-genre", messages=_sql_subagent_trace(), llm=llm
+    )
+    assert len(dto.steps) == 1
+    step = dto.steps[0]
+    assert step.kind == "tool"
+    assert step.tool == "sql_query"
+    assert step.args_template == {"sql": captured_sql}
+    assert step.output_kind == "rows"
+    assert step.subagent is None
+    assert step.prompt is None
+    assert step.id == "s1"
+    assert step.output_name == "revenue_data"
+
+
+@pytest.mark.asyncio
+async def test_subagent_sql_step_kept_when_artifact_missing():
+    """If captured SQL artifact isn't in the session, leave the subagent step alone."""
+    await reset_task_tables(SavedTask, SavedArtifact)
+
+    llm = FakeListChatModel(responses=[_subagent_task_json()])
+    dto = await generate_task_from_run(
+        session_id="sess-no-art", messages=_sql_subagent_trace(), llm=llm
+    )
+    assert dto.steps[0].kind == "subagent"
+    assert dto.steps[0].subagent == "sql-agent"

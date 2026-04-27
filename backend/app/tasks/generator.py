@@ -16,11 +16,15 @@ from langchain_core.messages import AIMessage, HumanMessage, ToolMessage
 from loguru import logger
 from sqlmodel import select
 
+from app.artifact_store import get_artifact
 from app.db import async_session
 from app.models import SavedArtifact
 from app.tasks import coerce_lc_content
 from app.tasks.schemas import TaskDTO, TaskStep, TaskVariable
 from app.tasks.storage import create_task, to_dto
+
+_SQL_SUBAGENT_NAME = "sql-agent"
+_ARTIFACT_ID_RE = re.compile(r"\bartifact_id\s*=\s*(art_[A-Za-z0-9]+)")
 
 GENERATOR_SYSTEM = """You convert a finished agent run into a reusable Task.
 
@@ -199,6 +203,35 @@ def _ensure_step_ids(steps: list[dict[str, Any]]) -> list[dict[str, Any]]:
         step.setdefault("output_kind", "text")
         out.append(step)
     return out
+
+
+async def _inline_sql_subagent_steps(
+    steps: list[dict[str, Any]],
+    tool_calls: list[dict[str, Any]],
+) -> None:
+    """Rewrite kind=subagent (sql-agent) steps into deterministic sql_query tool steps.
+
+    Uses the actual SQL captured on the SavedArtifact produced by the original
+    sub-agent run, so re-running the task doesn't re-ask the LLM to compose SQL.
+    """
+    sql_calls = [
+        tc for tc in tool_calls if tc.get("name") == "task"
+        and (tc.get("args") or {}).get("subagent_type") == _SQL_SUBAGENT_NAME
+    ]
+    sql_steps = [s for s in steps if s.get("kind") == "subagent" and s.get("subagent") == _SQL_SUBAGENT_NAME]
+    for step, call in zip(sql_steps, sql_calls, strict=False):
+        m = _ARTIFACT_ID_RE.search(call.get("result") or "")
+        if not m:
+            continue
+        artifact = await get_artifact(m.group(1))
+        if artifact is None or artifact.source_kind != "sql" or not artifact.source_code:
+            continue
+        step["kind"] = "tool"
+        step["tool"] = "sql_query"
+        step["args_template"] = {"sql": artifact.source_code}
+        step["output_kind"] = "rows"
+        step.pop("subagent", None)
+        step.pop("prompt", None)
 
 
 async def generate_task_from_run(

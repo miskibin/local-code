@@ -36,7 +36,7 @@ export function ToolCall({
     >
       <button
         onClick={onToggle}
-        className="flex w-full cursor-pointer items-center gap-2.5 px-3.5 py-2.5 text-left"
+        className="flex w-full cursor-pointer items-center gap-2 px-3.5 py-2.5 text-left"
         style={{
           background: errored ? "var(--red-soft)" : "var(--accent-soft)",
           border: 0,
@@ -45,7 +45,7 @@ export function ToolCall({
         }}
       >
         <span
-          className="inline-flex"
+          className="inline-flex shrink-0"
           style={{
             color: errored
               ? "var(--red)"
@@ -62,6 +62,20 @@ export function ToolCall({
             <Check className="h-4 w-4" />
           )}
         </span>
+        {step.taskTitle && (
+          <span
+            className="rounded-md px-1.5 py-0.5"
+            style={{
+              fontSize: 11.5,
+              color: "var(--ink-2)",
+              background: "var(--surface)",
+              border: "1px solid var(--border)",
+              fontWeight: 500,
+            }}
+          >
+            {step.taskTitle}
+          </span>
+        )}
         <span className="text-[13.5px]" style={{ color: "var(--ink-2)" }}>
           {running ? "Calling" : errored ? "Failed" : "Called"}
         </span>
@@ -89,39 +103,28 @@ export function ToolCall({
             {step.server}
           </span>
         )}
-        {step.duration && (
-          <span
-            className="mr-1.5 ml-auto"
-            style={{ fontSize: 11.5, color: "var(--ink-3)" }}
-          >
-            {step.duration}
-          </span>
-        )}
-        <ChevronDown
-          className="h-3.5 w-3.5 transition-transform"
-          style={{
-            color: "var(--ink-3)",
-            transform: expanded ? "rotate(180deg)" : "none",
-            marginLeft: step.duration ? undefined : "auto",
-          }}
-        />
-      </button>
-      {artRef && (
-        <div
-          className="flex items-center gap-2 px-3.5 py-1.5"
-          style={{
-            borderTop: "1px solid var(--tool-border)",
-            background: "var(--surface)",
-          }}
-        >
-          <span style={{ fontSize: 11, color: "var(--ink-3)" }}>artifact</span>
+        {artRef && (
           <ArtifactChip
             id={artRef.artifactId}
             title={artRef.title}
             kind={artRef.kind}
           />
+        )}
+        <div className="ml-auto flex shrink-0 items-center gap-2">
+          {step.duration && (
+            <span style={{ fontSize: 11.5, color: "var(--ink-3)" }}>
+              {step.duration}
+            </span>
+          )}
+          <ChevronDown
+            className="h-3.5 w-3.5 transition-transform"
+            style={{
+              color: "var(--ink-3)",
+              transform: expanded ? "rotate(180deg)" : "none",
+            }}
+          />
         </div>
-      )}
+      </button>
       {expanded && (
         <div
           style={{

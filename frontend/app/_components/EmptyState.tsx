@@ -30,28 +30,6 @@ export function EmptyState({
 }) {
   return (
     <div className="flex h-[60dvh] flex-col items-center justify-center gap-5 px-4">
-      <div
-        className="flex items-center gap-2"
-        style={{
-          fontFamily: "var(--font-mono)",
-          fontSize: 12,
-          color: "var(--ink-3)",
-        }}
-      >
-        <span
-          style={{
-            display: "inline-block",
-            width: 6,
-            height: 6,
-            borderRadius: "50%",
-            background: "var(--accent)",
-            boxShadow:
-              "0 0 0 3px color-mix(in oklab, var(--accent) 18%, transparent)",
-          }}
-        />
-        <span>chinook.db · gemma-4-e4b · local</span>
-      </div>
-
       <div className="flex flex-col items-center gap-1">
         <div
           className="text-center font-medium"

@@ -71,7 +71,7 @@ export function UserMessage({
         className="flex justify-end"
         style={{ marginBottom: "var(--density-msg-gap)" }}
       >
-        <div className="flex max-w-[70%] flex-col items-end gap-2">
+        <div className="flex w-full min-w-0 max-w-[70%] flex-col gap-2">
           <textarea
             ref={taRef}
             value={draft}
@@ -85,7 +85,7 @@ export function UserMessage({
                 cancel()
               }
             }}
-            className="w-full resize-none rounded-[18px] px-4 py-2.5 text-[15px] break-words whitespace-pre-wrap outline-none"
+            className="min-h-0 w-full min-w-0 resize-none rounded-[18px] px-4 py-2.5 text-[15px] break-words whitespace-pre-wrap outline-none"
             style={{
               background: "var(--user-bubble)",
               color: "var(--ink)",
@@ -94,7 +94,7 @@ export function UserMessage({
               boxShadow: "0 0 0 3px var(--accent-soft)",
             }}
           />
-          <div className="flex gap-2">
+          <div className="flex justify-end gap-2">
             <button
               onClick={cancel}
               className="rounded-md px-3 py-1 text-[13px]"

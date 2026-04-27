@@ -6,8 +6,6 @@ import { useRouter } from "next/navigation"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 import { api, CHAT_URL } from "@/lib/api"
-
-const DEFAULT_MODEL = process.env.NEXT_PUBLIC_OLLAMA_MODEL ?? "gemma4:e4b"
 import type { Artifact, SubagentStep, Todo, ToolStep } from "@/lib/types"
 import { Composer } from "./Composer"
 import { EmptyState } from "./EmptyState"
@@ -23,6 +21,9 @@ import {
   type ArtifactRefs,
   type ToolArtifactRef,
 } from "./ArtifactRefs"
+
+const DEFAULT_MODEL =
+  process.env.NEXT_PUBLIC_OLLAMA_MODEL ?? "gemini-3.1-flash-lite-preview"
 
 export type AnyPart = {
   type: string
@@ -106,6 +107,14 @@ function prettifyAgentName(id: string): string {
     .join(" ")
 }
 
+function getTaskTitle(p: AnyPart): string | undefined {
+  const task =
+    (p.callProviderMetadata?.task as Record<string, unknown> | undefined) ??
+    (p.resultProviderMetadata?.task as Record<string, unknown> | undefined)
+  const title = task?.title
+  return typeof title === "string" ? title : undefined
+}
+
 function partToToolStep(p: AnyPart): ToolStep | null {
   let toolName: string | null = null
   if (p.type === "dynamic-tool") toolName = p.toolName ?? null
@@ -137,6 +146,7 @@ function partToToolStep(p: AnyPart): ToolStep | null {
     result,
     status,
     toolCallId: p.toolCallId,
+    taskTitle: getTaskTitle(p),
   }
 }
 
@@ -153,7 +163,9 @@ function partToToolStep(p: AnyPart): ToolStep | null {
  * Order matches the stream — children always appear inside their parent's
  * SubagentStep regardless of where they fell in the part array.
  */
-function extractQuizBlock(p: AnyPart): Extract<ContentBlock, { type: "quiz" }> | null {
+function extractQuizBlock(
+  p: AnyPart
+): Extract<ContentBlock, { type: "quiz" }> | null {
   if (getToolName(p) !== "quiz" || !p.toolCallId) return null
   const input = (p.input ?? {}) as {
     question?: unknown
