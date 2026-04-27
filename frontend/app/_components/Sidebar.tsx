@@ -144,9 +144,10 @@ export function Sidebar({
           Chats
         </SectionHead>
         {chatsOpen &&
-          sessions.map((s) => (
+          sessions.map((s, i) => (
             <ChatRow
               key={s.id}
+              index={i + 1}
               session={s}
               active={s.id === activeId}
               onSelect={() => onSelect(s.id)}
@@ -255,6 +256,7 @@ function ArtifactRow({
 
 function ChatRow({
   session,
+  index,
   active,
   onSelect,
   onDelete,
@@ -262,6 +264,7 @@ function ChatRow({
   onTogglePin,
 }: {
   session: Session
+  index: number
   active: boolean
   onSelect: () => void
   onDelete: () => void
@@ -313,11 +316,12 @@ function ChatRow({
               cancel()
             }
           }}
-          className="mb-px block w-full truncate rounded-md py-1.5 pr-9 pl-2.5 text-left outline-none"
+          className="mb-px block w-full truncate py-1.5 pr-9 pl-2.5 text-left outline-none"
           style={{
             background: "var(--hover)",
             color: "var(--ink)",
-            border: "1px solid var(--accent)",
+            border: 0,
+            borderLeft: "2px solid var(--accent)",
             fontSize: 13.5,
           }}
         />
@@ -326,12 +330,16 @@ function ChatRow({
           onClick={onSelect}
           onDoubleClick={startEdit}
           title={session.title || "Untitled"}
-          className="mb-px flex w-full items-center gap-1.5 truncate rounded-md py-1.5 pr-9 pl-2.5 text-left"
+          className="mb-px flex w-full items-center gap-1.5 truncate py-1.5 pr-9 pl-2.5 text-left"
           style={{
-            background: active ? "var(--hover)" : "transparent",
+            background: "transparent",
             color: "var(--ink)",
             border: 0,
+            borderLeft: active
+              ? "2px solid var(--accent)"
+              : "2px solid transparent",
             fontSize: 13.5,
+            fontWeight: active ? 500 : 400,
             cursor: "pointer",
           }}
           onMouseEnter={(e) => {
@@ -347,6 +355,16 @@ function ChatRow({
               style={{ color: "var(--accent)" }}
             />
           )}
+          <span
+            className="flex-shrink-0 tabular-nums"
+            style={{
+              fontFamily: "var(--font-mono)",
+              fontSize: 11,
+              color: active ? "var(--accent)" : "var(--ink-4)",
+            }}
+          >
+            {String(index).padStart(2, "0")}
+          </span>
           <span className="flex-1 truncate">
             {session.title || "Untitled"}
           </span>
