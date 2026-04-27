@@ -1,7 +1,7 @@
 "use client"
 
-import { Check, CircleHelp, Loader2 } from "lucide-react"
-import { useState } from "react"
+import { Check, CircleHelp, Loader2, TriangleAlert } from "lucide-react"
+import { useEffect, useState } from "react"
 
 export type QuizCardProps = {
   toolCallId: string
@@ -27,7 +27,15 @@ export function QuizCard({
   const [picked, setPicked] = useState<number | null>(null)
   const [custom, setCustom] = useState("")
   const [submitting, setSubmitting] = useState(false)
-  const isAnswered = status !== "running" || !!answer
+  const isAnswered = status === "done" || !!answer
+  const isErrored = status === "error" && !answer
+
+  // Reset the local submitting spinner when the parent settles the tool call
+  // (success → answer arrives, or error → status flips). Without this the
+  // spinner gets stuck if the resume request fails.
+  useEffect(() => {
+    if (isAnswered || isErrored) setSubmitting(false)
+  }, [isAnswered, isErrored])
 
   const customIdx = options.length
   const isCustomPicked = allowCustom && picked === customIdx
@@ -36,13 +44,36 @@ export function QuizCard({
     : picked != null
       ? options[picked]
       : ""
-  const canSubmit = !isAnswered && !submitting && value.length > 0 && !!onSubmit
+  const locked = isAnswered || isErrored
+  const canSubmit = !locked && !submitting && value.length > 0 && !!onSubmit
 
   const submit = () => {
     if (!canSubmit || !onSubmit) return
     setSubmitting(true)
     onSubmit(toolCallId, value)
   }
+
+  const headerBg = isErrored
+    ? "var(--red-soft)"
+    : isAnswered
+      ? "var(--accent-soft)"
+      : "var(--amber-soft)"
+  const accent = isErrored
+    ? "var(--red)"
+    : isAnswered
+      ? "var(--accent)"
+      : "var(--amber)"
+  const accentInk = isErrored
+    ? "var(--red)"
+    : isAnswered
+      ? "var(--accent-ink)"
+      : "var(--amber)"
+  const StatusIcon = isErrored ? TriangleAlert : CircleHelp
+  const statusLabel = isErrored
+    ? "Errored"
+    : isAnswered
+      ? "Answered"
+      : "Awaiting your answer"
 
   return (
     <div
@@ -55,15 +86,12 @@ export function QuizCard({
       <div
         className="flex items-center gap-2 px-3.5 py-2.5"
         style={{
-          background: isAnswered ? "var(--accent-soft)" : "var(--amber-soft)",
+          background: headerBg,
           borderBottom: "1px solid var(--tool-border)",
           color: "var(--ink)",
         }}
       >
-        <CircleHelp
-          className="h-4 w-4"
-          style={{ color: isAnswered ? "var(--accent)" : "var(--amber)" }}
-        />
+        <StatusIcon className="h-4 w-4" style={{ color: accent }} />
         <span className="text-[13.5px]" style={{ color: "var(--ink-2)" }}>
           Asking
         </span>
@@ -72,7 +100,7 @@ export function QuizCard({
           style={{
             fontFamily: "var(--font-mono)",
             fontSize: 12.5,
-            color: isAnswered ? "var(--accent-ink)" : "var(--amber)",
+            color: accentInk,
           }}
         >
           quiz
@@ -93,18 +121,16 @@ export function QuizCard({
           className="ml-auto inline-flex items-center gap-1.5 rounded-full px-2 py-0.5"
           style={{
             fontSize: 11.5,
-            background: isAnswered ? "var(--accent-soft)" : "#fff",
-            border: `1px solid ${isAnswered ? "var(--accent)" : "var(--amber)"}`,
-            color: isAnswered ? "var(--accent-ink)" : "var(--amber)",
+            background: isAnswered || isErrored ? headerBg : "#fff",
+            border: `1px solid ${accent}`,
+            color: accentInk,
           }}
         >
           <span
             className="h-1.5 w-1.5 rounded-full"
-            style={{
-              background: isAnswered ? "var(--accent)" : "var(--amber)",
-            }}
+            style={{ background: accent }}
           />
-          {isAnswered ? "Answered" : "Awaiting your answer"}
+          {statusLabel}
         </span>
       </div>
 
@@ -134,8 +160,8 @@ export function QuizCard({
               label={opt}
               selected={picked === i}
               answered={isAnswered && answer === opt}
-              disabled={isAnswered}
-              onPick={() => !isAnswered && setPicked(i)}
+              disabled={locked}
+              onPick={() => !locked && setPicked(i)}
             />
           ))}
           {allowCustom && (
@@ -145,11 +171,11 @@ export function QuizCard({
               answered={
                 isAnswered && !!answer && !options.includes(answer)
               }
-              disabled={isAnswered}
+              disabled={locked}
               value={isAnswered ? (answer ?? "") : custom}
-              onPick={() => !isAnswered && setPicked(customIdx)}
+              onPick={() => !locked && setPicked(customIdx)}
               onChange={(v) => {
-                if (isAnswered) return
+                if (locked) return
                 setCustom(v)
                 setPicked(customIdx)
               }}
@@ -165,14 +191,21 @@ export function QuizCard({
           background: "var(--bg-soft)",
         }}
       >
-        <span style={{ fontSize: 12.5, color: "var(--ink-3)" }}>
-          {isAnswered
-            ? "Answer submitted."
-            : allowCustom
-              ? "Pick an option, or write your own."
-              : "Pick an option."}
+        <span
+          style={{
+            fontSize: 12.5,
+            color: isErrored ? "var(--red)" : "var(--ink-3)",
+          }}
+        >
+          {isErrored
+            ? "Quiz failed."
+            : isAnswered
+              ? "Answer submitted."
+              : allowCustom
+                ? "Pick an option, or write your own."
+                : "Pick an option."}
         </span>
-        {!isAnswered && (
+        {!locked && (
           <button
             type="button"
             onClick={submit}
@@ -272,9 +305,22 @@ function CustomOption({
   onChange: (v: string) => void
 }) {
   const active = selected || answered
+  // Can't render the row as <button> since it contains a <textarea>; instead
+  // expose it as role="radio" and wire keyboard activation explicitly.
   return (
     <div
-      onClick={onPick}
+      onClick={() => !disabled && onPick()}
+      onKeyDown={(e) => {
+        if (disabled) return
+        if (e.key === " " || e.key === "Enter") {
+          e.preventDefault()
+          onPick()
+        }
+      }}
+      role="radio"
+      aria-checked={selected || answered}
+      aria-disabled={disabled || undefined}
+      tabIndex={disabled ? -1 : 0}
       className="flex items-start gap-3 rounded-lg px-3 py-2.5 transition"
       style={{
         background: answered ? "var(--accent-soft)" : "#fff",

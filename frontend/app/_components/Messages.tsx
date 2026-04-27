@@ -323,7 +323,7 @@ export function AssistantMessage({
             <PlanCard key={i} todos={b.todos} streaming={b.streaming} />
           ) : b.type === "quiz" ? (
             <QuizCard
-              key={i}
+              key={`quiz-${b.toolCallId}`}
               toolCallId={b.toolCallId}
               question={b.question}
               options={b.options}

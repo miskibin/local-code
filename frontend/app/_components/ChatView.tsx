@@ -607,9 +607,16 @@ export function ChatView({
       for (const p of (m.parts ?? []) as AnyPart[]) {
         if (getToolName(p) !== "quiz") continue
         const state = p.state ?? "input-available"
-        if (state !== "output-available" && state !== "output-error") {
-          return true
+        if (state === "output-available" || state === "output-error") continue
+        // Match the renderer's filter: a quiz block with no question is a
+        // ghost part (e.g. a stale tool-input event) and would never produce
+        // a visible card. Treating it as pending would lock the composer
+        // with nothing to answer.
+        const input = (p.input ?? {}) as { question?: unknown }
+        if (typeof input.question !== "string" || input.question.length === 0) {
+          continue
         }
+        return true
       }
       break
     }
