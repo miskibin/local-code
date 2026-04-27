@@ -185,6 +185,28 @@ _PY_PRELUDE_TEMPLATE = textwrap.dedent(
     import json as _json, sys as _sys
     _STAGED = _json.loads({{staged_literal}})
 
+    # Pre-import the scientific stack at the TOP LEVEL so the wrapper's
+    # find_imports picks them up and install_imports() resolves them via
+    # micropip ONCE per session. Without these imports, user code like
+    # `import matplotlib.pyplot as plt` would surface as
+    # `matplotlib.pyplot` to install_imports — which then tries to fetch
+    # a non-existent `matplotlib-pyplot` package from PyPI and fails.
+    # Top-level `import matplotlib` instead loads the real package; the
+    # submodule import in user code becomes a no-op resolution against
+    # already-loaded matplotlib.
+    try:
+        import matplotlib as _bootstrap_mpl  # noqa: F401
+    except ImportError:
+        pass
+    try:
+        import numpy as _bootstrap_np  # noqa: F401
+    except ImportError:
+        pass
+    try:
+        import pandas as _bootstrap_pd  # noqa: F401
+    except ImportError:
+        pass
+
     def out(_obj):
         _sys.stdout.write({ARTIFACT_START!r})
         _sys.stdout.write(_json.dumps(_obj, default=str))
