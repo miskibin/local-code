@@ -50,16 +50,33 @@ from schema import (
     UsageMetadata,
 )
 
-PROMPT_SETS: dict[str, list[tuple[str, str]]] = {
-    # Plain text reply — exercises str content path.
-    "short_text": [("user", "Reply with the single word: hello.")],
-    # Tool-calling reply — exercises tool_call_chunks path.
-    "sql_then_chart": [
-        (
-            "user",
-            "Use the sql tool with query 'SELECT 1 AS one' then summarise the result.",
-        ),
-    ],
+
+class PromptSpec:
+    """A capture target: the messages to send and the expected behavior of
+    the resulting fixture for the canary test."""
+
+    def __init__(self, messages: list[tuple[str, str]], *, expected_text_nonempty: bool):
+        self.messages = messages
+        self.expected_text_nonempty = expected_text_nonempty
+
+
+PROMPT_SETS: dict[str, PromptSpec] = {
+    # Plain text reply — exercises str content path. Should produce text deltas.
+    "short_text": PromptSpec(
+        messages=[("user", "Reply with the single word: hello.")],
+        expected_text_nonempty=True,
+    ),
+    # Tool-calling turn — terminates with tool_calls + finish_reason=TOOL_CALLS,
+    # NO text deltas. The canary test must allow this.
+    "sql_then_chart": PromptSpec(
+        messages=[
+            (
+                "user",
+                "Use the sql tool with query 'SELECT 1 AS one' then summarise the result.",
+            ),
+        ],
+        expected_text_nonempty=False,
+    ),
 }
 
 
@@ -101,7 +118,8 @@ def _chunk_to_recorded(chunk) -> RecordedChunk:
 async def _capture(provider: str, prompt_slug: str) -> Path:
     if prompt_slug not in PROMPT_SETS:
         raise SystemExit(f"unknown prompt slug {prompt_slug!r}; pick from {list(PROMPT_SETS)!r}")
-    messages: list[BaseMessage | tuple[str, str]] = list(PROMPT_SETS[prompt_slug])
+    spec = PROMPT_SETS[prompt_slug]
+    messages: list[BaseMessage | tuple[str, str]] = list(spec.messages)
 
     if provider == "gemini-flash":
         from langchain_google_genai import ChatGoogleGenerativeAI
@@ -140,7 +158,10 @@ async def _capture(provider: str, prompt_slug: str) -> Path:
         description=f"Captured stream for prompt={prompt_slug!r}",
         captured_at=datetime.now(UTC).isoformat(),
         captured_by="record.py",
-        expected_text_nonempty=True,
+        # Pulled from the per-slug PromptSpec so a tool-call-only turn
+        # (`sql_then_chart`) doesn't ship a fixture that fails the canary's
+        # text-nonempty assertion.
+        expected_text_nonempty=spec.expected_text_nonempty,
     )
 
     out_dir = Path(__file__).resolve().parent / "recorded" / provider

@@ -53,27 +53,34 @@ def _hydrate(rec: RecordedChunk):
         content = [b.model_dump(exclude_none=True) for b in rec.content]
     rmd = rec.response_metadata.model_dump(exclude_none=True)
     umd = rec.usage_metadata.model_dump(exclude_none=True) if rec.usage_metadata else None
+    tool_calls = [t.model_dump(exclude_none=True) for t in rec.tool_calls]
+    tool_call_chunks = [t.model_dump(exclude_none=True) for t in rec.tool_call_chunks]
     if rec.kind == "AIMessageChunk":
+        # AIMessageChunk accepts both `tool_calls` and `tool_call_chunks`; the
+        # final terminal chunk in a tool-calling stream typically carries
+        # `tool_calls` populated (no chunks), so we pass both through to
+        # preserve the captured shape verbatim.
         return AIMessageChunk(
             content=content,
-            tool_call_chunks=[t.model_dump(exclude_none=True) for t in rec.tool_call_chunks],
+            tool_call_chunks=tool_call_chunks,
+            tool_calls=tool_calls,
             response_metadata=rmd,
             usage_metadata=umd,
         )
     if rec.kind == "AIMessage":
         return AIMessage(
             content=content,
-            tool_calls=[t.model_dump(exclude_none=True) for t in rec.tool_calls],
+            tool_calls=tool_calls,
             response_metadata=rmd,
             usage_metadata=umd,
         )
     if rec.kind == "ToolMessage":
-        # ToolMessage requires tool_call_id; recorded fixtures of ToolMessage
-        # would carry it via response_metadata in our schema. Not currently
-        # used by any seed.
+        # ToolMessage requires `tool_call_id`, but the current shadow schema
+        # doesn't model that field. Add it to schema.RecordedChunk and wire
+        # hydration here when the first ToolMessage fixture is committed.
         raise NotImplementedError(
-            "ToolMessage replay isn't wired yet — extend hydration when the "
-            "first ToolMessage fixture is committed"
+            "ToolMessage replay isn't wired yet — extend the schema and "
+            "hydration when the first ToolMessage fixture is committed"
         )
     raise ValueError(f"unsupported kind {rec.kind!r}")
 
