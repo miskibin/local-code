@@ -153,9 +153,19 @@ async def _run_tool_step(
     if tool is None:
         raise LookupError(f"tool {step.tool!r} not available (server={step.server})")
     config = {"configurable": {"thread_id": session_id}}
-    raw = await tool.ainvoke(args, config=config)
+    # Invoke as a ToolCall so content_and_artifact tools return a ToolMessage
+    # with both .content and .artifact populated (a bare args dict drops the
+    # artifact). Plain tools still return the raw value.
+    raw = await tool.ainvoke(
+        {"name": tool.name, "args": args, "type": "tool_call", "id": step.id},
+        config=config,
+    )
     artifact: dict[str, Any] | None = None
-    if isinstance(raw, tuple) and len(raw) == _CONTENT_AND_ARTIFACT_LEN:
+    if isinstance(raw, ToolMessage):
+        summary = raw.content
+        if isinstance(raw.artifact, dict):
+            artifact = raw.artifact
+    elif isinstance(raw, tuple) and len(raw) == _CONTENT_AND_ARTIFACT_LEN:
         summary, artifact = raw
     else:
         summary = raw
