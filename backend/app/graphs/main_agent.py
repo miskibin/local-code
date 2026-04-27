@@ -93,7 +93,7 @@ def default_subagents() -> list[dict]:
                 "Copy the id verbatim from the sql_query summary (the token before ` · `). "
                 "Never invent ids; never wrap them in brackets or quotes."
             ),
-            "tools": ["sql_query"],
+            "tools": ["sql_query", "quiz"],
         },
     ]
 

@@ -37,12 +37,20 @@ class TaskRunSpec(BaseModel):
     variables: dict[str, Any] = Field(default_factory=dict)
 
 
+class ResumeSpec(BaseModel):
+    tool_call_id: str = Field(alias="toolCallId")
+    value: str
+
+    model_config = {"populate_by_name": True}
+
+
 class ChatRequest(BaseModel):
     id: str
     messages: list[UIMessage]
     reset: bool = False
     model: str
     task_run: TaskRunSpec | None = None
+    resume: ResumeSpec | None = None
 
     async def to_lc_messages(self) -> list[BaseMessage]:
         out: list[BaseMessage] = []
@@ -62,8 +70,10 @@ class ChatRequest(BaseModel):
                         blocks.append(block)
             if text_buf:
                 blocks.append({"type": "text", "text": "".join(text_buf)})
-            content: Any = blocks if any(b["type"] != "text" for b in blocks) else (
-                "".join(b["text"] for b in blocks if b["type"] == "text")
+            content: Any = (
+                blocks
+                if any(b["type"] != "text" for b in blocks)
+                else ("".join(b["text"] for b in blocks if b["type"] == "text"))
             )
             out.append(_make_message(m.role, content))
         return out
