@@ -21,6 +21,7 @@ from langchain_core.language_models.fake_chat_models import FakeListChatModel
 from langchain_core.messages import AIMessage, BaseMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
 from langchain_core.tools import BaseTool, tool
+from pydantic import Field
 
 
 @tool("safe_tool")
@@ -103,7 +104,6 @@ def test_middleware_passthrough_when_excluded_set_empty():
 
     def handler(r):
         seen.append([t.name for t in r.tools])
-        return None
 
     mw.wrap_model_call(req, handler)
     assert seen == [["ls", "safe_tool"]]
@@ -121,8 +121,11 @@ class _ScriptedToolCaller(FakeListChatModel):
     sees real `tool_calls` on the parent's first turn.
     """
 
-    bound_tool_names: list[list[str]] = []
-    scripted_messages: list[BaseMessage] = []
+    # FakeListChatModel is a pydantic BaseModel; declaring as Fields with
+    # `default_factory=list` keeps each instance's state independent so tests
+    # can mutate without leaking across test runs.
+    bound_tool_names: list[list[str]] = Field(default_factory=list)
+    scripted_messages: list[BaseMessage] = Field(default_factory=list)
 
     def bind_tools(self, tools, **kwargs):
         names = []
@@ -135,10 +138,7 @@ class _ScriptedToolCaller(FakeListChatModel):
         return self
 
     def _generate(self, messages, stop=None, run_manager=None, **kwargs):
-        if self.scripted_messages:
-            msg = self.scripted_messages.pop(0)
-        else:
-            msg = AIMessage(content="done")
+        msg = self.scripted_messages.pop(0) if self.scripted_messages else AIMessage(content="done")
         return ChatResult(generations=[ChatGeneration(message=msg)])
 
     async def _agenerate(self, messages, stop=None, run_manager=None, **kwargs):
@@ -176,9 +176,7 @@ async def test_subagent_model_never_sees_excluded_builtins_at_runtime(monkeypatc
             instance_id = id(self)
 
             def _record(req):
-                captured.append(
-                    (instance_id, [getattr(t, "name", str(t)) for t in req.tools])
-                )
+                captured.append((instance_id, [getattr(t, "name", str(t)) for t in req.tools]))
                 return handler(req)
 
             return super().wrap_model_call(request, _record)
@@ -187,9 +185,7 @@ async def test_subagent_model_never_sees_excluded_builtins_at_runtime(monkeypatc
             instance_id = id(self)
 
             async def _record(req):
-                captured.append(
-                    (instance_id, [getattr(t, "name", str(t)) for t in req.tools])
-                )
+                captured.append((instance_id, [getattr(t, "name", str(t)) for t in req.tools]))
                 return await handler(req)
 
             return await super().awrap_model_call(request, _record)
@@ -275,6 +271,7 @@ def test_excluded_set_matches_documented_builtins():
     a deliberate update."""
     from app.graphs.main_agent import _EXCLUDED_BUILTIN_TOOLS
 
-    assert _EXCLUDED_BUILTIN_TOOLS == frozenset(
-        {"ls", "read_file", "write_file", "edit_file", "glob", "grep"}
+    assert (
+        frozenset({"ls", "read_file", "write_file", "edit_file", "glob", "grep"})
+        == _EXCLUDED_BUILTIN_TOOLS
     )

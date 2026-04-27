@@ -27,7 +27,12 @@ async def test_post_mcp_persists_and_triggers_sync():
     payload = {
         "name": "memory",
         "enabled": True,
-        "connection": {"command": "npx", "args": ["-y", "@modelcontextprotocol/server-memory"], "env": {}, "transport": "stdio"},
+        "connection": {
+            "command": "npx",
+            "args": ["-y", "@modelcontextprotocol/server-memory"],
+            "env": {},
+            "transport": "stdio",
+        },
     }
     transport = ASGITransport(app=app)
     try:

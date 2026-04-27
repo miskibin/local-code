@@ -64,7 +64,11 @@ async def test_get_messages_returns_human_and_ai_text(app_with_msgs):
     body = r.json()
     assert len(body) == 2
     assert body[0] == {"id": "u1", "role": "user", "parts": [{"type": "text", "text": "hi"}]}
-    assert body[1] == {"id": "a1", "role": "assistant", "parts": [{"type": "text", "text": "hello"}]}
+    assert body[1] == {
+        "id": "a1",
+        "role": "assistant",
+        "parts": [{"type": "text", "text": "hello"}],
+    }
 
 
 @pytest.mark.asyncio

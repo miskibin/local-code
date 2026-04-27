@@ -20,7 +20,7 @@ import json
 from pathlib import Path
 
 import pytest
-from langchain_core.messages import AIMessage, AIMessageChunk, ToolMessage
+from langchain_core.messages import AIMessage, AIMessageChunk
 
 from tests.fixtures.schema import FixtureFile, RecordedChunk
 
@@ -102,17 +102,17 @@ def test_shadow_schema_rejects_unknown_top_level_field():
     }
     RecordedChunk.model_validate(base)  # sanity
 
-    with pytest.raises(Exception):
+    from pydantic import ValidationError
+
+    with pytest.raises(ValidationError):
         RecordedChunk.model_validate({**base, "mystery_new_field": "oops"})
 
     drifted_tcc = {
         **base,
         "content": "",
-        "tool_call_chunks": [
-            {"id": "x", "name": "y", "args": "z", "mystery": "oops"}
-        ],
+        "tool_call_chunks": [{"id": "x", "name": "y", "args": "z", "mystery": "oops"}],
     }
-    with pytest.raises(Exception):
+    with pytest.raises(ValidationError):
         RecordedChunk.model_validate(drifted_tcc)
 
 
@@ -125,7 +125,9 @@ def test_fixture_directory_has_at_least_one_fixture():
     )
 
 
-@pytest.mark.parametrize("fixture_path", _all_fixture_files(), ids=lambda p: p.relative_to(FIXTURE_ROOT).as_posix())
+@pytest.mark.parametrize(
+    "fixture_path", _all_fixture_files(), ids=lambda p: p.relative_to(FIXTURE_ROOT).as_posix()
+)
 def test_fixture_validates_against_shadow_schema(fixture_path):
     """If a fixture file ever introduces an unknown top-level field, this
     fails — forcing a deliberate schema update rather than silent drift."""
@@ -141,7 +143,9 @@ def test_fixture_validates_against_shadow_schema(fixture_path):
     )
 
 
-@pytest.mark.parametrize("fixture_path", _all_fixture_files(), ids=lambda p: p.relative_to(FIXTURE_ROOT).as_posix())
+@pytest.mark.parametrize(
+    "fixture_path", _all_fixture_files(), ids=lambda p: p.relative_to(FIXTURE_ROOT).as_posix()
+)
 @pytest.mark.asyncio
 async def test_fixture_replays_through_streamer_without_drops(fixture_path):
     """Hydrate fixture chunks, pipe through `stream_chat`, and assert the
@@ -156,10 +160,7 @@ async def test_fixture_replays_through_streamer_without_drops(fixture_path):
     from app.streaming import stream_chat
 
     meta, chunks = _load_fixture(fixture_path)
-    items = [
-        ((), (_hydrate(c), {"langgraph_node": "model"}))
-        for c in chunks
-    ]
+    items = [((), (_hydrate(c), {"langgraph_node": "model"})) for c in chunks]
     end_log_lines: list[str] = []
     orig_info = streaming_mod.logger.info
 
@@ -217,6 +218,5 @@ async def test_fixture_replays_through_streamer_without_drops(fixture_path):
         "",
     )
     assert "'skipped_events': 0" in end_line, (
-        f"{fixture_path.name}: streamer skipped events during replay — "
-        f"end log: {end_line!r}"
+        f"{fixture_path.name}: streamer skipped events during replay — end log: {end_line!r}"
     )

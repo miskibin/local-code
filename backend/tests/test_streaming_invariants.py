@@ -73,9 +73,7 @@ def _dispatcher_then_child(child_ns: tuple, child_id: str, parent_id: str = "tas
             (
                 AIMessage(
                     content="",
-                    tool_calls=[
-                        {"id": child_id, "name": "web_fetch", "args": {"url": "u"}}
-                    ],
+                    tool_calls=[{"id": child_id, "name": "web_fetch", "args": {"url": "u"}}],
                 ),
                 {"langgraph_node": "model"},
             ),
@@ -146,7 +144,11 @@ async def test_invariant_namespace_locks_to_first_dispatcher_only():
                 AIMessage(
                     content="",
                     tool_calls=[
-                        {"id": "P1", "name": "task", "args": {"subagent_type": "a", "description": "d"}}
+                        {
+                            "id": "P1",
+                            "name": "task",
+                            "args": {"subagent_type": "a", "description": "d"},
+                        }
                     ],
                 ),
                 {"langgraph_node": "model"},
@@ -185,7 +187,11 @@ async def test_invariant_namespace_locks_to_first_dispatcher_only():
                 AIMessage(
                     content="",
                     tool_calls=[
-                        {"id": "P2", "name": "task", "args": {"subagent_type": "b", "description": "d"}}
+                        {
+                            "id": "P2",
+                            "name": "task",
+                            "args": {"subagent_type": "b", "description": "d"},
+                        }
                     ],
                 ),
                 {"langgraph_node": "model"},
@@ -375,9 +381,7 @@ async def test_invariant_tool_args_buffer_falls_back_to_raw_on_bad_json():
         (
             AIMessageChunk(
                 content="",
-                tool_call_chunks=[
-                    {"id": "tc1", "name": "web_fetch", "args": "!!!not-json!!!"}
-                ],
+                tool_call_chunks=[{"id": "tc1", "name": "web_fetch", "args": "!!!not-json!!!"}],
             ),
             {"langgraph_node": "model"},
         ),
@@ -524,6 +528,6 @@ async def test_invariant_malformed_event_payload_increments_counter(monkeypatch)
     deltas = [e["delta"] for e in events if e["type"] == "text-delta"]
     assert deltas == ["ok"]  # the valid one still goes through
     end_line = next((m for m in captured if "stream end thread=t-inv" in m), "")
-    assert "skipped_events" in end_line and "skipped_events': 1" in end_line.replace(
-        '"', "'"
-    ), end_line
+    assert "skipped_events" in end_line and "skipped_events': 1" in end_line.replace('"', "'"), (
+        end_line
+    )

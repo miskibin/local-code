@@ -24,9 +24,7 @@ async def test_tasks_crud_and_export_import():
                 "id": "",
                 "title": "Top customers",
                 "description": "Find top N customers by revenue.",
-                "variables": [
-                    {"name": "top_n", "type": "number", "label": "Top N", "default": 10}
-                ],
+                "variables": [{"name": "top_n", "type": "number", "label": "Top N", "default": 10}],
                 "steps": [
                     {
                         "id": "s1",

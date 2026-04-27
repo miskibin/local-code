@@ -24,13 +24,19 @@ async def test_mcp_config_json_blob_roundtrip():
     from app.models import MCPServerConfig
 
     await init_db()
-    cfg = {"command": "npx", "args": ["-y", "@modelcontextprotocol/server-memory"], "env": {}, "transport": "stdio"}
+    cfg = {
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-memory"],
+        "env": {},
+        "transport": "stdio",
+    }
     async with async_session() as s:
         s.add(MCPServerConfig(name="memory", enabled=True, connection=cfg))
         await s.commit()
 
     async with async_session() as s:
         from sqlmodel import select
+
         row = (await s.execute(select(MCPServerConfig))).scalar_one()
         assert row.connection == cfg
 
@@ -47,5 +53,6 @@ async def test_tool_flag_default_true():
 
     async with async_session() as s:
         from sqlmodel import select
+
         row = (await s.execute(select(ToolFlag))).scalar_one()
         assert row.enabled is True

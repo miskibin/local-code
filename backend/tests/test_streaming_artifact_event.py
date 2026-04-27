@@ -63,9 +63,7 @@ async def test_tool_artifact_available_emitted_when_tool_message_carries_artifac
         events.append(line)
 
     parsed = [
-        json.loads(e.removeprefix("data: ").strip())
-        for e in events
-        if e.startswith("data: {")
+        json.loads(e.removeprefix("data: ").strip()) for e in events if e.startswith("data: {")
     ]
     types = [e["type"] for e in parsed]
     assert "tool-output-available" in types
@@ -103,13 +101,9 @@ async def test_no_artifact_event_when_tool_message_has_no_artifact():
         ),
     ]
     events = []
-    async for line in stream_chat(
-        graph=_FakeGraph(items), thread_id="t", lc_messages=[("u", "g")]
-    ):
+    async for line in stream_chat(graph=_FakeGraph(items), thread_id="t", lc_messages=[("u", "g")]):
         events.append(line)
     parsed = [
-        json.loads(e.removeprefix("data: ").strip())
-        for e in events
-        if e.startswith("data: {")
+        json.loads(e.removeprefix("data: ").strip()) for e in events if e.startswith("data: {")
     ]
     assert "data-artifact" not in [e["type"] for e in parsed]

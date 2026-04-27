@@ -30,10 +30,9 @@ from __future__ import annotations
 
 import argparse
 import asyncio
-import json
 import os
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from langchain_core.messages import AIMessageChunk, BaseMessage
@@ -41,7 +40,7 @@ from langchain_core.messages import AIMessageChunk, BaseMessage
 # `tests/fixtures/record.py` -> `tests/fixtures` on sys.path so `schema` imports.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from schema import (  # noqa: E402
+from schema import (
     ContentBlock,
     FixtureFile,
     RecordedChunk,
@@ -83,8 +82,7 @@ def _chunk_to_recorded(chunk) -> RecordedChunk:
     kind = type(chunk).__name__
     if kind not in {"AIMessageChunk", "AIMessage", "ToolMessage"}:
         raise ValueError(
-            f"unsupported chunk kind {kind!r}; extend the shadow schema "
-            "before recording new types"
+            f"unsupported chunk kind {kind!r}; extend the shadow schema before recording new types"
         )
     rmd = getattr(chunk, "response_metadata", None) or {}
     umd = getattr(chunk, "usage_metadata", None)
@@ -94,9 +92,7 @@ def _chunk_to_recorded(chunk) -> RecordedChunk:
         tool_call_chunks=[
             ToolCallChunkShape(**tcc) for tcc in (getattr(chunk, "tool_call_chunks", None) or [])
         ],
-        tool_calls=[
-            ToolCallShape(**tc) for tc in (getattr(chunk, "tool_calls", None) or [])
-        ],
+        tool_calls=[ToolCallShape(**tc) for tc in (getattr(chunk, "tool_calls", None) or [])],
         response_metadata=ResponseMetadata(**rmd),
         usage_metadata=UsageMetadata(**umd) if isinstance(umd, dict) else None,
     )
@@ -142,7 +138,7 @@ async def _capture(provider: str, prompt_slug: str) -> Path:
         model=model_name,
         prompt=prompt_slug,
         description=f"Captured stream for prompt={prompt_slug!r}",
-        captured_at=datetime.now(timezone.utc).isoformat(),
+        captured_at=datetime.now(UTC).isoformat(),
         captured_by="record.py",
         expected_text_nonempty=True,
     )
@@ -162,9 +158,7 @@ async def _capture(provider: str, prompt_slug: str) -> Path:
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     p.add_argument("--provider", required=True, choices=["gemini-flash", "ollama-gemma"])
-    p.add_argument(
-        "--prompt", required=True, help=f"prompt slug; one of {list(PROMPT_SETS)}"
-    )
+    p.add_argument("--prompt", required=True, help=f"prompt slug; one of {list(PROMPT_SETS)}")
     args = p.parse_args()
     asyncio.run(_capture(args.provider, args.prompt))
 

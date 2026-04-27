@@ -46,9 +46,7 @@ async def test_stream_emits_tool_events_for_consolidated_aimessage():
     ):
         events.append(line)
     parsed = [
-        json.loads(e.removeprefix("data: ").strip())
-        for e in events
-        if e.startswith("data: {")
+        json.loads(e.removeprefix("data: ").strip()) for e in events if e.startswith("data: {")
     ]
     types = [e["type"] for e in parsed]
     assert "tool-input-start" in types
@@ -90,9 +88,7 @@ async def test_subagent_inner_tool_events_pass_through_namespace():
             (
                 AIMessage(
                     content="",
-                    tool_calls=[
-                        {"id": "sub_1", "name": "web_fetch", "args": {"url": "https://x"}}
-                    ],
+                    tool_calls=[{"id": "sub_1", "name": "web_fetch", "args": {"url": "https://x"}}],
                 ),
                 {"langgraph_node": "model"},
             ),
@@ -111,9 +107,7 @@ async def test_subagent_inner_tool_events_pass_through_namespace():
     ):
         events.append(line)
     parsed = [
-        json.loads(e.removeprefix("data: ").strip())
-        for e in events
-        if e.startswith("data: {")
+        json.loads(e.removeprefix("data: ").strip()) for e in events if e.startswith("data: {")
     ]
     types = [e["type"] for e in parsed]
     text_deltas = [e["delta"] for e in parsed if e["type"] == "text-delta"]
@@ -197,32 +191,25 @@ async def test_dispatcher_links_subagent_inner_tools_via_provider_metadata():
     ):
         events.append(line)
     parsed = [
-        json.loads(e.removeprefix("data: ").strip())
-        for e in events
-        if e.startswith("data: {")
+        json.loads(e.removeprefix("data: ").strip()) for e in events if e.startswith("data: {")
     ]
     inner_avail = next(
-        e for e in parsed
+        e
+        for e in parsed
         if e["type"] == "tool-input-available" and e.get("toolName") == "web_fetch"
     )
     inner_out = next(
-        e for e in parsed
-        if e["type"] == "tool-output-available" and e["toolCallId"] == "inner_1"
+        e for e in parsed if e["type"] == "tool-output-available" and e["toolCallId"] == "inner_1"
     )
     parent_avail = next(
-        e for e in parsed
-        if e["type"] == "tool-input-available" and e.get("toolName") == "task"
+        e for e in parsed if e["type"] == "tool-input-available" and e.get("toolName") == "task"
     )
     # Parent has no providerMetadata (top level)
     assert "providerMetadata" not in parent_avail
     # Inner events carry the parent linkage
-    assert (
-        inner_avail["providerMetadata"]["subagent"]["parentToolCallId"] == "task_1"
-    )
+    assert inner_avail["providerMetadata"]["subagent"]["parentToolCallId"] == "task_1"
     assert inner_out["providerMetadata"]["subagent"]["parentToolCallId"] == "task_1"
-    assert inner_avail["providerMetadata"]["subagent"]["namespace"] == [
-        "subagent:research-agent"
-    ]
+    assert inner_avail["providerMetadata"]["subagent"]["namespace"] == ["subagent:research-agent"]
 
 
 @pytest.mark.asyncio
@@ -235,9 +222,7 @@ async def test_stream_emits_output_error_for_failed_tool_message():
         (
             AIMessage(
                 content="",
-                tool_calls=[
-                    {"id": "call_err", "name": "web_fetch", "args": {"url": "https://x"}}
-                ],
+                tool_calls=[{"id": "call_err", "name": "web_fetch", "args": {"url": "https://x"}}],
             ),
             {"langgraph_node": "model"},
         ),
@@ -257,9 +242,7 @@ async def test_stream_emits_output_error_for_failed_tool_message():
     ):
         events.append(line)
     parsed = [
-        json.loads(e.removeprefix("data: ").strip())
-        for e in events
-        if e.startswith("data: {")
+        json.loads(e.removeprefix("data: ").strip()) for e in events if e.startswith("data: {")
     ]
     types = [e["type"] for e in parsed]
     assert "tool-output-error" in types
@@ -355,9 +338,7 @@ async def test_text_delta_flattens_list_dict_content_from_gemini():
     ):
         events.append(line)
     parsed = [
-        json.loads(e.removeprefix("data: ").strip())
-        for e in events
-        if e.startswith("data: {")
+        json.loads(e.removeprefix("data: ").strip()) for e in events if e.startswith("data: {")
     ]
     deltas = [e["delta"] for e in parsed if e["type"] == "text-delta"]
     # Each delta must be a string (Vercel AI SDK schema), and the joined text
@@ -381,9 +362,7 @@ async def test_text_delta_passes_string_content_through_unchanged():
     ):
         events.append(line)
     parsed = [
-        json.loads(e.removeprefix("data: ").strip())
-        for e in events
-        if e.startswith("data: {")
+        json.loads(e.removeprefix("data: ").strip()) for e in events if e.startswith("data: {")
     ]
     deltas = [e["delta"] for e in parsed if e["type"] == "text-delta"]
     assert deltas == ["plain string"]
@@ -403,8 +382,7 @@ async def test_text_delta_skips_chunk_when_coercion_yields_empty_string():
             ),
             {"langgraph_node": "model"},
         ),
-        (AIMessageChunk(content=[{"type": "text", "text": "after"}]),
-         {"langgraph_node": "model"}),
+        (AIMessageChunk(content=[{"type": "text", "text": "after"}]), {"langgraph_node": "model"}),
     ]
     events = []
     async for line in stream_chat(
@@ -412,9 +390,7 @@ async def test_text_delta_skips_chunk_when_coercion_yields_empty_string():
     ):
         events.append(line)
     parsed = [
-        json.loads(e.removeprefix("data: ").strip())
-        for e in events
-        if e.startswith("data: {")
+        json.loads(e.removeprefix("data: ").strip()) for e in events if e.startswith("data: {")
     ]
     deltas = [e["delta"] for e in parsed if e["type"] == "text-delta"]
     assert deltas == ["after"]
@@ -436,9 +412,7 @@ async def test_stream_emits_tool_events_when_only_tool_message():
     ):
         events.append(line)
     parsed = [
-        json.loads(e.removeprefix("data: ").strip())
-        for e in events
-        if e.startswith("data: {")
+        json.loads(e.removeprefix("data: ").strip()) for e in events if e.startswith("data: {")
     ]
     types = [e["type"] for e in parsed]
     assert "tool-input-start" in types
