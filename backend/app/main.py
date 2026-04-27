@@ -17,6 +17,7 @@ from app.routes.mcp import router as mcp_router
 from app.routes.sessions import router as sessions_router
 from app.routes.tasks import router as tasks_router
 from app.routes.tools import router as tools_router
+from app.tools.sql_subagent_query import schema_blob
 
 
 @asynccontextmanager
@@ -25,6 +26,9 @@ async def lifespan(app: FastAPI):
     setup_logging(settings.log_level)
     logger.info(f"log_level={settings.log_level} base_url={settings.ollama_base_url}")
     await init_db()
+    # Warm the cached Chinook schema off the request path; default_subagents()
+    # bakes it into the sql-agent system prompt and is called per /chat turn.
+    schema_blob()
 
     async with AsyncSqliteSaver.from_conn_string(settings.checkpoint_db_path) as saver:
         app.state.llm_cache = {}

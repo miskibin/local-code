@@ -5,6 +5,8 @@ from langchain_core.tools import BaseTool
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_ollama import ChatOllama
 
+from app.tools.sql_subagent_query import schema_blob
+
 _EXCLUDED_BUILTIN_TOOLS = frozenset({"ls", "read_file", "write_file", "edit_file", "glob", "grep"})
 
 SYSTEM_PROMPT = (
@@ -74,21 +76,16 @@ def build_agent(
 def default_subagents() -> list[dict]:
     return [
         {
-            "name": "research-agent",
-            "description": "Use for in-depth research that needs its own context window.",
-            "system_prompt": "You are a thorough researcher. Use web_fetch liberally. Return a tight, sourced summary.",
-            "tools": ["web_fetch"],
-        },
-        {
             "name": "sql-agent",
-            "description": "Use for SQL exploration over the bundled Chinook DB. The agent inspects the schema and returns a table artifact (referenced by id) for the parent to consume.",
+            "description": "Use for SQL exploration over the bundled Chinook DB. Returns a table artifact (referenced by id) for the parent to consume.",
             "system_prompt": (
                 "You are a careful SQL analyst working over a SQLite Chinook DB. "
-                "Always start by calling sql_db_list_tables, then sql_db_schema for the relevant tables. "
                 "Never SELECT *. Always cap with LIMIT 200. "
                 "Run the final query via sql_query — its result is a table artifact the parent can read or chart via python_exec. "
                 "The UI renders that artifact as a card; in your final reply do NOT paste a markdown table, "
                 "and never invent placeholder rows like `...`. Describe the result in one or two sentences.\n"
+                "Schema (authoritative — do not call discovery tools, do not invent columns):\n"
+                f"{schema_blob()}\n"
                 "CRITICAL — the parent agent cannot see the inner tool summaries. "
                 "Your final reply MUST end with a single line in this exact shape:\n"
                 "  artifact_id=<bare id from the sql_query summary>; columns=<comma-separated column names>\n"
@@ -96,7 +93,7 @@ def default_subagents() -> list[dict]:
                 "Copy the id verbatim from the sql_query summary (the token before ` · `). "
                 "Never invent ids; never wrap them in brackets or quotes."
             ),
-            "tools": ["sql_db_list_tables", "sql_db_schema", "sql_query"],
+            "tools": ["sql_query"],
         },
     ]
 
