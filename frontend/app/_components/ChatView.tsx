@@ -556,7 +556,8 @@ export function ChatView({
         resumePendingRef.current = false
         api
           .getMessages(sessionId)
-          .then((m) => setMessages(m))
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          .then((m) => setMessages(m as any))
           .catch(() => {})
       },
       onError: (e) => {
@@ -597,7 +598,8 @@ export function ChatView({
       .getMessages(sessionId)
       .then((m) => {
         if (cancelled) return
-        setMessages(m)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        setMessages(m as any)
         if (m.length > 0) sentFirstRef.current = true
       })
       .catch(() => {

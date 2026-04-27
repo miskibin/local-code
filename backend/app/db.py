@@ -42,10 +42,18 @@ _COLUMN_BACKFILLS = {
 
 
 async def _backfill_columns(conn) -> None:
+    is_postgres = _db_url.startswith("postgresql")
     for table, cols in _COLUMN_BACKFILLS.items():
-        existing = {
-            row[1] for row in (await conn.execute(text(f"PRAGMA table_info({table})"))).all()
-        }
+        if is_postgres:
+            result = await conn.execute(
+                text("SELECT column_name FROM information_schema.columns WHERE table_name = :t"),
+                {"t": table},
+            )
+            existing = {row[0] for row in result.all()}
+        else:
+            existing = {
+                row[1] for row in (await conn.execute(text(f"PRAGMA table_info({table})"))).all()
+            }
         for name, ddl in cols:
             if name not in existing:
                 await conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}"))

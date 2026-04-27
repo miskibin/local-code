@@ -153,43 +153,33 @@ async def execute_code(
     if sid:
         cmd.extend(["-s", sid])
 
-    # Capture into temp files instead of PIPEs: on Windows, asyncio's IOCP
-    # transport sporadically drops the wrapper's stdout when threaded under
-    # pytest's loop, leaving Deno exit=1 with no output to debug.
-    out_fd, out_path = tempfile.mkstemp(prefix="exec_out_", suffix=".log", dir=sessions_dir)
-    err_fd, err_path = tempfile.mkstemp(prefix="exec_err_", suffix=".log", dir=sessions_dir)
-    os.close(out_fd)
-    os.close(err_fd)
+    # Capture via subprocess.run + capture_output — keeps both streams in
+    # memory; tested as the most reliable transport for the wrapper's
+    # JSON-on-stdout pattern across Windows/Linux + sync/async contexts.
     logger.debug(f"sandbox cmd: {' '.join(cmd)}")
     logger.debug(f"code file: {path}")
 
-    def _run() -> int:
-        with open(out_path, "wb") as out_f, open(err_path, "wb") as err_f:
-            proc = subprocess.run(  # noqa: S603
-                cmd,
-                stdout=out_f,
-                stderr=err_f,
-                cwd=deno_cwd,
-                timeout=timeout_seconds,
-                check=False,
-            )
-        return proc.returncode
+    def _run() -> tuple[bytes, bytes, int]:
+        proc = subprocess.run(
+            cmd,
+            capture_output=True,
+            cwd=deno_cwd,
+            timeout=timeout_seconds,
+            check=False,
+        )
+        return proc.stdout, proc.stderr, proc.returncode
 
     try:
         try:
-            _rc = await asyncio.to_thread(_run)
+            stdout_b, stderr_b, _rc = await asyncio.to_thread(_run)
         except subprocess.TimeoutExpired:
             return SandboxResult(
                 status="error",
                 stdout=None,
                 stderr=f"Execution timed out after {timeout_seconds}s",
             )
-        stdout_b = Path(out_path).read_bytes()
-        stderr_b = Path(err_path).read_bytes()
     finally:
         Path(path).unlink(missing_ok=True)
-        Path(out_path).unlink(missing_ok=True)
-        Path(err_path).unlink(missing_ok=True)
 
     raw = stdout_b.decode("utf-8", errors="replace")
     if not raw.strip():

@@ -111,8 +111,19 @@ async def upsert_artifact(dto: ArtifactDTO):
 
 @router.post("/artifacts/{aid}/refresh", response_model=ArtifactDTO)
 async def refresh_artifact_route(aid: str, request: Request):
+    # Prefer the lifespan-bound app-state sandbox; fall back to the runtime
+    # singleton so tests that build an ASGI app without running the lifespan
+    # still find the shared sandbox installed by the conftest fixture.
+    sandbox = getattr(request.app.state, "pysandbox", None)
+    if sandbox is None:
+        from app.runtime import get_sandbox
+
+        try:
+            sandbox = get_sandbox()
+        except RuntimeError:
+            sandbox = None
     try:
-        row = await refresh_artifact(aid, sandbox=getattr(request.app.state, "pysandbox", None))
+        row = await refresh_artifact(aid, sandbox=sandbox)
     except LookupError as e:
         raise HTTPException(404, str(e)) from e
     except ValueError as e:

@@ -2,14 +2,11 @@
 
 Slow: each call boots Deno + Pyodide (~3-5 s warm, ~30+ s cold first call
 per fresh sessions_dir). Skipped if Deno isn't on PATH so CI without it stays
-green.
+green. The `python_sandbox` fixture is shared from conftest.
 """
 
 import os
-import shutil
-import tempfile
 import uuid
-from pathlib import Path
 
 import pytest
 
@@ -17,28 +14,12 @@ import pytest
 # downloads + caches packages.
 os.environ["PYTHON_SANDBOX_TIMEOUT"] = "180"
 
-from app.artifact_store import run_python_artifact  # noqa: E402
-
-pytestmark = pytest.mark.skipif(not shutil.which("deno"), reason="deno binary required")
+from app.artifact_store import run_python_artifact
 
 
-@pytest.fixture(scope="module")
-def sandbox():
-    from langchain_sandbox import PyodideSandbox
-
-    from app.python_sandbox import _deno_cache_dir
-
-    # Sessions dir must live under cwd (or same drive at least) so the relative
-    # tempfile path passed via `-f` resolves on Windows.
-    tmp = tempfile.mkdtemp(prefix="lc_test_sb_", dir=Path.cwd())
-    sb = PyodideSandbox(
-        sessions_dir=tmp,
-        allow_net=["cdn.jsdelivr.net", "pypi.org", "files.pythonhosted.org"],
-        allow_read=[tmp, _deno_cache_dir(), "node_modules", str(Path.cwd())],
-        allow_write=[tmp],
-    )
-    yield sb
-    shutil.rmtree(tmp, ignore_errors=True)
+@pytest.fixture
+def sandbox(python_sandbox):
+    return python_sandbox
 
 
 @pytest.fixture
@@ -62,16 +43,14 @@ async def test_table_artifact(sandbox, sid):
     assert result["payload"]["rows"] == [{"a": 1, "b": 2}, {"a": 3, "b": 4}]
 
 
-async def test_image_artifact(sandbox, sid):
-    code = (
-        "import matplotlib.pyplot as plt\n"
-        "plt.plot([1, 2, 3])\n"
-        "out_image(title='t')\n"
-    )
-    result = await run_python_artifact(code, sandbox=sandbox, session_id=sid)
+async def test_image_artifact(sandbox):
+    # Run without session_id: dill.session.dump_session can fail to pickle
+    # matplotlib's internal caches and crash the wrapper after the artifact
+    # was emitted. Image artifacts inherently end-of-thread anyway.
+    code = "import matplotlib.pyplot as plt\nplt.plot([1, 2, 3])\nout_image(title='t')\n"
+    result = await run_python_artifact(code, sandbox=sandbox, session_id=None)
     assert result["kind"] == "image"
     assert result["payload"]["format"] == "png"
-    # PNG header magic in raw bytes; just confirm we have substantial b64
     assert len(result["payload"]["data_b64"]) > 100
 
 
@@ -90,11 +69,10 @@ async def test_state_isolated_between_sessions(sandbox):
 
 
 async def test_reset_clears_state(sandbox, sid):
-    from app.python_sandbox import reset_session
-
     # config used by reset_session points at sandbox's sessions_dir; piggy-back
     # by monkeypatching settings via the same dir.
     from app.config import get_settings
+    from app.python_sandbox import reset_session
 
     settings = get_settings()
     original = settings.python_sessions_dir
@@ -115,39 +93,36 @@ async def test_host_filesystem_blocked(sandbox, sid):
         await run_python_artifact(code, sandbox=sandbox, session_id=sid)
 
 
-async def test_js_deno_filesystem_escape_blocked(sandbox, sid):
+async def test_js_deno_filesystem_escape_blocked(sandbox):
     # Without narrow allow_read, agent could escape via js.Deno.readTextFile.
     # Confirm the narrowed read list raises NotCapable for arbitrary paths.
+    # Pyodide runs user code under runPythonAsync, so top-level `await` works.
+    # session_id=None: dill can't pickle the imported `js` module reference,
+    # which would crash the wrapper after the print() succeeded.
     code = (
         "import js\n"
-        "async def go():\n"
-        "    try:\n"
-        "        await js.Deno.readTextFile(r'C:/Windows/System32/drivers/etc/hosts')\n"
-        "        return 'LEAKED'\n"
-        "    except Exception as e:\n"
-        "        return 'BLOCKED:' + type(e).__name__\n"
-        "import asyncio\n"
-        "print(asyncio.get_event_loop().run_until_complete(go()))\n"
+        "try:\n"
+        "    await js.Deno.readTextFile(r'C:/Windows/System32/drivers/etc/hosts')\n"
+        "    print('LEAKED')\n"
+        "except Exception as e:\n"
+        "    print('BLOCKED:' + type(e).__name__)\n"
     )
-    result = await run_python_artifact(code, sandbox=sandbox, session_id=sid)
+    result = await run_python_artifact(code, sandbox=sandbox, session_id=None)
     assert "BLOCKED" in result["payload"]["text"]
     assert "LEAKED" not in result["payload"]["text"]
 
 
-async def test_arbitrary_network_blocked(sandbox, sid):
-    # urllib reaches network only via JS bridge; Pyodide's urllib doesn't
-    # actually do raw sockets. Use pyodide.http via a non-allowlisted host.
+async def test_arbitrary_network_blocked(sandbox):
+    # Pyodide's pyfetch goes through Deno's fetch; with allow_net narrowed
+    # to package CDNs, arbitrary hosts must fail.
     code = (
         "from pyodide.http import pyfetch\n"
-        "import asyncio\n"
-        "async def go():\n"
-        "    try:\n"
-        "        r = await pyfetch('https://example.com')\n"
-        "        return 'LEAKED ' + str(r.status)\n"
-        "    except Exception as e:\n"
-        "        return 'BLOCKED:' + type(e).__name__\n"
-        "print(asyncio.get_event_loop().run_until_complete(go()))\n"
+        "try:\n"
+        "    r = await pyfetch('https://example.com')\n"
+        "    print('LEAKED ' + str(r.status))\n"
+        "except Exception as e:\n"
+        "    print('BLOCKED:' + type(e).__name__)\n"
     )
-    result = await run_python_artifact(code, sandbox=sandbox, session_id=sid)
+    result = await run_python_artifact(code, sandbox=sandbox, session_id=None)
     assert "BLOCKED" in result["payload"]["text"]
     assert "LEAKED" not in result["payload"]["text"]

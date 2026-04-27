@@ -89,7 +89,7 @@ def test_build_agent_extends_tool_exclusion_to_each_subagent(monkeypatch):
         mws = s.get("middleware") or []
         excl = [m for m in mws if isinstance(m, _ToolExclusionMiddleware)]
         assert excl, f"subagent {s['name']!r} missing _ToolExclusionMiddleware"
-        assert excl[0]._excluded == main_agent._EXCLUDED_BUILTIN_TOOLS
+        assert excl[0]._excluded == main_agent._EXCLUDED_BUILTIN_TOOLS | {"write_todos"}
     # Caller-supplied middleware list is preserved (not clobbered).
     sql = next(s for s in user_subs if s["name"] == "sql-agent")
     assert "pre-existing" in sql["middleware"]

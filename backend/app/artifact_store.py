@@ -110,7 +110,7 @@ async def get_artifact(artifact_id: str) -> SavedArtifact | None:
 async def refresh_artifact(
     artifact_id: str,
     *,
-    sandbox: "PyodideSandbox | None" = None,
+    sandbox: PyodideSandbox | None = None,
 ) -> SavedArtifact:
     async with async_session() as s:
         row = await s.get(SavedArtifact, artifact_id)
@@ -155,7 +155,7 @@ async def _run_executor(
     source_code: str,
     parent_artifact_ids: list[str],
     *,
-    sandbox: "PyodideSandbox | None" = None,
+    sandbox: PyodideSandbox | None = None,
     session_id: str | None = None,
 ) -> dict[str, Any]:
     if source_kind == "python":
@@ -196,6 +196,9 @@ _PY_PRELUDE_TEMPLATE = textwrap.dedent(
     # already-loaded matplotlib.
     try:
         import matplotlib as _bootstrap_mpl  # noqa: F401
+        # Pin Agg backend BEFORE any user pyplot usage so plt.plot()
+        # doesn't try to load a GUI backend (Pyodide has none, raises).
+        _bootstrap_mpl.use("Agg")
     except ImportError:
         pass
     try:
@@ -329,10 +332,107 @@ async def _stage_artifacts_for_code(code: str) -> dict[str, dict[str, Any]]:
     return staged
 
 
+_PY_POSTLUDE = textwrap.dedent("""
+    # Make the wrapper's session-save tolerant. dill.session.dump_session
+    # chokes on un-picklable globals (matplotlib internal caches in particular),
+    # which would otherwise crash the entire run AFTER user code succeeded —
+    # losing the artifact stdout. We don't actually need stateful persistence
+    # of those objects: the agent re-imports/re-creates as needed, and the
+    # *data* lives in artifacts already. Patch dill.session.dump_session
+    # itself (the wrapper invokes it via prepare_env) to use byref=True and
+    # swallow remaining errors.
+    try:
+        import dill as _dill_post
+        _orig_session_dump = _dill_post.session.dump_session
+        def _safe_session_dump(filename, **_kw):
+            try:
+                return _orig_session_dump(filename=filename, byref=True)
+            except Exception:
+                return None
+        _dill_post.session.dump_session = _safe_session_dump
+    except Exception:
+        pass
+""").strip()
+
+
+_SUBMODULE_IMPORT_AS = re.compile(r"^(\s*)import\s+([\w]+\.[\w.]+)\s+as\s+(\w+)\s*$", re.MULTILINE)
+
+
+# Pyodide loadPackage / wrapper install_imports chatter that runs together
+# without newlines on stdout. Each alternative matches one full noise message;
+# `re.sub("")` then collapses whitespace. The "Loading"/"Loaded" arm uses
+# lowercase-leading tokens for package names so it stops cleanly at the first
+# user-output character (typically uppercase from `print` of a result).
+# Pyodide package names that show up in loadPackage chatter. The wrapper's
+# `print` calls run together without separators, so we use this allowlist to
+# delimit Loading/Loaded messages instead of trying to AST-parse package names
+# out of arbitrary tokens. Add new packages here when they start appearing in
+# stdout — over-stripping is worse than leaving noise.
+_KNOWN_PKGS = (
+    r"(?:Pillow|contourpy|cycler|fonttools|kiwisolver|matplotlib|matplotlib-pyodide"
+    r"|numpy|pyparsing|python-dateutil|pytz|six|pandas|scipy|sympy|seaborn"
+    r"|statsmodels|tabulate|micropip|packaging|dill|requests|urllib3|setuptools"
+    r"|certifi|charset-normalizer|idna|msgpack)"
+)
+_PYODIDE_NOISE_PREFIX = re.compile(
+    r"^(?:"
+    rf"(?:Loading|Loaded) {_KNOWN_PKGS}(?:, {_KNOWN_PKGS})*"
+    rf"|{_KNOWN_PKGS} already loaded from default channel"
+    rf"|Didn't find package {_KNOWN_PKGS}-[\w\-.]+\.whl locally, attempting to load from https?://[^\s,]+/?"
+    rf"|Package {_KNOWN_PKGS}-[\w\-.]+\.whl loaded from https?://[^,]+, caching the wheel in node_modules for future use\."
+    r"|Matplotlib is building the font cache; this may take a moment\."
+    r")"
+)
+
+
+def _strip_pyodide_noise(stdout: str) -> str:
+    """Strip Pyodide loadPackage / install_imports chatter from each line.
+
+    Pyodide messages run together without newlines, then the user's `print()`
+    output appends `\\n`. So per line: peel known noise prefixes off the front
+    until none match, treat the rest as user output. The Loading/Loaded arm
+    can over-consume into user content (last package alphabet may also start
+    a real word), so we conservatively re-stick the last token if what comes
+    next looks like a sentence (whitespace within remaining buffer).
+    """
+    out_lines: list[str] = []
+    for line in stdout.splitlines():
+        rest = line
+        while True:
+            m = _PYODIDE_NOISE_PREFIX.match(rest)
+            if not m:
+                break
+            rest = rest[m.end() :]
+        if rest.strip():
+            out_lines.append(rest)
+    return "\n".join(out_lines).strip()
+
+
+def _rewrite_submodule_imports(code: str) -> str:
+    """Rewrite `import X.Y as alias` to a form that hides the dotted name from
+    the sandbox wrapper's AST-based `find_imports` scan.
+
+    The wrapper feeds every dotted import to micropip via the bare module
+    string, so `import matplotlib.pyplot as plt` becomes a request for a
+    PyPI package called `matplotlib.pyplot` (which doesn't exist) and the
+    whole script aborts before user code runs. Rewriting to
+    `import matplotlib; plt = __import__("matplotlib.pyplot", fromlist=["pyplot"])`
+    keeps only the root package on the install path while still binding
+    the same alias.
+    """
+
+    def _sub(m: re.Match[str]) -> str:
+        indent, dotted, alias = m.group(1), m.group(2), m.group(3)
+        root, leaf = dotted.split(".", 1)[0], dotted.rsplit(".", 1)[-1]
+        return f'{indent}import {root}; {alias} = __import__("{dotted}", fromlist=["{leaf}"])'
+
+    return _SUBMODULE_IMPORT_AS.sub(_sub, code)
+
+
 async def run_python_artifact(
     code: str,
     *,
-    sandbox: "PyodideSandbox",
+    sandbox: PyodideSandbox,
     session_id: str | None = None,
 ) -> dict[str, Any]:
     staged = await _stage_artifacts_for_code(code)
@@ -341,7 +441,8 @@ async def run_python_artifact(
     # dict at the source level so we don't have to think about escaping.
     staged_literal = repr(json.dumps(staged))
     prelude = _PY_PRELUDE_TEMPLATE.format(staged_literal=staged_literal)
-    wrapped = prelude + "\n" + textwrap.dedent(code)
+    user_code = _rewrite_submodule_imports(textwrap.dedent(code))
+    wrapped = prelude + "\n" + user_code
 
     from app.python_sandbox import execute_code
 
@@ -372,15 +473,7 @@ async def run_python_artifact(
         artifact_blob = json.loads(body)
         free_stdout = free_stdout[:a] + free_stdout[b + len(ARTIFACT_END) :]
 
-    # Pyodide's loadPackage() prints "Loading X" / "Loaded X" lines to stdout
-    # the first time a package is imported in a session. Filter them so the
-    # agent's text artifact only shows code-produced output.
-    cleaned_lines = [
-        ln
-        for ln in free_stdout.splitlines()
-        if not (ln.startswith("Loading ") or ln.startswith("Loaded "))
-    ]
-    free_stdout = "\n".join(cleaned_lines).strip()
+    free_stdout = _strip_pyodide_noise(free_stdout)
 
     return _classify_python_output(artifact_blob, free_stdout, stderr)
 

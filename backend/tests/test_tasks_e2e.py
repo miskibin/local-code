@@ -123,7 +123,7 @@ async def test_e2e_task_run_messages_reload_via_checkpointer():
 
 
 @pytest.mark.asyncio
-async def test_e2e_subagent_then_code_propagates_artifact_id():
+async def test_e2e_subagent_then_code_propagates_artifact_id(python_sandbox):
     """SUBAGENT step exposes artifact_id; CODE step interpolates it."""
     await reset_task_tables(ChatMessage, ChatSession, SavedArtifact, SavedTask)
     sql_response = (
