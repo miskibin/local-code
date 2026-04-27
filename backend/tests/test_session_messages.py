@@ -94,6 +94,42 @@ async def test_get_messages_extracts_text_from_block_content(app_with_msgs):
 
 
 @pytest.mark.asyncio
+async def test_get_messages_emits_data_usage_when_metadata_present(app_with_msgs):
+    """On reload the assistant message carries persisted usage_metadata.
+    Without `data-usage` here, the subtle token/time line vanishes after a
+    page refresh — feature would only work mid-stream."""
+    app = app_with_msgs
+    ai = AIMessage(id="a1", content="hello")
+    ai.usage_metadata = {"input_tokens": 42, "output_tokens": 7, "total_tokens": 49}
+    msgs = [ai]
+    app.state.checkpointer = _FakeCheckpointer(msgs)
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        r = await ac.get("/sessions/s1/messages")
+    body = r.json()
+    parts = body[0]["parts"]
+    usage = [p for p in parts if p.get("type") == "data-usage"]
+    assert len(usage) == 1
+    assert usage[0]["data"]["inputTokens"] == 42
+    assert usage[0]["data"]["outputTokens"] == 7
+    # No durationMs on reload — only live stream knows wall time.
+    assert "durationMs" not in usage[0]["data"]
+
+
+@pytest.mark.asyncio
+async def test_get_messages_omits_data_usage_when_no_metadata(app_with_msgs):
+    """AIMessage with zero/missing usage_metadata produces no usage part."""
+    app = app_with_msgs
+    msgs = [AIMessage(id="a1", content="hello")]
+    app.state.checkpointer = _FakeCheckpointer(msgs)
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        r = await ac.get("/sessions/s1/messages")
+    parts = r.json()[0]["parts"]
+    assert all(p.get("type") != "data-usage" for p in parts)
+
+
+@pytest.mark.asyncio
 async def test_get_messages_emits_data_artifact_from_tool_output(app_with_msgs):
     from app.artifact_store import create_artifact
 

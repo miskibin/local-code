@@ -2,6 +2,9 @@
 
 import type { Artifact, ArtifactImagePayload } from "@/lib/types"
 
+/** Max height for plot thumbnails in chat / tool cards (modal uses fullSize). */
+export const ARTIFACT_IMAGE_PREVIEW_MAX_PX = 440
+
 export function ArtifactImage({
   artifact,
   fullSize,
@@ -22,7 +25,7 @@ export function ArtifactImage({
   }
   const src = `data:image/${payload.format};base64,${payload.data_b64}`
   return (
-    <figure className="bg-card px-3.5 py-3">
+    <figure className="bg-card px-3.5 py-4">
       {/* next/image can't optimize a data: URL; use a plain <img>. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
@@ -33,7 +36,7 @@ export function ArtifactImage({
           margin: "0 auto",
           width: "auto",
           maxWidth: "100%",
-          maxHeight: fullSize ? "80vh" : 280,
+          maxHeight: fullSize ? "80vh" : ARTIFACT_IMAGE_PREVIEW_MAX_PX,
           objectFit: "contain",
         }}
       />

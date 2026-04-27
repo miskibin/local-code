@@ -1,7 +1,8 @@
-import { pythonExecRenderer } from "./python-exec";
-import { readFileRenderer } from "./read-file";
-import { webFetchRenderer } from "./web-fetch";
-import type { ToolRenderer } from "./types";
+import { pythonExecRenderer } from "./python-exec"
+import { readFileRenderer } from "./read-file"
+import { sqlQueryRenderer } from "./sql-query"
+import { webFetchRenderer } from "./web-fetch"
+import type { ToolRenderer } from "./types"
 
 /**
  * Per-tool view registry.
@@ -17,13 +18,15 @@ import type { ToolRenderer } from "./types";
 const REGISTRY: Record<string, ToolRenderer> = {
   python_exec: pythonExecRenderer,
   read_file: readFileRenderer,
+  sql_query: sqlQueryRenderer,
+  sql_subagent_query: sqlQueryRenderer,
   web_fetch: webFetchRenderer,
-};
-
-const EMPTY_RENDERER: ToolRenderer = {};
-
-export function getToolRenderer(toolName: string): ToolRenderer {
-  return REGISTRY[toolName] ?? EMPTY_RENDERER;
 }
 
-export type { ToolRenderer, ToolArgsProps, ToolResultProps } from "./types";
+const EMPTY_RENDERER: ToolRenderer = {}
+
+export function getToolRenderer(toolName: string): ToolRenderer {
+  return REGISTRY[toolName] ?? EMPTY_RENDERER
+}
+
+export type { ToolRenderer, ToolArgsProps, ToolResultProps } from "./types"

@@ -1,7 +1,9 @@
 "use client"
 
 import { Bot, ChevronDown, Loader2 } from "lucide-react"
+import { useEffect, useState } from "react"
 import type { Artifact, SubagentStep } from "@/lib/types"
+import { useArtifactRefs } from "./ArtifactRefs"
 import { Markdown } from "./Markdown"
 import { ToolCall } from "./ToolCall"
 import { ArtifactCard } from "./Artifact"
@@ -25,7 +27,14 @@ export function Subagent({
   msgId: string
   blockIdx: number
 }) {
+  const tableRefreshCtx = useArtifactRefs()
+  const [tableRefreshed, setTableRefreshed] = useState<Artifact | null>(null)
+  const onTableRefreshFromCtx = tableRefreshCtx?.onTableRefresh
   const status = block.status ?? "done"
+  const saArtifact = block.artifact
+  useEffect(() => {
+    setTableRefreshed(null)
+  }, [saArtifact?.id])
   const collapseKey = `${msgId}-sa${blockIdx}-collapsed`
   const isCollapsed = !!expanded[collapseKey]
   const toggleCollapsed = () => toggleStep(collapseKey)
@@ -199,7 +208,7 @@ export function Subagent({
         )}
       </div>
 
-      {block.artifact && status === "done" && (
+      {saArtifact && status === "done" && (
         <div className="mb-2.5">
           <div
             className="mb-1.5 flex items-center gap-1.5 pl-0.5 uppercase"
@@ -215,10 +224,21 @@ export function Subagent({
             Returned by {block.agent.name}
           </div>
           <ArtifactCard
-            artifact={block.artifact}
-            saved={!!savedArtifacts[block.artifact.id]}
+            artifact={tableRefreshed ?? saArtifact}
+            saved={!!savedArtifacts[saArtifact.id]}
             onSave={onSaveArtifact}
-            onOpen={onOpenArtifact}
+            onOpen={
+              saArtifact.kind === "table" ? undefined : onOpenArtifact
+            }
+            onTableRefresh={
+              saArtifact.kind === "table" && onTableRefreshFromCtx
+                ? async (a) => {
+                    const f = await onTableRefreshFromCtx(a)
+                    setTableRefreshed(f)
+                    return f
+                  }
+                : undefined
+            }
           />
         </div>
       )}

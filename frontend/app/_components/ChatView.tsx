@@ -49,6 +49,25 @@ export type ArtifactDataPart = {
   updatedAt: string
 }
 
+export type UsageDataPart = {
+  inputTokens: number
+  outputTokens: number
+  durationMs?: number
+  contextMaxTokens?: number
+  modelId?: string
+}
+
+function extractUsage(parts: AnyPart[]): UsageDataPart | null {
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const p = parts[i]
+    if (p.type !== "data-usage") continue
+    const d = p.data as UsageDataPart | undefined
+    if (!d) continue
+    return d
+  }
+  return null
+}
+
 export function extractArtifactIds(parts: AnyPart[]): string[] {
   const out: string[] = []
   for (const p of parts) {
@@ -357,7 +376,11 @@ function partsToText(parts: AnyPart[]): string {
     .join("")
 }
 
-export const __testing__ = { partsToContentBlocks, extractArtifactIds }
+export const __testing__ = {
+  partsToContentBlocks,
+  extractArtifactIds,
+  extractUsage,
+}
 
 type Props = {
   sessionId: string
@@ -365,6 +388,8 @@ type Props = {
   savedArtifacts: Record<string, boolean>
   onSaveArtifact: (a: Artifact) => Promise<void> | void
   onOpenArtifact: (a: Artifact) => void
+  /** After an inline table refresh; use to sync saved-artifact list. */
+  onArtifactRefreshed?: (a: Artifact) => void
   initialTaskRun?: { task_id: string; variables: Record<string, unknown> }
   onTaskRunConsumed?: () => void
 }
@@ -375,6 +400,7 @@ export function ChatView({
   savedArtifacts,
   onSaveArtifact,
   onOpenArtifact,
+  onArtifactRefreshed,
   initialTaskRun,
   onTaskRunConsumed,
 }: Props) {
@@ -600,6 +626,8 @@ export function ChatView({
     () => ({
       getArtifact: (id) => artifactCache[id],
       getToolArtifact: (cid) => toolArtifactMap[cid],
+      isSaved: (id) => !!savedArtifacts[id],
+      onSave: (a) => void onSaveArtifact(a),
       onOpen: (id) => {
         const cached = artifactCache[id]
         if (cached) {
@@ -616,8 +644,21 @@ export function ChatView({
             toast.error("Failed to open artifact", { description: String(e) })
           })
       },
+      onTableRefresh: async (a) => {
+        const fresh = await api.refreshArtifact(a.id)
+        setArtifactCache((prev) => ({ ...prev, [a.id]: fresh }))
+        onArtifactRefreshed?.(fresh)
+        return fresh
+      },
     }),
-    [artifactCache, toolArtifactMap, onOpenArtifact]
+    [
+      artifactCache,
+      toolArtifactMap,
+      onOpenArtifact,
+      onArtifactRefreshed,
+      savedArtifacts,
+      onSaveArtifact,
+    ]
   )
 
   const toggleStep = (key: string) =>
@@ -727,6 +768,16 @@ export function ChatView({
     return null
   }, [messages])
 
+  const latestUsage = useMemo<UsageDataPart | undefined>(() => {
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const m = messages[i]
+      if (m.role !== "assistant") continue
+      const u = extractUsage((m.parts ?? []) as AnyPart[])
+      if (u) return u
+    }
+    return undefined
+  }, [messages])
+
   return (
     <ArtifactRefsProvider value={artifactRefs}>
       <div
@@ -734,7 +785,7 @@ export function ChatView({
         style={{ background: "var(--bg)" }}
       >
         <div ref={scrollRef} className="lc-scroll flex-1 overflow-y-auto">
-          <div className="mx-auto w-full max-w-5xl px-6 pt-8 pb-12">
+          <div className="mx-auto w-full max-w-4xl px-6 pt-8 pb-12">
             {isEmpty ? (
               <EmptyState onPick={send} />
             ) : (
@@ -761,11 +812,13 @@ export function ChatView({
                   const liveArtifacts = extractArtifactIds(parts)
                     .map((id) => artifactCache[id])
                     .filter((a): a is Artifact => !!a)
+                  const usage = extractUsage(parts) ?? undefined
                   const msg: AssistantMsg = {
                     id: m.id,
                     contentBlocks,
                     artifacts:
                       liveArtifacts.length > 0 ? liveArtifacts : undefined,
+                    usage,
                   }
                   return (
                     <AssistantMessage
@@ -805,7 +858,7 @@ export function ChatView({
           }}
         >
           {streamFault && !streaming ? (
-            <div className="mx-auto w-full max-w-5xl px-6 pt-2">
+            <div className="mx-auto w-full max-w-4xl px-6 pt-2">
               <div
                 className="flex items-center justify-between gap-3 rounded-md border px-3 py-2 text-[13px]"
                 style={{
@@ -845,6 +898,7 @@ export function ChatView({
             model={selectedModel}
             onModelChange={setSelectedModel}
             sessionId={sessionId}
+            usage={latestUsage}
           />
         </div>
         <GeneratingTaskModal open={generatingTask} />

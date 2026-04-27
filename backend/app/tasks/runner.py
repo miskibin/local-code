@@ -442,11 +442,16 @@ async def run_task(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits woul
         )
 
     if lc_messages is not None:
-        ai_content = (
-            "\n\n".join(prompt_texts) if prompt_texts else ("ok" if not failed else "failed")
-        )
-        lc_messages.append(AIMessage(id=msg_id, content=ai_content, tool_calls=ai_tool_calls))
+        # Tool-call AIMessage carries no text content — text appended here would
+        # render ABOVE tool parts on reload (sessions.py builds parts as
+        # [text, ...tool_calls]). Trailing prompt/report text rides in its own
+        # AIMessage AFTER the ToolMessages so reload order matches the stream.
+        lc_messages.append(AIMessage(id=msg_id, content="", tool_calls=ai_tool_calls))
         lc_messages.extend(pending_tool_msgs)
+        if prompt_texts:
+            lc_messages.append(
+                AIMessage(id=f"trail_{uuid4().hex}", content="\n\n".join(prompt_texts))
+            )
 
     yield sse({"type": "text-end", "id": text_id})
     yield sse({"type": "finish-step"})

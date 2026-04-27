@@ -15,6 +15,12 @@ export type QuizCardProps = {
 
 const LETTERS = ["A", "B", "C", "D", "E", "F"]
 
+function letterForAnswer(options: string[], ans: string): string | null {
+  const i = options.indexOf(ans)
+  if (i < 0) return null
+  return LETTERS[i] ?? String(i + 1)
+}
+
 export function QuizCard({
   toolCallId,
   question,
@@ -75,6 +81,10 @@ export function QuizCard({
       ? "Answered"
       : "Awaiting your answer"
 
+  const summaryAnswer = answer ?? (isAnswered ? "—" : "")
+  const summaryLetter =
+    isAnswered && answer ? letterForAnswer(options, answer) : null
+
   return (
     <div
       className="lc-reveal my-1.5 mb-3.5 overflow-hidden rounded-xl"
@@ -134,92 +144,124 @@ export function QuizCard({
         </span>
       </div>
 
-      <div className="px-4 pt-3 pb-2">
-        <div
-          className="mb-1 uppercase"
-          style={{
-            fontSize: 11,
-            color: "var(--ink-3)",
-            letterSpacing: ".04em",
-          }}
-        >
-          Question
-        </div>
-        <div
-          className="mb-3 text-[15px] font-medium"
-          style={{ color: "var(--ink)" }}
-        >
-          {question}
-        </div>
-
-        <div className="flex flex-col gap-1.5">
-          {options.map((opt, i) => (
-            <Option
-              key={i}
-              letter={LETTERS[i] ?? String(i + 1)}
-              label={opt}
-              selected={picked === i}
-              answered={isAnswered && answer === opt}
-              disabled={locked}
-              onPick={() => !locked && setPicked(i)}
-            />
-          ))}
-          {allowCustom && (
-            <CustomOption
-              letter={LETTERS[customIdx] ?? "?"}
-              selected={isCustomPicked}
-              answered={isAnswered && !!answer && !options.includes(answer)}
-              disabled={locked}
-              value={isAnswered ? (answer ?? "") : custom}
-              onPick={() => !locked && setPicked(customIdx)}
-              onChange={(v) => {
-                if (locked) return
-                setCustom(v)
-                setPicked(customIdx)
+      {isAnswered ? (
+        <div className="flex gap-3 px-4 py-3">
+          <Check
+            className="mt-0.5 h-4 w-4 shrink-0"
+            style={{ color: accent }}
+            aria-hidden
+          />
+          <div className="min-w-0 flex-1">
+            <p
+              className="line-clamp-2 text-[13px] leading-snug"
+              style={{ color: "var(--ink-2)" }}
+            >
+              {question}
+            </p>
+            <p
+              className="mt-1.5 text-[14px] font-medium"
+              style={{
+                color: "var(--ink)",
+                fontFamily: "var(--font-mono)",
               }}
-            />
-          )}
+            >
+              {summaryLetter ? (
+                <span style={{ color: "var(--ink-3)" }}>{summaryLetter} · </span>
+              ) : null}
+              {summaryAnswer}
+            </p>
+          </div>
         </div>
-      </div>
+      ) : (
+        <>
+          <div className="px-4 pt-3 pb-2">
+            <div
+              className="mb-1 uppercase"
+              style={{
+                fontSize: 11,
+                color: "var(--ink-3)",
+                letterSpacing: ".04em",
+              }}
+            >
+              Question
+            </div>
+            <div
+              className="mb-3 text-[15px] font-medium"
+              style={{ color: "var(--ink)" }}
+            >
+              {question}
+            </div>
 
-      <div
-        className="flex items-center justify-between gap-3 px-4 py-2.5"
-        style={{
-          borderTop: "1px solid var(--tool-border)",
-          background: "var(--bg-soft)",
-        }}
-      >
-        <span
-          style={{
-            fontSize: 12.5,
-            color: isErrored ? "var(--red)" : "var(--ink-3)",
-          }}
-        >
-          {isErrored
-            ? "Quiz failed."
-            : isAnswered
-              ? "Answer submitted."
-              : allowCustom
-                ? "Pick an option, or write your own."
-                : "Pick an option."}
-        </span>
-        {!locked && (
-          <button
-            type="button"
-            onClick={submit}
-            disabled={!canSubmit}
-            className="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[13px] text-accent-foreground"
+            <div className="flex flex-col gap-1.5">
+              {options.map((opt, i) => (
+                <Option
+                  key={i}
+                  letter={LETTERS[i] ?? String(i + 1)}
+                  label={opt}
+                  selected={picked === i}
+                  answered={isAnswered && answer === opt}
+                  disabled={locked}
+                  onPick={() => !locked && setPicked(i)}
+                />
+              ))}
+              {allowCustom && (
+                <CustomOption
+                  letter={LETTERS[customIdx] ?? "?"}
+                  selected={isCustomPicked}
+                  answered={isAnswered && !!answer && !options.includes(answer)}
+                  disabled={locked}
+                  value={isAnswered ? (answer ?? "") : custom}
+                  onPick={() => !locked && setPicked(customIdx)}
+                  onChange={(v) => {
+                    if (locked) return
+                    setCustom(v)
+                    setPicked(customIdx)
+                  }}
+                />
+              )}
+            </div>
+          </div>
+
+          <div
+            className="flex items-center justify-between gap-3 px-4 py-2.5"
             style={{
-              background: canSubmit ? "var(--accent)" : "var(--hover-strong)",
-              border: 0,
-              cursor: canSubmit ? "pointer" : "not-allowed",
+              borderTop: "1px solid var(--tool-border)",
+              background: "var(--bg-soft)",
             }}
           >
-            {submitting ? <Loader2 className="lc-spin h-3.5 w-3.5" /> : null}
-            Submit answer ›
-          </button>
-        )}
-      </div>
+            <span
+              style={{
+                fontSize: 12.5,
+                color: isErrored ? "var(--red)" : "var(--ink-3)",
+              }}
+            >
+              {isErrored
+                ? "Quiz failed."
+                : allowCustom
+                  ? "Pick an option, or write your own."
+                  : "Pick an option."}
+            </span>
+            {!locked && (
+              <button
+                type="button"
+                onClick={submit}
+                disabled={!canSubmit}
+                className="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-[13px] text-accent-foreground"
+                style={{
+                  background: canSubmit ? "var(--accent)" : "var(--hover-strong)",
+                  border: 0,
+                  cursor: canSubmit ? "pointer" : "not-allowed",
+                }}
+              >
+                {submitting ? (
+                  <Loader2 className="lc-spin h-3.5 w-3.5" />
+                ) : null}
+                Submit answer ›
+              </button>
+            )}
+          </div>
+        </>
+      )}
     </div>
   )
 }

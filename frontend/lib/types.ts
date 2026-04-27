@@ -111,7 +111,7 @@ export type ToolStep = {
   args: Record<string, unknown>
   result: string
   duration?: string
-  status?: "running" | "done" | "error"
+  status?: "running" | "done" | "error" | "warning"
   toolCallId?: string
   taskTitle?: string
 }
@@ -121,7 +121,7 @@ export type SubagentStep = {
   agent: { id: string; name: string }
   task: string
   duration?: string
-  status?: "running" | "done" | "error"
+  status?: "running" | "done" | "error" | "warning"
   statusText?: string
   steps?: ToolStep[]
   artifact?: Artifact

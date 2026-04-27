@@ -7,6 +7,18 @@ from app.config import get_settings
 from app.graphs.main_agent import build_gemini_llm, build_ollama_llm
 
 
+def context_max_tokens(llm: BaseChatModel) -> int | None:
+    profile = getattr(llm, "profile", None)
+    if isinstance(profile, dict):
+        n = profile.get("max_input_tokens")
+        if isinstance(n, int) and n > 0:
+            return n
+    num_ctx = getattr(llm, "num_ctx", None)
+    if isinstance(num_ctx, int) and num_ctx > 0:
+        return num_ctx
+    return get_settings().num_ctx or None
+
+
 def resolve_llm(state, model: str) -> BaseChatModel:
     cache: dict = state.llm_cache
     llm = cache.get(model)

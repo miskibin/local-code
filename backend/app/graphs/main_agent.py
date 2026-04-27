@@ -1,5 +1,10 @@
 from deepagents import create_deep_agent
+from deepagents.backends.state import StateBackend
 from deepagents.middleware._tool_exclusion import _ToolExclusionMiddleware
+from deepagents.middleware.summarization import (
+    SummarizationToolMiddleware,
+    create_summarization_middleware,
+)
 from langchain_core.language_models import BaseChatModel
 from langchain_core.tools import BaseTool
 from langchain_google_genai import ChatGoogleGenerativeAI
@@ -98,6 +103,15 @@ def build_agent(
         parent_excluded = parent_excluded - {"read_file"}
         parent_middleware.append(StateSkillsMiddleware(skills=enabled_skills))
     parent_middleware.insert(0, _ToolExclusionMiddleware(excluded=parent_excluded))
+
+    # Add the manual `compact_conversation` tool. `create_deep_agent` already
+    # injects a SummarizationMiddleware for auto-compaction; this exposes the
+    # same engine to the model (shared `_summarization_event` state key) so it
+    # can compact on demand. We instantiate our own summarization config purely
+    # as a holder — only the tool middleware is registered to avoid the
+    # langchain factory's "duplicate middleware" guard.
+    summ_config = create_summarization_middleware(llm, StateBackend())
+    parent_middleware.append(SummarizationToolMiddleware(summ_config))
 
     agent = create_deep_agent(
         model=llm,

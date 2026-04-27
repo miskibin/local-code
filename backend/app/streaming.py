@@ -1,5 +1,6 @@
 import asyncio
 import json
+import time
 from collections.abc import AsyncIterator
 from uuid import uuid4
 
@@ -42,6 +43,8 @@ async def stream_chat(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits w
     lc_messages: list,
     session_id: str | None = None,
     resume_value: object = None,
+    context_max_tokens: int | None = None,
+    model_id: str | None = None,
 ) -> AsyncIterator[str]:
     msg_id = f"msg_{uuid4().hex}"
     logger.info(f"stream start thread={thread_id} msg_id={msg_id} input_msgs={len(lc_messages)}")
@@ -82,6 +85,9 @@ async def stream_chat(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits w
     last_finish_reason: str | None = None
     last_response_metadata: dict | None = None
     last_usage_metadata: dict | None = None
+    total_input_tokens = 0
+    total_output_tokens = 0
+    stream_start = time.monotonic()
 
     def _provider_md(namespace: tuple) -> dict | None:
         # AI SDK 6 schema: providerMetadata is Record<string, Record<string, JsonValue>>.
@@ -211,6 +217,15 @@ async def stream_chat(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits w
                 umd = getattr(chunk, "usage_metadata", None)
                 if umd:
                     last_usage_metadata = dict(umd) if not isinstance(umd, dict) else umd
+            # Aggregate token counts across all model calls in this turn (top
+            # level + subagents). Streaming usually delivers usage_metadata only
+            # on the final chunk per model call, so summing those covers the
+            # full task cost.
+            if isinstance(chunk, (AIMessage, AIMessageChunk)):
+                umd_any = getattr(chunk, "usage_metadata", None)
+                if umd_any:
+                    total_input_tokens += int(umd_any.get("input_tokens") or 0)
+                    total_output_tokens += int(umd_any.get("output_tokens") or 0)
             if isinstance(chunk, (AIMessage, AIMessageChunk)):
                 if (
                     is_top_level
@@ -431,6 +446,26 @@ async def stream_chat(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits w
         closed = _close_text()
         if closed:
             yield closed
+        # Always emit one data-usage part per turn. durationMs is meaningful
+        # even when the model returned no usage_metadata (e.g. local Ollama),
+        # and the client hides zero-token columns in the rendered row.
+        duration_ms = int((time.monotonic() - stream_start) * 1000)
+        usage_data: dict = {
+            "inputTokens": total_input_tokens,
+            "outputTokens": total_output_tokens,
+            "durationMs": duration_ms,
+        }
+        if context_max_tokens:
+            usage_data["contextMaxTokens"] = context_max_tokens
+        if model_id:
+            usage_data["modelId"] = model_id
+        yield sse(
+            {
+                "type": "data-usage",
+                "id": f"usage_{msg_id}",
+                "data": usage_data,
+            }
+        )
         yield sse({"type": "finish-step"})
         yield sse({"type": "finish"})
         yield "data: [DONE]\n\n"

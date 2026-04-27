@@ -17,10 +17,15 @@ export function ToolCall({
   expanded: boolean
   onToggle: () => void
 }) {
-  const status = step.status ?? "done"
+  const renderer = getToolRenderer(step.tool)
+  const baseStatus = step.status ?? "done"
+  const status =
+    baseStatus === "done"
+      ? (renderer.getStatusOverride?.(step) ?? baseStatus)
+      : baseStatus
   const running = status === "running"
   const errored = status === "error"
-  const renderer = getToolRenderer(step.tool)
+  const warning = status === "warning"
   const ArgsView = renderer.Args ?? DefaultArgs
   const ResultView = renderer.Result ?? DefaultResult
   const refs = useArtifactRefs()
@@ -38,7 +43,11 @@ export function ToolCall({
         onClick={onToggle}
         className="flex w-full cursor-pointer items-center gap-2 px-3.5 py-2.5 text-left"
         style={{
-          background: errored ? "var(--red-soft)" : "var(--accent-soft)",
+          background: errored
+            ? "var(--red-soft)"
+            : warning
+              ? "var(--amber-soft)"
+              : "var(--accent-soft)",
           border: 0,
           borderBottom: expanded ? "1px solid var(--tool-border)" : 0,
           color: "var(--ink)",
@@ -49,14 +58,16 @@ export function ToolCall({
           style={{
             color: errored
               ? "var(--red)"
-              : running
-                ? "var(--accent)"
-                : "var(--accent-ink)",
+              : warning
+                ? "var(--amber)"
+                : running
+                  ? "var(--accent)"
+                  : "var(--accent-ink)",
           }}
         >
           {running ? (
             <Loader2 className="lc-spin h-4 w-4" />
-          ) : errored ? (
+          ) : errored || warning ? (
             <TriangleAlert className="h-4 w-4" />
           ) : (
             <Check className="h-4 w-4" />
@@ -87,10 +98,7 @@ export function ToolCall({
           }
           return (
             <>
-              <span
-                className="text-[13.5px]"
-                style={{ color: "var(--ink-2)" }}
-              >
+              <span className="text-[13.5px]" style={{ color: "var(--ink-2)" }}>
                 {running ? "Calling" : errored ? "Failed" : "Called"}
               </span>
               <code
@@ -98,11 +106,29 @@ export function ToolCall({
                 style={{
                   fontFamily: "var(--font-mono)",
                   fontSize: 12.5,
-                  color: errored ? "var(--red)" : "var(--accent-ink)",
+                  color: errored
+                    ? "var(--red)"
+                    : warning
+                      ? "var(--amber)"
+                      : "var(--accent-ink)",
                 }}
               >
                 {step.tool}
               </code>
+              {warning && (
+                <span
+                  className="rounded-md px-1.5 py-0.5"
+                  style={{
+                    fontSize: 11.5,
+                    color: "var(--amber)",
+                    background: "var(--surface)",
+                    border: "1px solid var(--amber)",
+                    fontWeight: 500,
+                  }}
+                >
+                  no results
+                </span>
+              )}
             </>
           )
         })()}

@@ -233,6 +233,21 @@ async def get_messages(sid: str, request: Request):  # noqa: PLR0912 -- linear L
                             }
                         )
 
+        umd = getattr(m, "usage_metadata", None)
+        if isinstance(umd, dict) and (
+            umd.get("input_tokens") or umd.get("output_tokens")
+        ):
+            parts.append(
+                {
+                    "type": "data-usage",
+                    "id": f"usage_{getattr(m, 'id', None) or uuid4().hex}",
+                    "data": {
+                        "inputTokens": int(umd.get("input_tokens") or 0),
+                        "outputTokens": int(umd.get("output_tokens") or 0),
+                    },
+                }
+            )
+
         if not parts:
             continue
         out.append(

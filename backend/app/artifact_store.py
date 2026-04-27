@@ -189,15 +189,18 @@ _PY_PRELUDE = textwrap.dedent(
             except Exception:
                 pass
         from cycler import cycler as _cycler
-        _ink = "#787878"
+        # Split ink: body text reads on white; spines/grid stay softer so bars stay the focus.
+        _ink_text = "#1f1f1f"
+        _ink_spine = "#6b6b6b"
+        _grid = "#c8c8c8"
         _mpl.rcParams.update({{
             "figure.facecolor": "none",
             "figure.edgecolor": "none",
             "figure.dpi": 120,
             "axes.facecolor": "none",
-            "axes.edgecolor": _ink,
-            "axes.labelcolor": _ink,
-            "axes.titlecolor": _ink,
+            "axes.edgecolor": _ink_spine,
+            "axes.labelcolor": _ink_text,
+            "axes.titlecolor": _ink_text,
             "axes.titlesize": 14,
             "axes.titleweight": "bold",
             "axes.labelsize": 11,
@@ -209,12 +212,12 @@ _PY_PRELUDE = textwrap.dedent(
                 "#3b82f6", "#10b981", "#f59e0b",
                 "#ec4899", "#8b5cf6", "#06b6d4",
             ]),
-            "grid.color": _ink,
-            "grid.alpha": 0.18,
+            "grid.color": _grid,
+            "grid.alpha": 0.28,
             "grid.linestyle": ":",
-            "text.color": _ink,
-            "xtick.color": _ink,
-            "ytick.color": _ink,
+            "text.color": _ink_text,
+            "xtick.color": _ink_text,
+            "ytick.color": _ink_text,
             "xtick.labelsize": 10,
             "ytick.labelsize": 10,
             "font.size": 11,
@@ -222,6 +225,7 @@ _PY_PRELUDE = textwrap.dedent(
             "font.family": ["Geist Mono", "DejaVu Sans Mono", "monospace"],
             "legend.frameon": False,
             "legend.fontsize": 10,
+            "legend.labelcolor": _ink_text,
             "savefig.facecolor": "none",
             "savefig.edgecolor": "none",
             "savefig.transparent": True,

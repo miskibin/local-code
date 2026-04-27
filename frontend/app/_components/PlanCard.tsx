@@ -1,6 +1,6 @@
 "use client"
 
-import { Circle, CircleCheck, Loader2 } from "lucide-react"
+import { Circle, CircleCheck, CircleHelp, Loader2 } from "lucide-react"
 import {
   Plan,
   PlanAction,
@@ -12,19 +12,36 @@ import {
 } from "@/components/ai-elements/plan"
 import type { Todo } from "@/lib/types"
 
-function progressLabel(todos: Todo[]): string {
+function progressLabel(todos: Todo[], streaming: boolean): string {
   const total = todos.length
   const done = todos.filter((t) => t.status === "completed").length
   if (done === total) return `All done · ${done}/${total}`
+  if (!streaming) return `Stopped · ${done}/${total}`
   return `In progress · ${done}/${total}`
 }
 
-function StatusIcon({ status }: { status: Todo["status"] }) {
+function StatusIcon({
+  status,
+  streaming,
+}: {
+  status: Todo["status"]
+  streaming: boolean
+}) {
   if (status === "completed") {
     return (
       <CircleCheck
         className="h-4 w-4 shrink-0"
         style={{ color: "var(--accent-ink)" }}
+      />
+    )
+  }
+  // Stream stopped before this step finished — surface the unknown state
+  // instead of a loader that would spin forever.
+  if (!streaming) {
+    return (
+      <CircleHelp
+        className="h-4 w-4 shrink-0"
+        style={{ color: "var(--amber)" }}
       />
     )
   }
@@ -41,7 +58,7 @@ function StatusIcon({ status }: { status: Todo["status"] }) {
   )
 }
 
-function TodoRow({ todo }: { todo: Todo }) {
+function TodoRow({ todo, streaming }: { todo: Todo; streaming: boolean }) {
   const completed = todo.status === "completed"
   return (
     <li
@@ -49,7 +66,7 @@ function TodoRow({ todo }: { todo: Todo }) {
       style={{ color: completed ? "var(--ink-3)" : "var(--ink)" }}
     >
       <span className="mt-0.5">
-        <StatusIcon status={todo.status} />
+        <StatusIcon status={todo.status} streaming={streaming} />
       </span>
       <span
         className="flex-1 leading-snug"
@@ -88,7 +105,7 @@ export function PlanCard({
               className="text-[12px]"
               style={{ color: "var(--ink-3)" }}
             >
-              {progressLabel(todos)}
+              {progressLabel(todos, streaming)}
             </PlanDescription>
           </div>
           <PlanAction className="self-center">
@@ -104,7 +121,7 @@ export function PlanCard({
         >
           <ol className="m-0 list-none p-0 pt-2">
             {todos.map((t, i) => (
-              <TodoRow key={i} todo={t} />
+              <TodoRow key={i} todo={t} streaming={streaming} />
             ))}
           </ol>
         </PlanContent>

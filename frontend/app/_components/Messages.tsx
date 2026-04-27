@@ -1,6 +1,8 @@
 "use client"
 
 import {
+  ArrowDown,
+  ArrowUp,
   BookmarkPlus,
   Copy,
   Database,
@@ -71,7 +73,7 @@ export function UserMessage({
         className="flex justify-end"
         style={{ marginBottom: "var(--density-msg-gap)" }}
       >
-        <div className="flex w-full min-w-0 max-w-[70%] flex-col gap-2">
+        <div className="flex w-full max-w-[70%] min-w-0 flex-col gap-2">
           <textarea
             ref={taRef}
             value={draft}
@@ -275,6 +277,53 @@ export type AssistantMsg = {
   /** Stream order: interleaved user-visible text and tool / subagent blocks */
   contentBlocks: ContentBlock[]
   artifacts?: Artifact[]
+  usage?: { inputTokens: number; outputTokens: number; durationMs?: number }
+}
+
+export function formatTokens(n: number): string {
+  if (n < 1000) return String(n)
+  if (n < 10_000) return (n / 1000).toFixed(1).replace(/\.0$/, "") + "k"
+  return Math.round(n / 1000) + "k"
+}
+
+export function formatDuration(ms: number): string {
+  if (ms < 1000) return `${ms}ms`
+  const s = ms / 1000
+  if (s < 60) return `${s.toFixed(1).replace(/\.0$/, "")}s`
+  const m = Math.floor(s / 60)
+  const rem = Math.round(s - m * 60)
+  return `${m}m${rem ? ` ${rem}s` : ""}`
+}
+
+function UsageRow({ usage }: { usage: NonNullable<AssistantMsg["usage"]> }) {
+  const { inputTokens, outputTokens, durationMs } = usage
+  if (!inputTokens && !outputTokens && !durationMs) return null
+  return (
+    <div
+      className="flex items-center gap-2 text-[11px] tabular-nums"
+      style={{ color: "var(--ink-3)" }}
+      aria-label="Token usage"
+    >
+      {inputTokens > 0 && (
+        <span className="inline-flex items-center gap-0.5" title="Input tokens">
+          <ArrowDown className="h-3 w-3" />
+          {formatTokens(inputTokens)}
+        </span>
+      )}
+      {outputTokens > 0 && (
+        <span
+          className="inline-flex items-center gap-0.5"
+          title="Output tokens"
+        >
+          <ArrowUp className="h-3 w-3" />
+          {formatTokens(outputTokens)}
+        </span>
+      )}
+      {typeof durationMs === "number" && durationMs > 0 && (
+        <span title="Total time">{formatDuration(durationMs)}</span>
+      )}
+    </div>
+  )
 }
 
 export function AssistantMessage({
@@ -361,32 +410,38 @@ export function AssistantMessage({
       </div>
 
       {!streaming && plainText && (
-        <div className="mt-2 flex gap-1" style={{ color: "var(--ink-3)" }}>
-          <ActionBtn title="Copy" onClick={onCopy}>
-            <Copy className="h-3.5 w-3.5" />
-          </ActionBtn>
-          <ActionBtn title="Regenerate" onClick={onRegenerate}>
-            <RotateCcw className="h-3.5 w-3.5" />
-          </ActionBtn>
-          {isLast && onSaveAsTask && (
-            <ActionBtn
-              title={saveAsTaskBusy ? "Generating task..." : "Save as task"}
-              onClick={saveAsTaskBusy ? undefined : onSaveAsTask}
-            >
-              <BookmarkPlus
-                className="h-3.5 w-3.5"
-                style={{
-                  opacity: saveAsTaskBusy ? 0.4 : 1,
-                  animation: saveAsTaskBusy
-                    ? "pulse 1.4s ease-in-out infinite"
-                    : undefined,
-                }}
-              />
+        <div
+          className="mt-2 flex items-center gap-3"
+          style={{ color: "var(--ink-3)" }}
+        >
+          <div className="flex gap-1">
+            <ActionBtn title="Copy" onClick={onCopy}>
+              <Copy className="h-3.5 w-3.5" />
             </ActionBtn>
-          )}
-          <ActionBtn title="Share">
-            <Share className="h-3.5 w-3.5" />
-          </ActionBtn>
+            <ActionBtn title="Regenerate" onClick={onRegenerate}>
+              <RotateCcw className="h-3.5 w-3.5" />
+            </ActionBtn>
+            {isLast && onSaveAsTask && (
+              <ActionBtn
+                title={saveAsTaskBusy ? "Generating task..." : "Save as task"}
+                onClick={saveAsTaskBusy ? undefined : onSaveAsTask}
+              >
+                <BookmarkPlus
+                  className="h-3.5 w-3.5"
+                  style={{
+                    opacity: saveAsTaskBusy ? 0.4 : 1,
+                    animation: saveAsTaskBusy
+                      ? "pulse 1.4s ease-in-out infinite"
+                      : undefined,
+                  }}
+                />
+              </ActionBtn>
+            )}
+            <ActionBtn title="Share">
+              <Share className="h-3.5 w-3.5" />
+            </ActionBtn>
+          </div>
+          {msg.usage && <UsageRow usage={msg.usage} />}
         </div>
       )}
     </div>

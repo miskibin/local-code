@@ -8,10 +8,24 @@ import {
   Square,
   X,
 } from "lucide-react"
+import type { LanguageModelUsage } from "ai"
 import { useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
+import {
+  Context,
+  ContextCacheUsage,
+  ContextContent,
+  ContextContentBody,
+  ContextContentFooter,
+  ContextContentHeader,
+  ContextInputUsage,
+  ContextOutputUsage,
+  ContextReasoningUsage,
+  ContextTrigger,
+} from "@/components/ai-elements/context"
 import { api } from "@/lib/api"
 import type { Artifact } from "@/lib/types"
+import type { UsageDataPart } from "./ChatView"
 import { ModelPicker } from "./ModelPicker"
 
 type Props = {
@@ -22,6 +36,7 @@ type Props = {
   onModelChange?: (m: string) => void
   sessionId: string
   onAttachmentUploaded?: (a: Artifact) => void
+  usage?: UsageDataPart
 }
 
 export function Composer({
@@ -32,6 +47,7 @@ export function Composer({
   onModelChange,
   sessionId,
   onAttachmentUploaded,
+  usage,
 }: Props) {
   const [text, setText] = useState("")
   const [pending, setPending] = useState<Artifact[]>([])
@@ -109,7 +125,7 @@ export function Composer({
     uploading === 0
 
   return (
-    <div className="mx-auto w-full max-w-5xl px-8 pt-1 pb-4">
+    <div className="mx-auto w-full max-w-4xl px-8 pt-1 pb-4">
       <div
         className="rounded-3xl px-3.5 pt-2.5 pb-2 transition"
         style={{
@@ -185,6 +201,32 @@ export function Composer({
               <Paperclip className="h-4 w-4" />
             </ToolbarBtn>
             <ModelPicker value={model} onChange={onModelChange} />
+            {usage && usage.contextMaxTokens && usage.contextMaxTokens > 0 ? (
+              <Context
+                usedTokens={usage.inputTokens}
+                maxTokens={usage.contextMaxTokens}
+                modelId={usage.modelId}
+                usage={
+                  {
+                    inputTokens: usage.inputTokens,
+                    outputTokens: usage.outputTokens,
+                    totalTokens: usage.inputTokens + usage.outputTokens,
+                  } as LanguageModelUsage
+                }
+              >
+                <ContextTrigger />
+                <ContextContent>
+                  <ContextContentHeader />
+                  <ContextContentBody>
+                    <ContextInputUsage />
+                    <ContextOutputUsage />
+                    <ContextReasoningUsage />
+                    <ContextCacheUsage />
+                  </ContextContentBody>
+                  {usage.modelId ? <ContextContentFooter /> : null}
+                </ContextContent>
+              </Context>
+            ) : null}
           </div>
           <div className="flex items-center gap-1">
             {streaming ? (
@@ -198,9 +240,9 @@ export function Composer({
                   padding: "0 10px",
                   borderRadius: 6,
                   fontFamily: "var(--font-mono)",
-                  background: "var(--ink)",
-                  border: "1px solid var(--ink)",
-                  color: "var(--primary-foreground)",
+                  background: "var(--accent)",
+                  border: "1px solid var(--accent)",
+                  color: "var(--accent-foreground)",
                   cursor: "pointer",
                 }}
               >
@@ -222,12 +264,15 @@ export function Composer({
                   padding: "0 10px",
                   borderRadius: 6,
                   fontFamily: "var(--font-mono)",
-                  background: canSend ? "var(--accent)" : "transparent",
+                  background: canSend ? "var(--accent)" : "var(--accent-soft)",
                   border: canSend
                     ? "1px solid var(--accent)"
-                    : "1px solid var(--border)",
-                  color: canSend ? "var(--accent-foreground)" : "var(--ink-3)",
+                    : "1px solid color-mix(in oklab, var(--accent) 32%, var(--border))",
+                  color: canSend
+                    ? "var(--accent-foreground)"
+                    : "var(--accent-ink)",
                   cursor: canSend ? "pointer" : "not-allowed",
+                  opacity: 1,
                 }}
               >
                 <span style={{ fontSize: 13 }}>↵</span>

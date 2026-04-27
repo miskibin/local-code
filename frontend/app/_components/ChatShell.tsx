@@ -1,7 +1,7 @@
 "use client"
 
 import { useRouter, useSearchParams } from "next/navigation"
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { nanoid } from "nanoid"
 import { toast } from "sonner"
 import { api } from "@/lib/api"
@@ -93,6 +93,47 @@ export function ChatShell() {
     }
   }
 
+  const pendingTrashRef = useRef(
+    new Map<string, { undone: boolean; session: Session; index: number }>()
+  )
+
+  const onTrashSession = (id: string) => {
+    const idx = sessions.findIndex((s) => s.id === id)
+    if (idx < 0) return
+    const session = sessions[idx]
+    pendingTrashRef.current.set(id, { undone: false, session, index: idx })
+    setSessions((prev) => prev.filter((s) => s.id !== id))
+    if (id === activeSessionId) setActiveSessionId(nanoid())
+    toast(`Deleted "${session.title || "Untitled"}"`, {
+      duration: 5000,
+      action: {
+        label: "Undo",
+        onClick: () => {
+          const entry = pendingTrashRef.current.get(id)
+          if (!entry) return
+          entry.undone = true
+          pendingTrashRef.current.delete(id)
+          setSessions((prev) => {
+            if (prev.some((s) => s.id === id)) return prev
+            const next = [...prev]
+            next.splice(Math.min(entry.index, next.length), 0, entry.session)
+            return next
+          })
+        },
+      },
+      onAutoClose: () => {
+        const entry = pendingTrashRef.current.get(id)
+        if (!entry || entry.undone) return
+        pendingTrashRef.current.delete(id)
+        api.deleteSession(id).catch((e) => {
+          console.error("deleteSession", e)
+          toast.error("Couldn't delete session", { description: String(e) })
+          void refreshSessions()
+        })
+      },
+    })
+  }
+
   const onRenameSession = async (id: string, title: string) => {
     try {
       await api.patchSession(id, { title })
@@ -122,6 +163,47 @@ export function ChatShell() {
       console.error("deleteArtifact", e)
       toast.error("Couldn't delete artifact", { description: String(e) })
     }
+  }
+
+  const pendingArtifactRef = useRef(
+    new Map<string, { undone: boolean; artifact: Artifact; index: number }>()
+  )
+
+  const onTrashArtifact = (id: string) => {
+    const idx = savedArtifacts.findIndex((a) => a.id === id)
+    if (idx < 0) return
+    const artifact = savedArtifacts[idx]
+    pendingArtifactRef.current.set(id, { undone: false, artifact, index: idx })
+    setSavedArtifacts((prev) => prev.filter((a) => a.id !== id))
+    if (openArtifact?.id === id) setOpenArtifact(null)
+    toast(`Deleted "${artifact.title || "Untitled"}"`, {
+      duration: 5000,
+      action: {
+        label: "Undo",
+        onClick: () => {
+          const entry = pendingArtifactRef.current.get(id)
+          if (!entry) return
+          entry.undone = true
+          pendingArtifactRef.current.delete(id)
+          setSavedArtifacts((prev) => {
+            if (prev.some((a) => a.id === id)) return prev
+            const next = [...prev]
+            next.splice(Math.min(entry.index, next.length), 0, entry.artifact)
+            return next
+          })
+        },
+      },
+      onAutoClose: () => {
+        const entry = pendingArtifactRef.current.get(id)
+        if (!entry || entry.undone) return
+        pendingArtifactRef.current.delete(id)
+        api.deleteArtifact(id).catch((e) => {
+          console.error("deleteArtifact", e)
+          toast.error("Couldn't delete artifact", { description: String(e) })
+          void refreshArtifacts()
+        })
+      },
+    })
   }
 
   const onFirstUserMessage = useCallback(
@@ -172,11 +254,13 @@ export function ChatShell() {
         onNew={onNew}
         onSearch={() => setSearchOpen(true)}
         onDeleteSession={onDeleteSession}
+        onTrashSession={onTrashSession}
         onRenameSession={onRenameSession}
         onTogglePinSession={onTogglePinSession}
         artifacts={savedArtifacts}
         onOpenArtifact={setOpenArtifact}
         onDeleteArtifact={onDeleteArtifact}
+        onTrashArtifact={onTrashArtifact}
       />
       <ChatView
         sessionId={activeSessionId}
@@ -184,6 +268,9 @@ export function ChatShell() {
         savedArtifacts={savedMap}
         onSaveArtifact={onSaveArtifact}
         onOpenArtifact={setOpenArtifact}
+        onArtifactRefreshed={() => {
+          void refreshArtifacts()
+        }}
         initialTaskRun={pendingTaskRun ?? undefined}
         onTaskRunConsumed={() => {
           setPendingTaskRun(null)
@@ -198,7 +285,9 @@ export function ChatShell() {
       />
       <ArtifactModal
         artifact={openArtifact}
+        saved={openArtifact ? !!savedMap[openArtifact.id] : false}
         onClose={() => setOpenArtifact(null)}
+        onSaveArtifact={onSaveArtifact}
         onRefreshed={(a) => {
           setOpenArtifact(a)
           void refreshArtifacts()

@@ -12,7 +12,7 @@ from app.graphs.main_agent import (
 from app.graphs.main_agent import (
     default_subagents,
 )
-from app.llm import resolve_llm
+from app.llm import context_max_tokens, resolve_llm
 from app.models import SkillFlag, ToolFlag
 from app.schemas.chat import ChatRequest
 from app.skills_registry import discover_skills, filter_enabled
@@ -108,6 +108,7 @@ async def chat(req: ChatRequest, request: Request):
         enabled_skills=enabled_skills,
     )
     logger.debug(f"agent built thread={req.id} subagents={[s.get('name') for s in subagents]}")
+    ctx_max = context_max_tokens(llm)
     if req.resume is not None:
         # tool_call_id is informational — LangGraph resumes by config/thread,
         # not by tool_call_id — but we log it so a stuck thread can be traced
@@ -123,6 +124,8 @@ async def chat(req: ChatRequest, request: Request):
                 lc_messages=[],
                 session_id=req.id,
                 resume_value=req.resume.value,
+                context_max_tokens=ctx_max,
+                model_id=req.model,
             ),
             media_type="text/event-stream",
             headers=_STREAM_HEADERS,
@@ -134,6 +137,8 @@ async def chat(req: ChatRequest, request: Request):
             thread_id=req.id,
             lc_messages=lc_messages,
             session_id=req.id,
+            context_max_tokens=ctx_max,
+            model_id=req.model,
         ),
         media_type="text/event-stream",
         headers=_STREAM_HEADERS,

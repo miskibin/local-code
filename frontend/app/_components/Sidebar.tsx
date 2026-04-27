@@ -1,6 +1,20 @@
 "use client"
 
 import {
+  DndContext,
+  DragOverlay,
+  KeyboardSensor,
+  PointerSensor,
+  useDraggable,
+  useDroppable,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent,
+  type DraggableAttributes,
+  type DraggableSyntheticListeners,
+} from "@dnd-kit/core"
+import {
   ChevronRight,
   Cpu,
   Database,
@@ -15,7 +29,7 @@ import {
   Trash2,
 } from "lucide-react"
 import Link from "next/link"
-import { useEffect, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -34,11 +48,13 @@ type Props = {
   onNew: () => void
   onSearch: () => void
   onDeleteSession: (id: string) => void
+  onTrashSession: (id: string) => void
   onRenameSession: (id: string, title: string) => void
   onTogglePinSession: (id: string, pinned: boolean) => void
   artifacts: Artifact[]
   onOpenArtifact: (a: Artifact) => void
   onDeleteArtifact: (id: string) => void
+  onTrashArtifact: (id: string) => void
 }
 
 export function Sidebar({
@@ -50,14 +66,58 @@ export function Sidebar({
   onNew,
   onSearch,
   onDeleteSession,
+  onTrashSession,
   onRenameSession,
   onTogglePinSession,
   artifacts,
   onOpenArtifact,
   onDeleteArtifact,
+  onTrashArtifact,
 }: Props) {
   const [chatsOpen, setChatsOpen] = useState(true)
   const [artifactsOpen, setArtifactsOpen] = useState(true)
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor)
+  )
+  const [activeDragId, setActiveDragId] = useState<string | null>(null)
+  const draggedSession = useMemo(
+    () => sessions.find((s) => s.id === activeDragId) ?? null,
+    [sessions, activeDragId]
+  )
+  const handleDragStart = (e: DragStartEvent) =>
+    setActiveDragId(String(e.active.id))
+  const handleDragCancel = () => setActiveDragId(null)
+  const handleDragEnd = (e: DragEndEvent) => {
+    const id = String(e.active.id)
+    const overId = e.over?.id ? String(e.over.id) : null
+    setActiveDragId(null)
+    if (!overId) return
+    const s = sessions.find((x) => x.id === id)
+    if (!s) return
+    if (overId === "pin-zone") {
+      if (!s.is_pinned) onTogglePinSession(id, true)
+    } else if (overId === "trash-zone") {
+      onTrashSession(id)
+    }
+  }
+
+  const [activeArtifactDragId, setActiveArtifactDragId] = useState<
+    string | null
+  >(null)
+  const draggedArtifact = useMemo(
+    () => artifacts.find((a) => a.id === activeArtifactDragId) ?? null,
+    [artifacts, activeArtifactDragId]
+  )
+  const handleArtifactDragStart = (e: DragStartEvent) =>
+    setActiveArtifactDragId(String(e.active.id))
+  const handleArtifactDragCancel = () => setActiveArtifactDragId(null)
+  const handleArtifactDragEnd = (e: DragEndEvent) => {
+    const id = String(e.active.id)
+    const overId = e.over?.id ? String(e.over.id) : null
+    setActiveArtifactDragId(null)
+    if (overId === "artifact-trash-zone") onTrashArtifact(id)
+  }
 
   if (collapsed) {
     return (
@@ -143,24 +203,50 @@ export function Sidebar({
         >
           Chats
         </SectionHead>
-        {chatsOpen &&
-          sessions.map((s, i) => {
-            const listNumber = s.is_pinned
-              ? undefined
-              : sessions.slice(0, i).filter((x) => !x.is_pinned).length + 1
-            return (
-              <ChatRow
-                key={s.id}
-                listNumber={listNumber}
-                session={s}
-                active={s.id === activeId}
-                onSelect={() => onSelect(s.id)}
-                onDelete={() => onDeleteSession(s.id)}
-                onRename={(title) => onRenameSession(s.id, title)}
-                onTogglePin={() => onTogglePinSession(s.id, !s.is_pinned)}
-              />
-            )
-          })}
+        {chatsOpen && (
+          <DndContext
+            sensors={sensors}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+            onDragCancel={handleDragCancel}
+          >
+            <DropZone
+              id="pin-zone"
+              icon={<Pin className="h-3.5 w-3.5" />}
+              label="Drop here to pin"
+              tone="accent"
+              visible={activeDragId !== null}
+            />
+            {sessions.map((s, i) => {
+              const listNumber = s.is_pinned
+                ? undefined
+                : sessions.slice(0, i).filter((x) => !x.is_pinned).length + 1
+              return (
+                <DraggableChatRow
+                  key={s.id}
+                  listNumber={listNumber}
+                  session={s}
+                  active={s.id === activeId}
+                  isBeingDragged={activeDragId === s.id}
+                  onSelect={() => onSelect(s.id)}
+                  onDelete={() => onDeleteSession(s.id)}
+                  onRename={(title) => onRenameSession(s.id, title)}
+                  onTogglePin={() => onTogglePinSession(s.id, !s.is_pinned)}
+                />
+              )
+            })}
+            <DropZone
+              id="trash-zone"
+              icon={<Trash2 className="h-3.5 w-3.5" />}
+              label="Drop here to delete"
+              tone="danger"
+              visible={activeDragId !== null}
+            />
+            <DragOverlay dropAnimation={null}>
+              {draggedSession ? <ChatRowGhost session={draggedSession} /> : null}
+            </DragOverlay>
+          </DndContext>
+        )}
 
         <div className="h-3.5" />
 
@@ -180,14 +266,34 @@ export function Sidebar({
               Saved tables and charts appear here.
             </div>
           ) : (
-            artifacts.map((a) => (
-              <ArtifactRow
-                key={a.id}
-                artifact={a}
-                onOpen={() => onOpenArtifact(a)}
-                onDelete={() => onDeleteArtifact(a.id)}
+            <DndContext
+              sensors={sensors}
+              onDragStart={handleArtifactDragStart}
+              onDragEnd={handleArtifactDragEnd}
+              onDragCancel={handleArtifactDragCancel}
+            >
+              {artifacts.map((a) => (
+                <DraggableArtifactRow
+                  key={a.id}
+                  artifact={a}
+                  isBeingDragged={activeArtifactDragId === a.id}
+                  onOpen={() => onOpenArtifact(a)}
+                  onDelete={() => onDeleteArtifact(a.id)}
+                />
+              ))}
+              <DropZone
+                id="artifact-trash-zone"
+                icon={<Trash2 className="h-3.5 w-3.5" />}
+                label="Drop here to delete"
+                tone="danger"
+                visible={activeArtifactDragId !== null}
               />
-            ))
+              <DragOverlay dropAnimation={null}>
+                {draggedArtifact ? (
+                  <ArtifactRowGhost artifact={draggedArtifact} />
+                ) : null}
+              </DragOverlay>
+            </DndContext>
           ))}
       </div>
 
@@ -200,17 +306,36 @@ export function Sidebar({
   )
 }
 
+type ArtifactRowProps = {
+  artifact: Artifact
+  onOpen: () => void
+  onDelete: () => void
+  dragAttrs?: DraggableAttributes
+  dragListeners?: DraggableSyntheticListeners
+  dragNodeRef?: (el: HTMLDivElement | null) => void
+  isBeingDragged?: boolean
+}
+
 function ArtifactRow({
   artifact,
   onOpen,
   onDelete,
-}: {
-  artifact: Artifact
-  onOpen: () => void
-  onDelete: () => void
-}) {
+  dragAttrs,
+  dragListeners,
+  dragNodeRef,
+  isBeingDragged,
+}: ArtifactRowProps) {
   return (
-    <div className="group/row relative">
+    <div
+      ref={dragNodeRef}
+      {...(dragAttrs ?? {})}
+      {...(dragListeners ?? {})}
+      className="group/row relative"
+      style={{
+        opacity: isBeingDragged ? 0.4 : 1,
+        touchAction: dragListeners ? "none" : undefined,
+      }}
+    >
       <button
         onClick={onOpen}
         title={artifact.title}
@@ -220,6 +345,7 @@ function ArtifactRow({
           border: 0,
           color: "var(--ink)",
           fontSize: 13,
+          cursor: dragListeners ? "grab" : "pointer",
         }}
         onMouseEnter={(e) => {
           e.currentTarget.style.background = "var(--hover)"
@@ -245,6 +371,7 @@ function ArtifactRow({
           e.stopPropagation()
           onDelete()
         }}
+        onPointerDown={(e) => e.stopPropagation()}
         title="Delete"
         className="absolute top-1/2 right-1.5 -translate-y-1/2 rounded-md p-1 opacity-0 transition group-hover/row:opacity-100"
         style={{
@@ -259,25 +386,86 @@ function ArtifactRow({
   )
 }
 
-function ChatRow({
-  session,
-  listNumber,
-  active,
-  onSelect,
-  onDelete,
-  onRename,
-  onTogglePin,
-}: {
+function DraggableArtifactRow(
+  props: Omit<
+    ArtifactRowProps,
+    "dragAttrs" | "dragListeners" | "dragNodeRef"
+  > & { isBeingDragged: boolean }
+) {
+  const { attributes, listeners, setNodeRef } = useDraggable({
+    id: props.artifact.id,
+  })
+  return (
+    <ArtifactRow
+      {...props}
+      dragAttrs={attributes}
+      dragListeners={listeners}
+      dragNodeRef={setNodeRef}
+    />
+  )
+}
+
+function ArtifactRowGhost({ artifact }: { artifact: Artifact }) {
+  return (
+    <div
+      className="flex items-center gap-2 truncate rounded-md py-1.5 pr-3 pl-2.5"
+      style={{
+        background: "var(--bg-sidebar)",
+        color: "var(--ink)",
+        border: "1px solid var(--accent)",
+        boxShadow: "0 8px 18px -8px rgba(0,0,0,.35)",
+        fontSize: 13,
+        width: 240,
+        cursor: "grabbing",
+      }}
+    >
+      <span
+        className="inline-flex flex-shrink-0"
+        style={{ color: "var(--accent)" }}
+      >
+        {artifact.kind === "table" ? (
+          <Database className="h-3 w-3" />
+        ) : (
+          <Cpu className="h-3 w-3" />
+        )}
+      </span>
+      <span className="flex-1 truncate">{artifact.title}</span>
+    </div>
+  )
+}
+
+type ChatRowProps = {
   session: Session
   /** 1-based index among unpinned chats only; omitted when pinned */
   listNumber?: number
   active: boolean
+  editing: boolean
+  setEditing: (v: boolean) => void
   onSelect: () => void
   onDelete: () => void
   onRename: (title: string) => void
   onTogglePin: () => void
-}) {
-  const [editing, setEditing] = useState(false)
+  dragAttrs?: DraggableAttributes
+  dragListeners?: DraggableSyntheticListeners
+  dragNodeRef?: (el: HTMLDivElement | null) => void
+  isBeingDragged?: boolean
+}
+
+function ChatRow({
+  session,
+  listNumber,
+  active,
+  editing,
+  setEditing,
+  onSelect,
+  onDelete,
+  onRename,
+  onTogglePin,
+  dragAttrs,
+  dragListeners,
+  dragNodeRef,
+  isBeingDragged,
+}: ChatRowProps) {
   const [draft, setDraft] = useState(session.title || "")
   const inputRef = useRef<HTMLInputElement>(null)
   const isPinned = !!session.is_pinned
@@ -306,7 +494,16 @@ function ChatRow({
   }
 
   return (
-    <div className="group/row relative">
+    <div
+      ref={dragNodeRef}
+      {...(dragAttrs ?? {})}
+      {...(!editing && dragListeners ? dragListeners : {})}
+      className="group/row relative"
+      style={{
+        opacity: isBeingDragged ? 0.4 : 1,
+        touchAction: dragListeners ? "none" : undefined,
+      }}
+    >
       {editing ? (
         <input
           ref={inputRef}
@@ -346,7 +543,7 @@ function ChatRow({
               : "2px solid transparent",
             fontSize: 13.5,
             fontWeight: active ? 500 : 400,
-            cursor: "pointer",
+            cursor: dragListeners ? "grab" : "pointer",
           }}
           onMouseEnter={(e) => {
             if (!active) e.currentTarget.style.background = "var(--hover)"
@@ -383,6 +580,7 @@ function ChatRow({
           <DropdownMenuTrigger asChild>
             <button
               onClick={(e) => e.stopPropagation()}
+              onPointerDown={(e) => e.stopPropagation()}
               title="More"
               className="absolute top-1/2 right-1.5 -translate-y-1/2 rounded-md p-1 opacity-0 transition group-hover/row:opacity-100 data-[state=open]:opacity-100"
               style={{
@@ -423,6 +621,103 @@ function ChatRow({
           </DropdownMenuContent>
         </DropdownMenu>
       )}
+    </div>
+  )
+}
+
+function DraggableChatRow(
+  props: Omit<
+    ChatRowProps,
+    "dragAttrs" | "dragListeners" | "dragNodeRef" | "editing" | "setEditing"
+  > & { isBeingDragged: boolean }
+) {
+  const [editing, setEditing] = useState(false)
+  const { attributes, listeners, setNodeRef } = useDraggable({
+    id: props.session.id,
+    disabled: editing,
+  })
+  return (
+    <ChatRow
+      {...props}
+      editing={editing}
+      setEditing={setEditing}
+      dragAttrs={attributes}
+      dragListeners={listeners}
+      dragNodeRef={setNodeRef}
+    />
+  )
+}
+
+function ChatRowGhost({ session }: { session: Session }) {
+  const isPinned = !!session.is_pinned
+  return (
+    <div
+      className="flex items-center gap-1.5 truncate rounded-md py-1.5 pr-3 pl-2.5"
+      style={{
+        background: "var(--bg-sidebar)",
+        color: "var(--ink)",
+        border: "1px solid var(--accent)",
+        boxShadow: "0 8px 18px -8px rgba(0,0,0,.35)",
+        fontSize: 13.5,
+        width: 240,
+        cursor: "grabbing",
+      }}
+    >
+      {isPinned && (
+        <Pin
+          className="h-3 w-3 flex-shrink-0"
+          style={{ color: "var(--accent)" }}
+        />
+      )}
+      <span className="flex-1 truncate">{session.title || "Untitled"}</span>
+    </div>
+  )
+}
+
+function DropZone({
+  id,
+  icon,
+  label,
+  tone,
+  visible,
+}: {
+  id: string
+  icon: React.ReactNode
+  label: string
+  tone: "accent" | "danger"
+  visible: boolean
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id })
+  const color = tone === "danger" ? "var(--destructive)" : "var(--accent)"
+  return (
+    <div
+      ref={setNodeRef}
+      aria-hidden={!visible}
+      className="overflow-hidden"
+      style={{
+        maxHeight: visible ? 38 : 0,
+        marginTop: visible ? 4 : 0,
+        marginBottom: visible ? 4 : 0,
+        opacity: visible ? 1 : 0,
+        transition:
+          "max-height 160ms ease, opacity 160ms ease, margin 160ms ease",
+        pointerEvents: visible ? "auto" : "none",
+      }}
+    >
+      <div
+        className="mx-1 flex items-center justify-center gap-1.5 rounded-md py-1.5"
+        style={{
+          fontSize: 12,
+          fontWeight: 500,
+          color: isOver ? "var(--accent-foreground, #fff)" : color,
+          background: isOver ? color : "transparent",
+          border: `1px dashed ${color}`,
+          transition: "background 120ms ease, color 120ms ease",
+        }}
+      >
+        {icon}
+        <span>{label}</span>
+      </div>
     </div>
   )
 }

@@ -13,11 +13,13 @@ describe("Sidebar", () => {
     onNew: vi.fn(),
     onSearch: vi.fn(),
     onDeleteSession: vi.fn(),
+    onTrashSession: vi.fn(),
     onRenameSession: vi.fn(),
     onTogglePinSession: vi.fn(),
     artifacts: [],
     onOpenArtifact: vi.fn(),
     onDeleteArtifact: vi.fn(),
+    onTrashArtifact: vi.fn(),
   };
 
   it("renders chat rows", () => {

@@ -537,6 +537,71 @@ async def test_runner_report_step_emits_text_delta_with_artifact_links(monkeypat
 
 
 @pytest.mark.asyncio
+async def test_runner_report_persists_after_tool_messages(monkeypatch, stub_state):
+    """The report's text must persist into a TRAILING AIMessage (no tool_calls)
+    that comes AFTER the tool-call AIMessage + ToolMessages. /sessions reload
+    appends text-parts before tool-parts within a single AIMessage, so keeping
+    report text in the same AIMessage as tool_calls flips the order on reload.
+    """
+    await reset_task_tables(SavedTask, SavedArtifact)
+
+    @tool(response_format="content_and_artifact")
+    def make_table() -> tuple[str, dict]:
+        """Fake artifact tool."""
+        return ("ok", {"id": "art_persist111", "kind": "table", "title": "T"})
+
+    monkeypatch.setattr("app.tasks.runner.tool_registry.discover_tools", lambda: [make_table])
+
+    task = await _persist_task(
+        steps=[
+            TaskStep(
+                id="s1",
+                kind="tool",
+                title="Build",
+                tool="make_table",
+                args_template={},
+                output_name="t",
+                output_kind="rows",
+            ),
+            TaskStep(
+                id="s2",
+                kind="report",
+                title="Results",
+                prompt="### Results\n\n[T](artifact:{{s1.artifact_id}})\n",
+                output_name="report",
+                output_kind="text",
+            ),
+        ],
+        variables=[],
+    )
+    lc: list = []
+    await _collect(
+        run_task(
+            task,
+            {},
+            state=stub_state,
+            session_id="run-report-persist",
+            llm=FakeListChatModel(responses=["unused"]),
+            lc_messages=lc,
+        )
+    )
+
+    ai_msgs = [(i, m) for i, m in enumerate(lc) if isinstance(m, AIMessage)]
+    tool_msg_indices = [i for i, m in enumerate(lc) if isinstance(m, ToolMessage)]
+    # The first AIMessage carries tool_calls. Its content must NOT include the
+    # report body (would render above tool cards on reload).
+    _, first_ai = ai_msgs[0]
+    assert first_ai.tool_calls and first_ai.tool_calls[0]["id"] == "s1"
+    assert "[T](artifact:art_persist111)" not in (first_ai.content or "")
+    # A second AIMessage holds the report body, sitting AFTER all ToolMessages.
+    trailing = [(i, m) for i, m in ai_msgs if i > max(tool_msg_indices)]
+    assert trailing, "expected a trailing AIMessage with report text"
+    _, report_ai = trailing[0]
+    assert not (report_ai.tool_calls or [])
+    assert "[T](artifact:art_persist111)" in (report_ai.content or "")
+
+
+@pytest.mark.asyncio
 async def test_persist_task_run_checkpoint_roundtrip():
     """persist_task_run_checkpoint writes LC messages such that the AsyncSqliteSaver
     can be re-read via aget_tuple — this is what /sessions/{id}/messages relies on."""

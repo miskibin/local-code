@@ -121,4 +121,36 @@ describe("ArtifactModal", () => {
     );
     expect(screen.queryByTestId("artifact-refresh")).toBeNull();
   });
+
+  it("shows save control when onSaveArtifact is passed", async () => {
+    const onSaveArtifact = vi.fn();
+    render(
+      <ArtifactModal
+        artifact={baseArtifact}
+        saved={false}
+        onClose={vi.fn()}
+        onSaveArtifact={onSaveArtifact}
+      />,
+    );
+    await userEvent.click(screen.getByTestId("artifact-save"));
+    expect(onSaveArtifact).toHaveBeenCalledWith(baseArtifact);
+  });
+
+  it("omits save control when onSaveArtifact is absent", () => {
+    render(<ArtifactModal artifact={baseArtifact} onClose={vi.fn()} />);
+    expect(screen.queryByTestId("artifact-save")).toBeNull();
+  });
+
+  it("disables save when already saved", () => {
+    const onSaveArtifact = vi.fn();
+    render(
+      <ArtifactModal
+        artifact={baseArtifact}
+        saved
+        onClose={vi.fn()}
+        onSaveArtifact={onSaveArtifact}
+      />,
+    );
+    expect(screen.getByTestId("artifact-save")).toBeDisabled();
+  });
 });
