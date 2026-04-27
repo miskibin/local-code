@@ -7,6 +7,7 @@ from langchain_core.messages import AIMessage, AIMessageChunk, ToolMessage
 from loguru import logger
 
 from app.artifact_store import get_artifact, persist_tool_artifact
+from app.tasks import coerce_lc_content
 
 
 def sse(obj: dict) -> str:
@@ -69,7 +70,16 @@ async def stream_chat(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits w
         "tool_calls_started": 0,
         "tool_outputs": 0,
         "subagent_dispatches": 0,
+        "skipped_events": 0,
+        "empty_ai_chunks": 0,
     }
+    # Capture the last AIMessage(Chunk) terminal metadata so we can tell
+    # finish_reason (STOP / MAX_TOKENS / SAFETY / RECITATION / OTHER) and
+    # token usage at end-of-stream. Gemini Flash-Lite often returns SAFETY or
+    # MAX_TOKENS silently; without this the client just sees an empty turn.
+    last_finish_reason: str | None = None
+    last_response_metadata: dict | None = None
+    last_usage_metadata: dict | None = None
 
     def _provider_md(namespace: tuple) -> dict | None:
         # AI SDK 6 schema: providerMetadata is Record<string, Record<string, JsonValue>>.
@@ -166,8 +176,13 @@ async def stream_chat(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits w
                 chunk, meta = event
                 namespace = ()
             else:
-                logger.debug(
-                    f"stream event skipped thread={thread_id} payload_type={type(event).__name__}"
+                # Bumped from DEBUG: an unrecognised payload shape means we are
+                # silently dropping something langgraph emitted. Visible by
+                # default so we notice format drift.
+                counters["skipped_events"] += 1
+                logger.warning(
+                    f"stream event skipped thread={thread_id} payload_type={type(event).__name__} "
+                    f"repr={str(event)[:200]!r}"
                 )
                 continue
             node = (meta or {}).get("langgraph_node")
@@ -177,6 +192,34 @@ async def stream_chat(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits w
                 f"node={node} ns={list(namespace)}"
             )
 
+            # Snapshot terminal metadata only from the *parent* model node.
+            # Subagents emit their own terminal chunks (often with SAFETY /
+            # MAX_TOKENS), and conflating them with the parent turn produces
+            # false-positive ANOMALY warnings on a state the user never saw.
+            if (
+                isinstance(chunk, (AIMessage, AIMessageChunk))
+                and is_top_level
+                and node == "model"
+            ):
+                rmd = getattr(chunk, "response_metadata", None) or {}
+                if rmd:
+                    last_response_metadata = rmd
+                    fr = rmd.get("finish_reason") or rmd.get("stop_reason")
+                    if fr:
+                        last_finish_reason = str(fr)
+                umd = getattr(chunk, "usage_metadata", None)
+                if umd:
+                    last_usage_metadata = dict(umd) if not isinstance(umd, dict) else umd
+            if isinstance(chunk, (AIMessage, AIMessageChunk)):
+                if (
+                    is_top_level
+                    and node == "model"
+                    and isinstance(chunk, AIMessageChunk)
+                    and not chunk.content
+                    and not (chunk.tool_call_chunks or [])
+                ):
+                    counters["empty_ai_chunks"] += 1
+
             # First time we see events from a subgraph — lock in its parent.
             if namespace and namespace not in parent_by_namespace and current_dispatch_id:
                 parent_by_namespace[namespace] = current_dispatch_id
@@ -184,12 +227,25 @@ async def stream_chat(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits w
             if isinstance(chunk, AIMessageChunk):
                 # User-visible text only from the top-level model — subagents'
                 # internal LLM tokens stay inside their tool result.
+                # langchain-google-genai emits content as list[dict] blocks
+                # (e.g. [{"type":"text","text":"..."}, {"extras":{"signature":...}}]);
+                # the Vercel AI SDK 6 text-delta schema requires `delta: string`,
+                # so flatten via the shared helper. Empty results (signature-only
+                # blocks) are skipped to avoid opening empty text parts.
                 if is_top_level and node == "model" and chunk.content:
-                    if text_id is None:
-                        yield _open_text()
-                    yield sse({"type": "text-delta", "id": text_id, "delta": chunk.content})
-                    counters["text_chunks"] += 1
-                    last_step = "text"
+                    delta_text = coerce_lc_content(chunk.content)
+                    if delta_text:
+                        if text_id is None:
+                            yield _open_text()
+                        yield sse(
+                            {"type": "text-delta", "id": text_id, "delta": delta_text}
+                        )
+                        counters["text_chunks"] += 1
+                        last_step = "text"
+                        logger.debug(
+                            f"top_text_delta thread={thread_id} "
+                            f"chars={len(delta_text)} preview={delta_text[:120]!r}"
+                        )
 
                 for tcc in chunk.tool_call_chunks or []:
                     cid = tcc.get("id")
@@ -245,6 +301,15 @@ async def stream_chat(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits w
 
             if isinstance(chunk, ToolMessage):
                 cid = chunk.tool_call_id
+                # Diagnostic: surface tool observation length + first 300 chars of
+                # write_todos content (it accumulates "status: completed" markers
+                # which can prompt the model to emit STOP without final synthesis).
+                _tname = tool_names.get(cid or "") or getattr(chunk, "name", "")
+                _content_repr = repr(getattr(chunk, "content", ""))[:300]
+                logger.debug(
+                    f"tool_observation thread={thread_id} cid={cid} name={_tname!r} "
+                    f"len={len(_content_repr)} content={_content_repr}"
+                )
                 if cid and cid not in announced_input:
                     name = tool_names.get(cid) or getattr(chunk, "name", None) or "tool"
                     raw = tool_args_buffer.get(cid, "")
@@ -321,16 +386,44 @@ async def stream_chat(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits w
                         current_dispatch_id = None
     except asyncio.CancelledError:
         logger.warning(
-            f"stream cancelled thread={thread_id} last_step={last_step} counters={counters}"
+            f"stream cancelled thread={thread_id} last_step={last_step} counters={counters} "
+            f"finish_reason={last_finish_reason!r} usage={last_usage_metadata!r}"
         )
         raise
     except Exception as e:  # noqa: BLE001 -- protocol boundary; surface as SSE error so client gets a clean finish
+        err_text = f"{type(e).__name__}: {e}"
         logger.exception(
-            f"stream error thread={thread_id} last_step={last_step} counters={counters}"
+            f"stream error thread={thread_id} last_step={last_step} counters={counters} "
+            f"finish_reason={last_finish_reason!r} usage={last_usage_metadata!r} "
+            f"err={err_text!r}"
         )
-        yield sse({"type": "error", "errorText": str(e)})
+        logger.warning(f"stream emitting SSE error to client thread={thread_id} text={err_text!r}")
+        yield sse({"type": "error", "errorText": err_text})
     finally:
-        logger.info(f"stream end thread={thread_id} last_step={last_step} counters={counters}")
+        # Detect silent failures the upstream model gave us:
+        #   - empty turn (no text + no tool output): model returned nothing
+        #   - finish_reason == SAFETY/RECITATION/MAX_TOKENS: blocked / truncated
+        #   - orphan tool arg buffers: tool call started, never finished
+        empty_turn = counters["text_chunks"] == 0 and counters["tool_outputs"] == 0
+        orphan_tool_cids = [c for c in tool_args_buffer if c not in announced_input]
+        truncated_or_blocked = last_finish_reason and last_finish_reason.upper() not in {
+            "STOP",
+            "END_TURN",
+            "TOOL_CALLS",
+            "TOOL_USE",
+            "FUNCTION_CALL",
+        }
+        if empty_turn or truncated_or_blocked or orphan_tool_cids:
+            logger.warning(
+                f"stream end ANOMALY thread={thread_id} empty_turn={empty_turn} "
+                f"finish_reason={last_finish_reason!r} orphan_tool_cids={orphan_tool_cids} "
+                f"counters={counters} response_metadata={last_response_metadata!r} "
+                f"usage={last_usage_metadata!r}"
+            )
+        logger.info(
+            f"stream end thread={thread_id} last_step={last_step} counters={counters} "
+            f"finish_reason={last_finish_reason!r} usage={last_usage_metadata!r}"
+        )
         closed = _close_text()
         if closed:
             yield closed

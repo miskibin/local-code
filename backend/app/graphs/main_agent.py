@@ -45,10 +45,26 @@ def build_agent(
     checkpointer,
     subagents: list[dict] | None = None,
 ):
+    # The `middleware` arg below only wraps the top-level agent. Subagents
+    # dispatched through `task` build their own model-call stack and would
+    # otherwise inherit the parent tool roster — including built-ins like
+    # `ls`/`grep` that we exclude here. Without the per-subagent middleware
+    # a small model can spiral into thousands of `ls` calls before the parent
+    # ever sees a result.
+    prepared_subagents = [
+        {
+            **spec,
+            "middleware": [
+                *list(spec.get("middleware") or []),
+                _ToolExclusionMiddleware(excluded=_EXCLUDED_BUILTIN_TOOLS),
+            ],
+        }
+        for spec in (subagents or [])
+    ]
     return create_deep_agent(
         model=llm,
         tools=tools,
-        subagents=subagents or [],
+        subagents=prepared_subagents,
         system_prompt=SYSTEM_PROMPT,
         checkpointer=checkpointer,
         middleware=[_ToolExclusionMiddleware(excluded=_EXCLUDED_BUILTIN_TOOLS)],
