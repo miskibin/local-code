@@ -149,9 +149,11 @@ export function ToolCall({
             background: "var(--surface)",
           }}
         >
-          <Section label="Arguments">
-            <ArgsView args={step.args} step={step} />
-          </Section>
+          {!renderer.hideArgs && (
+            <Section label="Arguments">
+              <ArgsView args={step.args} step={step} />
+            </Section>
+          )}
           <Section label="Result">
             <ResultView result={step.result} status={status} step={step} />
           </Section>
