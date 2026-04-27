@@ -442,3 +442,96 @@ body[data-app="local-chat"] [data-slot="button"][data-variant="default"]:hover {
     --font-sans: var(--font-mono);
     }
 }
+
+/* ---- Error pages (404 / 500) -------------------------------------------- */
+[data-app="local-chat"] .lc-error {
+    overflow: hidden;
+}
+
+[data-app="local-chat"] .lc-error .mono-strip {
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--ink-3);
+    letter-spacing: .04em;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+@keyframes lc-pulse-dot {
+    0%, 100% { box-shadow: 0 0 0 3px color-mix(in oklab, var(--accent) 18%, transparent); }
+    50%      { box-shadow: 0 0 0 6px color-mix(in oklab, var(--accent)  6%, transparent); }
+}
+@keyframes lc-pulse-red {
+    0%, 100% { box-shadow: 0 0 0 3px color-mix(in oklab, var(--red) 22%, transparent); }
+    50%      { box-shadow: 0 0 0 6px color-mix(in oklab, var(--red)  6%, transparent); }
+}
+
+[data-app="local-chat"] .lc-error .pulse-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background: var(--accent);
+    animation: lc-pulse-dot 1.8s ease-in-out infinite;
+    flex-shrink: 0;
+}
+[data-app="local-chat"] .lc-error .pulse-dot.red {
+    background: var(--red);
+    animation: lc-pulse-red 1.6s ease-in-out infinite;
+}
+
+@keyframes lc-scan {
+    0%   { transform: translateY(-110%); opacity: 0; }
+    10%  { opacity: 1; }
+    90%  { opacity: 1; }
+    100% { transform: translateY(110%); opacity: 0; }
+}
+
+[data-app="local-chat"] .lc-error .numeral {
+    font-family: var(--font-serif), 'Instrument Serif', Georgia, serif;
+    font-weight: 400;
+    font-style: italic;
+    font-size: clamp(140px, 18vw, 220px);
+    line-height: .9;
+    letter-spacing: -.02em;
+    color: var(--ink);
+    position: relative;
+    display: inline-block;
+}
+[data-app="local-chat"] .lc-error .numeral::before {
+    content: '';
+    position: absolute;
+    left: -6%;
+    right: -6%;
+    top: 0;
+    height: 4px;
+    background: linear-gradient(
+        90deg,
+        transparent 0%,
+        color-mix(in oklab, var(--accent) 55%, transparent) 50%,
+        transparent 100%
+    );
+    filter: blur(1.5px);
+    animation: lc-scan 5.6s cubic-bezier(.5,0,.5,1) infinite;
+    pointer-events: none;
+}
+[data-app="local-chat"] .lc-error .numeral.red::before {
+    background: linear-gradient(
+        90deg,
+        transparent 0%,
+        color-mix(in oklab, var(--red) 55%, transparent) 50%,
+        transparent 100%
+    );
+    animation-duration: 4s;
+}
+
+[data-app="local-chat"] .lc-error kbd.key {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    padding: 1.5px 5px;
+    border: 1px solid var(--border-strong);
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    background: var(--surface);
+    color: var(--ink-2);
+}

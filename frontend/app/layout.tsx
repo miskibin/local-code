@@ -1,4 +1,4 @@
-import { Geist_Mono } from "next/font/google"
+import { Geist_Mono, Instrument_Serif } from "next/font/google"
 import Script from "next/script"
 
 import "./globals.css"
@@ -7,6 +7,12 @@ import { Toaster } from "@/components/ui/sonner"
 import { cn } from "@/lib/utils"
 
 const fontMono = Geist_Mono({ subsets: ["latin"], variable: "--font-mono" })
+const fontSerif = Instrument_Serif({
+  subsets: ["latin"],
+  weight: "400",
+  style: ["normal", "italic"],
+  variable: "--font-serif",
+})
 
 const accentBootScript = `(function(){try{var m={blue:'#2563eb',violet:'#7c3aed',emerald:'#10b981',rose:'#e11d48'};var v=localStorage.getItem('lc-accent');document.documentElement.style.setProperty('--accent-boot',m[v]||m.blue);}catch(e){}})();`
 
@@ -19,7 +25,12 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={cn("antialiased", fontMono.variable, "font-mono")}
+      className={cn(
+        "antialiased",
+        fontMono.variable,
+        fontSerif.variable,
+        "font-mono"
+      )}
     >
       <head>
         <Script
