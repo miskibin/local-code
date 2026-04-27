@@ -192,9 +192,15 @@ async def stream_chat(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits w
                 f"node={node} ns={list(namespace)}"
             )
 
-            # Snapshot terminal metadata from every AIMessage/AIMessageChunk so
-            # the *last* one we see drives end-of-stream diagnostics.
-            if isinstance(chunk, (AIMessage, AIMessageChunk)):
+            # Snapshot terminal metadata only from the *parent* model node.
+            # Subagents emit their own terminal chunks (often with SAFETY /
+            # MAX_TOKENS), and conflating them with the parent turn produces
+            # false-positive ANOMALY warnings on a state the user never saw.
+            if (
+                isinstance(chunk, (AIMessage, AIMessageChunk))
+                and is_top_level
+                and node == "model"
+            ):
                 rmd = getattr(chunk, "response_metadata", None) or {}
                 if rmd:
                     last_response_metadata = rmd
@@ -204,6 +210,7 @@ async def stream_chat(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits w
                 umd = getattr(chunk, "usage_metadata", None)
                 if umd:
                     last_usage_metadata = dict(umd) if not isinstance(umd, dict) else umd
+            if isinstance(chunk, (AIMessage, AIMessageChunk)):
                 if (
                     is_top_level
                     and node == "model"

@@ -270,6 +270,62 @@ async def test_stream_emits_output_error_for_failed_tool_message():
 
 
 @pytest.mark.asyncio
+async def test_finish_reason_capture_ignores_subagent_terminal_chunks():
+    """When a subagent emits a terminal AIMessage with finish_reason=SAFETY (or
+    similar), it must NOT overwrite the diagnostic record of the *parent*
+    model's finish_reason. Otherwise the end-of-stream ANOMALY warning fires on
+    a subagent state that doesn't reflect the user-visible turn."""
+    from langchain_core.messages import AIMessageChunk
+
+    from app import streaming as streaming_mod
+
+    captured: list[str] = []
+    orig_info = streaming_mod.logger.info
+
+    def grab(msg, *args, **kwargs):
+        captured.append(str(msg))
+        return orig_info(msg, *args, **kwargs)
+
+    streaming_mod.logger.info = grab
+    try:
+        items = [
+            # Parent model terminal chunk: STOP
+            (
+                (),
+                (
+                    AIMessageChunk(
+                        content="hello",
+                        response_metadata={"finish_reason": "STOP"},
+                    ),
+                    {"langgraph_node": "model"},
+                ),
+            ),
+            # Subagent terminal chunk: SAFETY — must not leak into parent state.
+            (
+                ("subagent:research",),
+                (
+                    AIMessageChunk(
+                        content="",
+                        response_metadata={"finish_reason": "SAFETY"},
+                    ),
+                    {"langgraph_node": "model"},
+                ),
+            ),
+        ]
+        events = []
+        async for line in streaming_mod.stream_chat(
+            graph=_FakeGraph(items), thread_id="t-fr", lc_messages=[("user", "go")]
+        ):
+            events.append(line)
+    finally:
+        streaming_mod.logger.info = orig_info
+
+    end_line = next((m for m in captured if "stream end thread=t-fr" in m), "")
+    assert "finish_reason='STOP'" in end_line, end_line
+    assert "SAFETY" not in end_line, end_line
+
+
+@pytest.mark.asyncio
 async def test_text_delta_flattens_list_dict_content_from_gemini():
     """`langchain-google-genai` yields AIMessageChunks whose `content` is a
     list[dict] like [{"type": "text", "text": "hello"}] (sometimes with extra
