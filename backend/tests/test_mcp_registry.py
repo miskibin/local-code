@@ -1,6 +1,16 @@
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+
+
+def _make_session_cm(*, fail: bool = False):
+    cm = MagicMock()
+    if fail:
+        cm.__aenter__ = AsyncMock(side_effect=RuntimeError("boom"))
+    else:
+        cm.__aenter__ = AsyncMock(return_value=MagicMock())
+    cm.__aexit__ = AsyncMock(return_value=None)
+    return cm
 
 
 @pytest.mark.asyncio
@@ -9,30 +19,20 @@ async def test_sync_from_db_loads_enabled_servers_and_isolates_failures():
     from app.models import MCPServerConfig
 
     cfgs = [
-        MCPServerConfig(
-            name="good",
-            enabled=True,
-            connection={"command": "echo", "args": [], "transport": "stdio"},
-        ),
-        MCPServerConfig(
-            name="broken",
-            enabled=True,
-            connection={"command": "doesnotexist", "args": [], "transport": "stdio"},
-        ),
-        MCPServerConfig(
-            name="off",
-            enabled=False,
-            connection={"command": "echo", "args": [], "transport": "stdio"},
-        ),
+        MCPServerConfig(name="good", enabled=True, connection={"transport": "stdio"}),
+        MCPServerConfig(name="broken", enabled=True, connection={"transport": "stdio"}),
+        MCPServerConfig(name="off", enabled=False, connection={"transport": "stdio"}),
     ]
     reg = MCPRegistry()
 
-    async def fake_load(name):
-        if name == "broken":
-            raise RuntimeError("boom")
-        return [_FakeTool(f"{name}_t1")]
+    with (
+        patch("app.mcp_registry.MultiServerMCPClient") as mock_cls,
+        patch("app.mcp_registry.load_mcp_tools", new=AsyncMock(return_value=[_FakeTool("good_t1")])),
+    ):
+        mock_client = MagicMock()
+        mock_cls.return_value = mock_client
+        mock_client.session = lambda name: _make_session_cm(fail=(name == "broken"))
 
-    with patch.object(reg, "_load_one", new=AsyncMock(side_effect=fake_load)):
         await reg.sync_from_db(cfgs)
 
     names = [t.name for t in reg.tools]

@@ -8,9 +8,11 @@ from loguru import logger
 
 class MCPRegistry:
     def __init__(self) -> None:
-        self.client = MultiServerMCPClient(connections={})
         self._tools: list[BaseTool] = []
         self._lock = asyncio.Lock()
+        # Context managers for open sessions; kept alive so tools can call back
+        # into the MCP server after startup. Closed on next sync_from_db.
+        self._session_cms: list = []
 
     @property
     def tools(self) -> list[BaseTool]:
@@ -18,24 +20,28 @@ class MCPRegistry:
 
     async def sync_from_db(self, configs: list) -> None:
         async with self._lock:
-            self.client.connections = {
-                c.name: c.connection for c in configs if c.enabled
-            }
-            logger.info(f"mcp sync: {len(self.client.connections)} enabled servers")
-            new_tools: list[BaseTool] = []
-            for name in list(self.client.connections):
+            for cm in self._session_cms:
                 try:
-                    new_tools.extend(await self._load_one(name))
-                except Exception as e:  # noqa: BLE001 -- skip unreachable server, keep loading the rest
-                    logger.warning(f"MCP server {name!r} unavailable: {e}")
-            self._tools = new_tools
-            n_servers = len(self.client.connections)
-            logger.info(
-                f"mcp sync done: {len(new_tools)} tools across {n_servers} servers"
-            )
+                    await cm.__aexit__(None, None, None)
+                except Exception:  # noqa: BLE001
+                    pass
+            self._session_cms = []
 
-    async def _load_one(self, name: str) -> list[BaseTool]:
-        async with self.client.session(name) as session:
-            tools = await load_mcp_tools(session)
-        logger.debug(f"mcp server {name!r}: loaded {len(tools)} tools")
-        return tools
+            enabled = {c.name: c.connection for c in configs if c.enabled}
+            logger.info(f"mcp sync: {len(enabled)} enabled servers")
+
+            client = MultiServerMCPClient(connections=enabled)
+            new_tools: list[BaseTool] = []
+            for name in list(enabled):
+                try:
+                    cm = client.session(name)
+                    session = await cm.__aenter__()
+                    self._session_cms.append(cm)
+                    tools = await load_mcp_tools(session)
+                    new_tools.extend(tools)
+                    logger.debug(f"mcp server {name!r}: loaded {len(tools)} tools")
+                except Exception as e:  # noqa: BLE001 -- skip unreachable server
+                    logger.warning(f"MCP server {name!r} unavailable: {e}")
+
+            self._tools = new_tools
+            logger.info(f"mcp sync done: {len(new_tools)} tools across {len(enabled)} servers")

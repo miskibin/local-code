@@ -3,12 +3,19 @@ from contextlib import asynccontextmanager
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.pool import NullPool
 from sqlmodel import SQLModel
 
 from app import models  # noqa: F401  ensure metadata registered
 from app.config import get_settings
 
-engine = create_async_engine(get_settings().app_db_url, future=True)
+_db_url = get_settings().app_db_url
+# NullPool for file-based SQLite: each session owns its connection so the pool
+# never tries to terminate a connection inside a cancelled task scope
+# (aiosqlite raises CancelledError / "Connection closed" otherwise).
+# In-memory SQLite must NOT use NullPool — each connection would be a fresh DB.
+_pool_kwargs = {} if ":memory:" in _db_url else {"poolclass": NullPool}
+engine = create_async_engine(_db_url, future=True, **_pool_kwargs)
 _sessionmaker = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 
