@@ -14,7 +14,7 @@ import {
   contentBlocksToPlainText,
   UserMessage,
 } from "./Messages"
-import type { AssistantMsg, ContentBlock } from "./Messages"
+import type { AssistantMsg, ContentBlock, UserAttachment } from "./Messages"
 import { GeneratingTaskModal } from "./tasks/GeneratingTaskModal"
 import {
   ArtifactRefsProvider,
@@ -55,6 +55,13 @@ export type UsageDataPart = {
   durationMs?: number
   contextMaxTokens?: number
   modelId?: string
+}
+
+function extractSummaryFired(parts: AnyPart[]): boolean {
+  for (const p of parts) {
+    if (p.type === "data-summary") return true
+  }
+  return false
 }
 
 function extractUsage(parts: AnyPart[]): UsageDataPart | null {
@@ -516,6 +523,9 @@ export function ChatView({
   const messagesRef = useRef<{ role: string }[]>([])
   const resumePendingRef = useRef(false)
   const pendingAttachmentsRef = useRef<Artifact[]>([])
+  const [userAttachments, setUserAttachments] = useState<
+    Record<string, UserAttachment[]>
+  >({})
   const { messages, sendMessage, regenerate, setMessages, status, stop } =
     useChat({
       id: sessionId,
@@ -694,7 +704,36 @@ export function ChatView({
   const send = (text: string, attachments: Artifact[] = []) => {
     setStreamFault(null)
     pendingAttachmentsRef.current = attachments
-    sendMessage({ text })
+    if (attachments.length > 0) {
+      const id =
+        typeof crypto !== "undefined" && "randomUUID" in crypto
+          ? crypto.randomUUID()
+          : `m_${Math.random().toString(36).slice(2)}${Date.now().toString(36)}`
+      const ua: UserAttachment[] = attachments.map((a) => ({
+        artifactId: a.id,
+        mediaType:
+          (a.payload as { mime?: string } | undefined)?.mime ??
+          (a.kind === "image"
+            ? "image/png"
+            : a.kind === "table"
+              ? "text/csv"
+              : "text/plain"),
+        name: a.title,
+      }))
+      setUserAttachments((prev) => ({ ...prev, [id]: ua }))
+      setArtifactCache((prev) => {
+        const next = { ...prev }
+        for (const a of attachments) next[a.id] = a
+        return next
+      })
+      sendMessage({
+        id,
+        role: "user",
+        parts: [{ type: "text", text }],
+      })
+    } else {
+      sendMessage({ text })
+    }
   }
 
   const submitQuizAnswer = (toolCallId: string, value: string) => {
@@ -828,6 +867,8 @@ export function ChatView({
                       <UserMessage
                         key={m.id}
                         text={text}
+                        attachments={userAttachments[m.id]}
+                        onOpenAttachment={artifactRefs.onOpen}
                         onEdit={
                           streaming
                             ? undefined
@@ -842,12 +883,14 @@ export function ChatView({
                     .map((id) => artifactCache[id])
                     .filter((a): a is Artifact => !!a)
                   const usage = extractUsage(parts) ?? undefined
+                  const summaryFired = extractSummaryFired(parts)
                   const msg: AssistantMsg = {
                     id: m.id,
                     contentBlocks,
                     artifacts:
                       liveArtifacts.length > 0 ? liveArtifacts : undefined,
                     usage,
+                    summaryFired,
                   }
                   return (
                     <AssistantMessage

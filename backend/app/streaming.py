@@ -36,6 +36,34 @@ def _coerce_output(content) -> object:
     return str(content)
 
 
+async def _read_summary_cutoff(checkpointer, thread_id: str) -> int | None:
+    """Snapshot `_summarization_event.cutoff_index` from the checkpoint, or None.
+
+    Uses the raw checkpointer rather than `graph.aget_state` because the
+    summarization event is a `PrivateStateAttr` and may be filtered out of
+    the StateSnapshot exposed by the runnable.
+    """
+    if checkpointer is None:
+        return None
+    try:
+        tup = await checkpointer.aget_tuple({"configurable": {"thread_id": thread_id}})
+    except Exception as e:  # noqa: BLE001 -- best-effort diagnostic, never crash stream
+        logger.debug(f"summary snapshot fail thread={thread_id} err={e!r}")
+        return None
+    if tup is None:
+        return None
+    cp = getattr(tup, "checkpoint", None)
+    if not isinstance(cp, dict):
+        return None
+    channel_values = cp.get("channel_values") or {}
+    evt = channel_values.get("_summarization_event")
+    if isinstance(evt, dict):
+        idx = evt.get("cutoff_index")
+        if isinstance(idx, int):
+            return idx
+    return None
+
+
 async def stream_chat(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits would fragment SSE state
     *,
     graph,
@@ -45,11 +73,13 @@ async def stream_chat(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits w
     resume_value: object = None,
     context_max_tokens: int | None = None,
     model_id: str | None = None,
+    checkpointer=None,
 ) -> AsyncIterator[str]:
     msg_id = f"msg_{uuid4().hex}"
     logger.info(f"stream start thread={thread_id} msg_id={msg_id} input_msgs={len(lc_messages)}")
     yield sse({"type": "start", "messageId": msg_id})
     yield sse({"type": "start-step"})
+    pre_summary_cutoff = await _read_summary_cutoff(checkpointer, thread_id)
 
     # Each top-level text run gets its own id so the AI SDK keeps it as a
     # separate part. Reusing one id across tool calls makes the SDK merge all
@@ -466,6 +496,25 @@ async def stream_chat(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits w
                 "data": usage_data,
             }
         )
+        # Detect auto-summarization (or `compact_conversation` tool call): the
+        # cutoff_index moves forward when SummarizationMiddleware compacts the
+        # history. Surface it once per turn so the UI can render a notice.
+        post_summary_cutoff = await _read_summary_cutoff(checkpointer, thread_id)
+        if post_summary_cutoff is not None and post_summary_cutoff != pre_summary_cutoff:
+            logger.info(
+                f"summary fired thread={thread_id} "
+                f"prev_cutoff={pre_summary_cutoff} new_cutoff={post_summary_cutoff}"
+            )
+            yield sse(
+                {
+                    "type": "data-summary",
+                    "id": f"summary_{msg_id}",
+                    "data": {
+                        "cutoffIndex": post_summary_cutoff,
+                        "previousCutoffIndex": pre_summary_cutoff,
+                    },
+                }
+            )
         yield sse({"type": "finish-step"})
         yield sse({"type": "finish"})
         yield "data: [DONE]\n\n"

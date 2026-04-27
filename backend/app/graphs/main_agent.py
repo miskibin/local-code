@@ -166,7 +166,7 @@ def default_subagents() -> list[dict]:
 
 
 def build_ollama_llm(settings, *, model: str) -> BaseChatModel:
-    return ChatOllama(
+    llm = ChatOllama(
         model=model,
         base_url=settings.ollama_base_url,
         num_ctx=settings.num_ctx,
@@ -176,6 +176,15 @@ def build_ollama_llm(settings, *, model: str) -> BaseChatModel:
         reasoning=False,
         keep_alive=settings.keep_alive,
     )
+    # deepagents' SummarizationMiddleware uses model.profile.max_input_tokens
+    # to pick a fraction-based trigger (~85%); without it, the fallback is a
+    # fixed 170k threshold that never fires for a small local context. Wire
+    # the configured num_ctx in so auto-compaction triggers near the limit.
+    try:
+        llm.profile = {"max_input_tokens": int(settings.num_ctx)}
+    except Exception:  # noqa: BLE001 -- profile is best-effort metadata
+        pass
+    return llm
 
 
 def build_gemini_llm(settings, *, model: str) -> BaseChatModel:

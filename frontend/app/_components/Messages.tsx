@@ -278,6 +278,7 @@ export type AssistantMsg = {
   contentBlocks: ContentBlock[]
   artifacts?: Artifact[]
   usage?: { inputTokens: number; outputTokens: number; durationMs?: number }
+  summaryFired?: boolean
 }
 
 export function formatTokens(n: number): string {
@@ -359,6 +360,20 @@ export function AssistantMessage({
   const showThinking = streaming && isLast && !plainText
   return (
     <div style={{ marginBottom: "var(--density-msg-gap)" }}>
+      {msg.summaryFired && (
+        <div
+          className="mb-2 inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[11.5px]"
+          style={{
+            background: "var(--amber-soft, #fef3c7)",
+            color: "var(--amber, #b45309)",
+            border: "1px solid var(--amber, #f59e0b)",
+          }}
+          title="Older messages were summarized to free context space"
+        >
+          <span>🗜</span>
+          <span>Conversation auto-compacted</span>
+        </div>
+      )}
       <div
         className="max-w-full text-[15px]"
         style={{ color: "var(--ink)", lineHeight: "var(--density-line)" }}

@@ -1,39 +1,46 @@
 
 import sqlite3
 from datetime import datetime
+import sys
 
-DB_PATH = 'Chinook.db'
+DB_PATH = "chinook.db"
 
-TOP_GENRES_QUERY = """
-SELECT g.Name AS Genre, COUNT(il.InvoiceLineId) AS TotalSales
-FROM Genre g
-JOIN Track t ON g.GenreId = t.GenreId
-JOIN InvoiceLine il ON t.TrackId = il.TrackId
-GROUP BY g.GenreId
-ORDER BY TotalSales DESC;
-"""
+def run_job():
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
 
-def run_daily_update():
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+        # Ensure table exists
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS daily_genres (
+                run_date TIMESTAMP,
+                genre_name TEXT,
+                total_sales INTEGER
+            )
+        """)
 
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS daily_genres (
-            date TEXT,
-            genre TEXT,
-            total_sales INTEGER
-        )
-    """)
+        # Query top genres
+        query = """
+            SELECT g.Name, SUM(il.Quantity) as TotalSales
+            FROM Genre g
+            JOIN Track t ON g.GenreId = t.GenreId
+            JOIN InvoiceLine il ON t.TrackId = il.TrackId
+            GROUP BY g.Name
+            ORDER BY TotalSales DESC
+        """
+        results = cursor.execute(query).fetchall()
 
-    results = cursor.execute(TOP_GENRES_QUERY).fetchall()
+        # Insert results
+        now = datetime.now()
+        for genre, sales in results:
+            cursor.execute("INSERT INTO daily_genres VALUES (?, ?, ?)", (now, genre, sales))
 
-    today = datetime.now().strftime('%Y-%m-%d')
-    for row in results:
-        cursor.execute("INSERT INTO daily_genres VALUES (?, ?, ?)", (today, row[0], row[1]))
-
-    conn.commit()
-    print(f"{datetime.now()}: Inserted {len(results)} rows for {today}")
-    conn.close()
+        conn.commit()
+        print(f"[{now}] Successfully logged {len(results)} rows to daily_genres.")
+        conn.close()
+    except Exception as e:
+        print(f"[{datetime.now()}] Error: {e}", file=sys.stderr)
+        sys.exit(1)
 
 if __name__ == "__main__":
-    run_daily_update()
+    run_job()

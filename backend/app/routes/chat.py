@@ -126,11 +126,12 @@ async def chat(req: ChatRequest, request: Request):
                 resume_value=req.resume.value,
                 context_max_tokens=ctx_max,
                 model_id=req.model,
+                checkpointer=state.checkpointer,
             ),
             media_type="text/event-stream",
             headers=_STREAM_HEADERS,
         )
-    lc_messages = await req.to_lc_messages()
+    lc_messages = await req.to_lc_messages(last_only=not req.reset)
     return StreamingResponse(
         stream_chat(
             graph=graph,

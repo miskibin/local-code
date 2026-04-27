@@ -52,9 +52,10 @@ class ChatRequest(BaseModel):
     task_run: TaskRunSpec | None = None
     resume: ResumeSpec | None = None
 
-    async def to_lc_messages(self) -> list[BaseMessage]:
+    async def to_lc_messages(self, *, last_only: bool = False) -> list[BaseMessage]:
+        msgs = self.messages[-1:] if last_only and self.messages else self.messages
         out: list[BaseMessage] = []
-        for m in self.messages:
+        for m in msgs:
             blocks: list[dict[str, Any]] = []
             text_buf: list[str] = []
             for part in m.parts:
