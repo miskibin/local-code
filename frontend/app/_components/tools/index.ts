@@ -1,4 +1,5 @@
 import { pythonExecRenderer } from "./python-exec";
+import { readFileRenderer } from "./read-file";
 import { webFetchRenderer } from "./web-fetch";
 import type { ToolRenderer } from "./types";
 
@@ -15,6 +16,7 @@ import type { ToolRenderer } from "./types";
  */
 const REGISTRY: Record<string, ToolRenderer> = {
   python_exec: pythonExecRenderer,
+  read_file: readFileRenderer,
   web_fetch: webFetchRenderer,
 };
 
