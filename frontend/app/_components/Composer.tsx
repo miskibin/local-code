@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  ArrowUp,
   Database,
   FileText,
   ImageIcon,
@@ -192,28 +191,47 @@ export function Composer({
               <button
                 onClick={onStop}
                 title="Stop"
-                className="grid h-8 w-8 place-items-center rounded-full text-white"
+                className="inline-flex items-center justify-center gap-1.5 transition"
                 style={{
+                  height: 28,
+                  minWidth: 44,
+                  padding: "0 10px",
+                  borderRadius: 6,
+                  fontFamily: "var(--font-mono)",
                   background: "var(--ink)",
-                  border: 0,
+                  border: "1px solid var(--ink)",
+                  color: "#fff",
                   cursor: "pointer",
                 }}
               >
-                <Square className="h-3 w-3" />
+                <Square
+                  className="h-2.5 w-2.5"
+                  style={{ fill: "currentColor" }}
+                />
+                <span style={{ fontSize: 11 }}>stop</span>
               </button>
             ) : (
               <button
                 onClick={submit}
                 disabled={!canSend}
-                title="Send"
-                className="grid h-8 w-8 place-items-center rounded-full text-white transition"
+                title="Send (Enter)"
+                className="inline-flex items-center justify-center gap-1.5 transition"
                 style={{
-                  background: canSend ? "var(--accent)" : "var(--hover-strong)",
-                  border: 0,
+                  height: 28,
+                  minWidth: 44,
+                  padding: "0 10px",
+                  borderRadius: 6,
+                  fontFamily: "var(--font-mono)",
+                  background: canSend ? "var(--accent)" : "transparent",
+                  border: canSend
+                    ? "1px solid var(--accent)"
+                    : "1px solid var(--border)",
+                  color: canSend ? "#fff" : "var(--ink-3)",
                   cursor: canSend ? "pointer" : "not-allowed",
                 }}
               >
-                <ArrowUp className="h-4 w-4" />
+                <span style={{ fontSize: 13 }}>↵</span>
+                <span style={{ fontSize: 11 }}>send</span>
               </button>
             )}
           </div>
