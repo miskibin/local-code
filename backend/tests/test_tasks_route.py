@@ -85,6 +85,77 @@ async def test_tasks_crud_and_export_import():
 
 
 @pytest.mark.asyncio
+async def test_marketplace_fields_round_trip():
+    """tags / role / creator survive import → list → get → update."""
+    from sqlmodel import delete
+
+    from app.db import async_session, init_db
+    from app.main import create_app
+    from app.models import SavedTask
+
+    app = create_app()
+    await init_db()
+    async with async_session() as s:
+        await s.execute(delete(SavedTask))
+        await s.commit()
+
+    transport = ASGITransport(app=app)
+    try:
+        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+            payload = {
+                "id": "",
+                "title": "Standup digest",
+                "description": "Daily slack digest.",
+                "variables": [],
+                "steps": [],
+                "tags": ["slack", "standup", "daily"],
+                "role": "local-po",
+                "creator": "maya@example.com",
+            }
+            r = await ac.post("/tasks/import", json=payload)
+            assert r.status_code == 200, r.text
+            created = r.json()
+            tid = created["id"]
+            assert created["tags"] == ["slack", "standup", "daily"]
+            assert created["role"] == "local-po"
+            assert created["creator"] == "maya@example.com"
+
+            listed = (await ac.get("/tasks")).json()
+            row = next(x for x in listed if x["id"] == tid)
+            assert row["tags"] == ["slack", "standup", "daily"]
+            assert row["role"] == "local-po"
+            assert row["creator"] == "maya@example.com"
+
+            full = (await ac.get(f"/tasks/{tid}")).json()
+            updated = {**full, "tags": ["slack"], "creator": "ben@example.com"}
+            r2 = await ac.put(f"/tasks/{tid}", json=updated)
+            assert r2.status_code == 200
+            after = r2.json()
+            assert after["tags"] == ["slack"]
+            assert after["creator"] == "ben@example.com"
+            assert after["role"] == "local-po"
+
+            # Older payload without the new fields still imports cleanly.
+            legacy = {
+                "id": "",
+                "title": "Legacy",
+                "description": "",
+                "variables": [],
+                "steps": [],
+            }
+            r3 = await ac.post("/tasks/import", json=legacy)
+            assert r3.status_code == 200
+            legacy_row = r3.json()
+            assert legacy_row["tags"] == []
+            assert legacy_row["role"] is None
+            assert legacy_row["creator"] is None
+    finally:
+        async with async_session() as s:
+            await s.execute(delete(SavedTask))
+            await s.commit()
+
+
+@pytest.mark.asyncio
 async def test_update_missing_returns_404():
     from sqlmodel import delete
 

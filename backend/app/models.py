@@ -59,5 +59,8 @@ class SavedTask(SQLModel, table=True):
     source_session_id: str | None = None
     variables: list[dict[str, Any]] = Field(sa_column=Column(JSON), default_factory=list)
     steps: list[dict[str, Any]] = Field(sa_column=Column(JSON), default_factory=list)
+    tags: list[str] = Field(sa_column=Column(JSON), default_factory=list)
+    role: str | None = None
+    creator: str | None = None
     created_at: datetime = Field(default_factory=_now_utc)
     updated_at: datetime = Field(default_factory=_now_utc)

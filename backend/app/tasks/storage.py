@@ -29,6 +29,9 @@ def to_dto(row: SavedTask) -> TaskDTO:
             "source_session_id": row.source_session_id,
             "variables": row.variables,
             "steps": row.steps,
+            "tags": row.tags or [],
+            "role": row.role,
+            "creator": row.creator,
             "created_at": row.created_at,
             "updated_at": row.updated_at,
         }
@@ -44,6 +47,9 @@ def to_row(dto: TaskDTO) -> SavedTask:
         source_session_id=dto.source_session_id,
         variables=[v.model_dump() for v in dto.variables],
         steps=[s.model_dump() for s in dto.steps],
+        tags=list(dto.tags or []),
+        role=dto.role,
+        creator=dto.creator,
         created_at=dto.created_at or now,
         updated_at=now,
     )
@@ -78,6 +84,9 @@ async def upsert_task(dto: TaskDTO) -> SavedTask:
         existing.source_session_id = dto.source_session_id
         existing.variables = [v.model_dump() for v in dto.variables]
         existing.steps = [s_.model_dump() for s_ in dto.steps]
+        existing.tags = list(dto.tags or [])
+        existing.role = dto.role
+        existing.creator = dto.creator
         existing.updated_at = _now()
         s.add(existing)
         await s.commit()

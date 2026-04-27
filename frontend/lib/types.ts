@@ -160,6 +160,9 @@ export type SavedTask = {
   source_session_id?: string | null
   variables: TaskVariable[]
   steps: TaskStep[]
+  tags?: string[]
+  role?: string | null
+  creator?: string | null
   created_at?: string | null
   updated_at?: string | null
 }
@@ -168,6 +171,9 @@ export type TaskListItem = {
   id: string
   title: string
   description: string
+  tags?: string[]
+  role?: string | null
+  creator?: string | null
   updated_at?: string | null
 }
 
