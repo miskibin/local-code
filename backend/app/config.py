@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     ollama_base_url: str = "http://localhost:11434"
-    num_ctx: int = 32768
+    num_ctx: int = 16384
     keep_alive: int = -1
     temperature: float = 0.2
     top_p: float = 0.95

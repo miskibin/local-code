@@ -1,3 +1,4 @@
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -8,6 +9,12 @@ from loguru import logger
 from sqlmodel import select
 
 from app.config import get_settings
+
+_settings_for_env = get_settings()
+if _settings_for_env.langfuse_secret_key:
+    os.environ.setdefault("LANGFUSE_SECRET_KEY", _settings_for_env.langfuse_secret_key)
+    os.environ.setdefault("LANGFUSE_PUBLIC_KEY", _settings_for_env.langfuse_public_key)
+    os.environ.setdefault("LANGFUSE_BASE_URL", _settings_for_env.langfuse_base_url)
 from app.db import async_session, init_db
 from app.mcp_registry import MCPRegistry
 from app.models import MCPServerConfig
@@ -29,6 +36,21 @@ async def lifespan(app: FastAPI):
     setup_logging(settings.log_level)
     logger.info(f"log_level={settings.log_level} base_url={settings.ollama_base_url}")
     await init_db()
+    # Seed built-in MCP servers on first run (idempotent).
+    _langchain_docs_connection = {
+        "transport": "streamable_http",
+        "url": "https://docs.langchain.com/mcp",
+    }
+    _broken_stdio = {"transport": "stdio", "command": "uvx", "args": ["langchain-docs-mcp"]}
+    async with async_session() as s:
+        existing = await s.get(MCPServerConfig, "langchain-docs")
+        if existing is None:
+            s.add(MCPServerConfig(name="langchain-docs", enabled=True, connection=_langchain_docs_connection))
+            await s.commit()
+        elif existing.connection == _broken_stdio:
+            existing.connection = _langchain_docs_connection
+            s.add(existing)
+            await s.commit()
     # Warm the cached Chinook schema off the request path; default_subagents()
     # bakes it into the sql-agent system prompt and is called per /chat turn.
     schema_blob()

@@ -239,10 +239,7 @@ async def stream_chat(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits w
                 continue
             node = (meta or {}).get("langgraph_node")
             is_top_level = not namespace
-            logger.debug(
-                f"event thread={thread_id} kind={type(chunk).__name__} "
-                f"node={node} ns={list(namespace)}"
-            )
+
 
             # Snapshot terminal metadata only from the *parent* model node.
             # Subagents emit their own terminal chunks (often with SAFETY /
@@ -300,10 +297,7 @@ async def stream_chat(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits w
                         yield sse({"type": "text-delta", "id": text_id, "delta": delta_text})
                         counters["text_chunks"] += 1
                         last_step = "text"
-                        logger.debug(
-                            f"top_text_delta thread={thread_id} "
-                            f"chars={len(delta_text)} preview={delta_text[:120]!r}"
-                        )
+
 
                 for tcc in chunk.tool_call_chunks or []:
                     cid = tcc.get("id")
@@ -493,11 +487,18 @@ async def stream_chat(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits w
         if langfuse_handler is not None:
             trace_id = getattr(langfuse_handler, "last_trace_id", None)
             if trace_id:
+                from langfuse import get_client
+
+                trace_url = get_client().get_trace_url(trace_id=trace_id)
                 yield sse(
                     {
                         "type": "data-trace",
                         "id": f"trace_{msg_id}",
-                        "data": {"traceId": trace_id, "messageId": ai_message_id},
+                        "data": {
+                            "traceId": trace_id,
+                            "messageId": ai_message_id,
+                            "traceUrl": trace_url,
+                        },
                     }
                 )
                 if ai_message_id and session_id:

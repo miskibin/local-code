@@ -75,15 +75,20 @@ function extractUsage(parts: AnyPart[]): UsageDataPart | null {
   return null
 }
 
-export type TraceDataPart = { traceId: string; messageId?: string }
+export type TraceDataPart = {
+  traceId: string
+  messageId?: string
+  traceUrl?: string
+  feedback?: 0 | 1
+}
 
-function extractTraceId(parts: AnyPart[]): string | null {
+function extractTrace(parts: AnyPart[]): TraceDataPart | null {
   for (let i = parts.length - 1; i >= 0; i--) {
     const p = parts[i]
     if (p.type !== "data-trace") continue
     const d = p.data as TraceDataPart | undefined
     if (!d?.traceId) continue
-    return d.traceId
+    return d
   }
   return null
 }
@@ -897,7 +902,8 @@ export function ChatView({
                     .filter((a): a is Artifact => !!a)
                   const usage = extractUsage(parts) ?? undefined
                   const summaryFired = extractSummaryFired(parts)
-                  const traceId = extractTraceId(parts) ?? undefined
+                  const trace = extractTrace(parts)
+                  const traceId = trace?.traceId
                   const msg: AssistantMsg = {
                     id: m.id,
                     contentBlocks,
@@ -906,6 +912,8 @@ export function ChatView({
                     usage,
                     summaryFired,
                     traceId,
+                    traceUrl: trace?.traceUrl,
+                    initialFeedback: trace?.feedback,
                   }
                   return (
                     <AssistantMessage

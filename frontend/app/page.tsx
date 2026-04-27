@@ -1,10 +1,6 @@
-import { Suspense } from "react";
-import { ChatShell } from "./_components/ChatShell";
+import { redirect } from "next/navigation"
+import { nanoid } from "nanoid"
 
 export default function Page() {
-  return (
-    <Suspense fallback={null}>
-      <ChatShell />
-    </Suspense>
-  );
+  redirect(`/chat/${nanoid()}`)
 }

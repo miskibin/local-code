@@ -4,6 +4,7 @@ import {
   Check,
   Cpu,
   Database,
+  Download,
   Image as ImageIcon,
   Plus,
   RotateCw,
@@ -12,7 +13,10 @@ import { createContext, useContext, useState, type ReactNode } from "react"
 import { toast } from "sonner"
 import type { Artifact, ArtifactImagePayload } from "@/lib/types"
 
-import { ARTIFACT_IMAGE_PREVIEW_MAX_PX } from "./ArtifactImage"
+import {
+  ARTIFACT_IMAGE_PREVIEW_MAX_PX,
+  downloadImagePng,
+} from "./ArtifactImage"
 import { ArtifactCard } from "./Artifact"
 
 export type ToolArtifactRef = {
@@ -150,6 +154,25 @@ function InlineArtifactImage({
         >
           {artifact.title}
         </span>
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            downloadImagePng(payload, artifact.title)
+          }}
+          title="Download PNG"
+          aria-label="Download PNG"
+          className="inline-flex items-center justify-center rounded-md p-1.5 transition"
+          style={{
+            background: "transparent",
+            border: "1px solid var(--border)",
+            color: "var(--ink-2)",
+            cursor: "pointer",
+          }}
+          data-testid="artifact-image-download-png"
+        >
+          <Download className="h-3.5 w-3.5" />
+        </button>
         {canRefresh && refs?.onTableRefresh ? (
           <button
             type="button"
@@ -166,24 +189,20 @@ function InlineArtifactImage({
               }
             }}
             disabled={refreshing}
-            title="Re-run and refresh"
+            title="Re-run the source script and update the payload"
+            className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 text-[12px] transition disabled:opacity-50"
             style={{
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              width: 28,
-              height: 28,
-              borderRadius: 6,
-              border: "1px solid var(--border)",
-              background: "transparent",
-              color: "var(--ink-2)",
+              background: "var(--accent)",
+              color: "var(--accent-foreground)",
+              border: 0,
               cursor: refreshing ? "default" : "pointer",
-              opacity: refreshing ? 0.5 : 1,
             }}
+            data-testid="artifact-image-inline-refresh"
           >
             <RotateCw
               className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`}
             />
+            {refreshing ? "…" : "Refresh"}
           </button>
         ) : null}
         {refs?.onSave ? (
@@ -195,23 +214,24 @@ function InlineArtifactImage({
             }}
             disabled={saved}
             title={saved ? "Saved" : "Save artifact"}
+            className="inline-flex items-center gap-1.5 rounded-md px-2.5 py-1 transition"
             style={{
-              display: "inline-flex",
-              alignItems: "center",
-              justifyContent: "center",
-              width: 28,
-              height: 28,
-              borderRadius: 6,
-              border: "1px solid var(--border)",
               background: saved ? "transparent" : "var(--accent)",
               color: saved ? "var(--ink-2)" : "var(--accent-foreground)",
+              fontSize: 12,
+              fontWeight: 500,
+              border: saved ? "1px solid var(--border)" : 0,
               cursor: saved ? "default" : "pointer",
             }}
           >
             {saved ? (
-              <Check className="h-3.5 w-3.5" />
+              <>
+                <Check className="h-3 w-3" /> Saved
+              </>
             ) : (
-              <Plus className="h-3.5 w-3.5" />
+              <>
+                <Plus className="h-3 w-3" /> Save
+              </>
             )}
           </button>
         ) : null}

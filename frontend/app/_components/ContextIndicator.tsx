@@ -78,11 +78,14 @@ export function ContextIndicator({
   if (rawMax <= 0) return null
   const cappedMax = Math.min(rawMax, HARD_CAP_TOKENS)
   const overCap = rawMax > HARD_CAP_TOKENS
-  const used = usage?.inputTokens ?? 0
+  const reported = usage?.inputTokens ?? 0
+  // Ollama silently truncates anything past num_ctx, so the model never
+  // actually sees more than `cappedMax` tokens in one turn. Clamp display
+  // to reality instead of showing >100% phantom usage.
+  const used = Math.min(reported, cappedMax)
+  const truncated = reported > cappedMax
   const ratio = used / cappedMax
-  const overflow = ratio > 1
   const visualRatio = Math.min(1, ratio)
-  const summaryThreshold = Math.round(cappedMax * AUTO_SUMMARY_FRACTION)
   return (
     <HoverCard openDelay={0} closeDelay={0}>
       <HoverCardTrigger asChild>
@@ -91,7 +94,7 @@ export function ContextIndicator({
           aria-label="Context usage"
           className="inline-flex h-6 w-6 items-center justify-center rounded-full transition hover:bg-muted"
           style={{
-            color: overflow
+            color: truncated
               ? "var(--red, #dc2626)"
               : ratio >= AUTO_SUMMARY_FRACTION
                 ? "var(--amber, #d97706)"
@@ -113,7 +116,7 @@ export function ContextIndicator({
             className="h-full rounded-full transition-[width]"
             style={{
               width: `${visualRatio * 100}%`,
-              background: overflow
+              background: truncated
                 ? "var(--red, #dc2626)"
                 : ratio >= AUTO_SUMMARY_FRACTION
                   ? "var(--amber, #d97706)"
@@ -121,13 +124,10 @@ export function ContextIndicator({
             }}
           />
         </div>
-        <p className="mt-2 text-[11px] text-muted-foreground">
-          Auto-summary fires near {compact.format(summaryThreshold)} tokens
-          (~85%).
-        </p>
-        {overflow ? (
-          <p className="mt-1 text-[11px]" style={{ color: "var(--red)" }}>
-            Over budget. Compaction should trigger on the next turn.
+        {truncated ? (
+          <p className="mt-2 text-[11px]" style={{ color: "var(--red)" }}>
+            Last turn reported {compact.format(reported)} tokens — beyond
+            num_ctx, so older messages were dropped by the runtime.
           </p>
         ) : null}
         {overCap ? (

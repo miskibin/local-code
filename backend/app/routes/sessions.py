@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from sqlmodel import select
 
 from app.artifact_store import get_artifact
+from app.config import get_settings
 from app.db import async_session
 from app.models import ChatSession, MessageTrace
 
@@ -166,6 +167,23 @@ async def get_messages(sid: str, request: Request):  # noqa: PLR0912, PLR0915 --
         ).scalars().all()
     traces_by_msg_id: dict[str, str] = {r.ai_message_id: r.trace_id for r in rows}
 
+    feedback_by_trace: dict[str, int] = {}
+    trace_url_by_id: dict[str, str] = {}
+    if traces_by_msg_id and get_settings().langfuse_secret_key:
+        from langfuse import get_client
+
+        client = get_client()
+        scores = client.api.scores.get_many(
+            session_id=sid, name="user-feedback", limit=100
+        )
+        for sc in getattr(scores, "data", []) or []:
+            tid = getattr(sc, "trace_id", None)
+            val = getattr(sc, "value", None)
+            if tid and val is not None and tid not in feedback_by_trace:
+                feedback_by_trace[tid] = int(val)
+        for tid in set(traces_by_msg_id.values()):
+            trace_url_by_id[tid] = client.get_trace_url(trace_id=tid)
+
     out: list[UIMessage] = []
     for m in msgs:
         if m.type == "human":
@@ -257,11 +275,16 @@ async def get_messages(sid: str, request: Request):  # noqa: PLR0912, PLR0915 --
         m_id = getattr(m, "id", None)
         if m_id and m_id in traces_by_msg_id:
             tid = traces_by_msg_id[m_id]
+            data: dict[str, Any] = {"traceId": tid, "messageId": m_id}
+            if tid in trace_url_by_id:
+                data["traceUrl"] = trace_url_by_id[tid]
+            if tid in feedback_by_trace:
+                data["feedback"] = feedback_by_trace[tid]
             parts.append(
                 {
                     "type": "data-trace",
                     "id": f"trace_{m_id}",
-                    "data": {"traceId": tid, "messageId": m_id},
+                    "data": data,
                 }
             )
 

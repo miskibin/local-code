@@ -4,5 +4,5 @@ def test_settings_defaults_env_overrides(monkeypatch):
 
     s = Settings()
     assert s.ollama_base_url.startswith("http")
-    assert s.num_ctx == 32768
+    assert s.num_ctx == 16384
     assert s.checkpoint_db_path

@@ -5,6 +5,26 @@ import type { Artifact, ArtifactImagePayload } from "@/lib/types"
 /** Max height for plot thumbnails in chat / tool cards (modal uses fullSize). */
 export const ARTIFACT_IMAGE_PREVIEW_MAX_PX = 440
 
+export function downloadImagePng(
+  payload: ArtifactImagePayload,
+  filename: string
+): void {
+  const bin = atob(payload.data_b64)
+  const bytes = new Uint8Array(bin.length)
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i)
+  const blob = new Blob([bytes], { type: `image/${payload.format}` })
+  const safe =
+    (filename || "chart").replace(/[\\/:*?"<>|]+/g, "_").slice(0, 120) + ".png"
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement("a")
+  a.href = url
+  a.download = safe
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
+}
+
 export function ArtifactImage({
   artifact,
   fullSize,

@@ -26,11 +26,12 @@ import {
 import { api } from "@/lib/api"
 import type {
   Artifact,
+  ArtifactImagePayload,
   ArtifactTablePayload,
   ArtifactTextPayload,
 } from "@/lib/types"
 
-import { ArtifactImage } from "./ArtifactImage"
+import { ArtifactImage, downloadImagePng } from "./ArtifactImage"
 import { ArtifactSourceCode } from "./ArtifactSourceCode"
 import { ArtifactTable, downloadTableCsv } from "./ArtifactTable"
 
@@ -73,6 +74,10 @@ export function ArtifactModal({
   const tablePayload =
     artifact?.kind === "table"
       ? (artifact.payload as ArtifactTablePayload)
+      : null
+  const imagePayload =
+    artifact?.kind === "image"
+      ? (artifact.payload as ArtifactImagePayload)
       : null
   const showTableFilter = (tablePayload?.rows?.length ?? 0) > 8
 
@@ -183,6 +188,23 @@ export function ArtifactModal({
                   cursor: "pointer",
                 }}
                 data-testid="artifact-download-csv"
+              >
+                <Download className="h-4 w-4" />
+              </button>
+            ) : imagePayload?.data_b64 && artifact ? (
+              <button
+                type="button"
+                onClick={() => downloadImagePng(imagePayload, artifact.title)}
+                title="Download PNG"
+                aria-label="Download PNG"
+                className="inline-flex size-7 items-center justify-center rounded-md transition"
+                style={{
+                  background: "transparent",
+                  border: "1px solid var(--border)",
+                  color: "var(--ink-2)",
+                  cursor: "pointer",
+                }}
+                data-testid="artifact-download-png"
               >
                 <Download className="h-4 w-4" />
               </button>

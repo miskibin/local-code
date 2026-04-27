@@ -6,6 +6,7 @@ import {
   BookmarkPlus,
   Copy,
   Database,
+  ExternalLink,
   FileText,
   ImageIcon,
   Pencil,
@@ -15,6 +16,7 @@ import {
   ThumbsUp,
 } from "lucide-react"
 import { useEffect, useRef, useState } from "react"
+import { toast } from "sonner"
 import type { Artifact, AssistantStep, Todo } from "@/lib/types"
 import { Markdown } from "./Markdown"
 import { PlanCard } from "./PlanCard"
@@ -282,6 +284,8 @@ export type AssistantMsg = {
   usage?: { inputTokens: number; outputTokens: number; durationMs?: number }
   summaryFired?: boolean
   traceId?: string
+  traceUrl?: string
+  initialFeedback?: 0 | 1
 }
 
 export function formatTokens(n: number): string {
@@ -363,6 +367,18 @@ export function AssistantMessage({
 }) {
   const plainText = contentBlocksToPlainText(msg.contentBlocks)
   const showThinking = streaming && isLast && !plainText
+  const [sentFeedback, setSentFeedback] = useState<0 | 1 | null>(
+    msg.initialFeedback ?? null
+  )
+  useEffect(() => {
+    setSentFeedback(msg.initialFeedback ?? null)
+  }, [msg.traceId, msg.initialFeedback])
+  const submitFeedback = (value: 0 | 1) => {
+    if (sentFeedback !== null || !onFeedback) return
+    setSentFeedback(value)
+    onFeedback(value)
+    toast.success(value === 1 ? "Thanks for the feedback" : "Feedback noted")
+  }
   return (
     <div style={{ marginBottom: "var(--density-msg-gap)" }}>
       {msg.summaryFired && (
@@ -443,12 +459,58 @@ export function AssistantMessage({
             </ActionBtn>
             {msg.traceId && onFeedback && (
               <>
-                <ActionBtn title="Good response" onClick={() => onFeedback(1)}>
-                  <ThumbsUp className="h-3.5 w-3.5" />
+                <ActionBtn
+                  title={
+                    sentFeedback === 1
+                      ? "Feedback sent"
+                      : sentFeedback === 0
+                        ? "Feedback already sent"
+                        : "Good response"
+                  }
+                  onClick={
+                    sentFeedback === null ? () => submitFeedback(1) : undefined
+                  }
+                >
+                  <ThumbsUp
+                    className="h-3.5 w-3.5"
+                    style={{
+                      color: sentFeedback === 1 ? "var(--ink)" : "var(--ink-3)",
+                      fill: sentFeedback === 1 ? "var(--ink)" : "none",
+                      opacity: sentFeedback === 0 ? 0.35 : 1,
+                    }}
+                  />
                 </ActionBtn>
-                <ActionBtn title="Bad response" onClick={() => onFeedback(0)}>
-                  <ThumbsDown className="h-3.5 w-3.5" />
+                <ActionBtn
+                  title={
+                    sentFeedback === 0
+                      ? "Feedback sent"
+                      : sentFeedback === 1
+                        ? "Feedback already sent"
+                        : "Bad response"
+                  }
+                  onClick={
+                    sentFeedback === null ? () => submitFeedback(0) : undefined
+                  }
+                >
+                  <ThumbsDown
+                    className="h-3.5 w-3.5"
+                    style={{
+                      color: sentFeedback === 0 ? "var(--ink)" : "var(--ink-3)",
+                      fill: sentFeedback === 0 ? "var(--ink)" : "none",
+                      opacity: sentFeedback === 1 ? 0.35 : 1,
+                    }}
+                  />
                 </ActionBtn>
+                {msg.traceUrl && (
+                  <ActionBtn
+                    title="Open trace in Langfuse"
+                    onClick={() =>
+                      window.open(msg.traceUrl, "_blank", "noopener,noreferrer")
+                    }
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" />
+                  </ActionBtn>
+                )}
               </>
             )}
             {isLast && onSaveAsTask && (

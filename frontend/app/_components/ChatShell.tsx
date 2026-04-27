@@ -15,7 +15,7 @@ import { ThemeToggle } from "./ThemeToggle"
 
 type PendingTaskRun = { task_id: string; variables: Record<string, unknown> }
 
-export function ChatShell() {
+export function ChatShell({ initialSessionId }: { initialSessionId: string }) {
   const router = useRouter()
   const searchParams = useSearchParams()
   const initialTaskRun = useMemo(
@@ -23,7 +23,7 @@ export function ChatShell() {
     [searchParams]
   )
   const [collapsed, setCollapsed] = useState(false)
-  const [activeSessionId, setActiveSessionId] = useState(() => nanoid())
+  const [activeSessionId, setActiveSessionId] = useState(initialSessionId)
   const [pendingTaskRun, setPendingTaskRun] = useState<PendingTaskRun | null>(
     initialTaskRun
   )
@@ -33,8 +33,14 @@ export function ChatShell() {
     const params = new URLSearchParams(searchParams.toString())
     params.delete("taskRun")
     const qs = params.toString()
-    router.replace(qs ? `/?${qs}` : "/")
-  }, [initialTaskRun, searchParams, router])
+    router.replace(
+      qs ? `/chat/${initialSessionId}?${qs}` : `/chat/${initialSessionId}`
+    )
+  }, [initialTaskRun, searchParams, router, initialSessionId])
+
+  useEffect(() => {
+    setActiveSessionId(initialSessionId)
+  }, [initialSessionId])
   const [sessions, setSessions] = useState<Session[]>([])
   const [savedArtifacts, setSavedArtifacts] = useState<Artifact[]>([])
   const [searchOpen, setSearchOpen] = useState(false)
@@ -75,17 +81,17 @@ export function ChatShell() {
   }, [])
 
   const onNew = () => {
-    setActiveSessionId(nanoid())
+    router.push(`/chat/${nanoid()}`)
   }
 
   const onSelectSession = (id: string) => {
-    setActiveSessionId(id)
+    router.push(`/chat/${id}`)
   }
 
   const onDeleteSession = async (id: string) => {
     try {
       await api.deleteSession(id)
-      if (id === activeSessionId) setActiveSessionId(nanoid())
+      if (id === activeSessionId) router.push(`/chat/${nanoid()}`)
       await refreshSessions()
     } catch (e) {
       console.error("deleteSession", e)
@@ -103,7 +109,7 @@ export function ChatShell() {
     const session = sessions[idx]
     pendingTrashRef.current.set(id, { undone: false, session, index: idx })
     setSessions((prev) => prev.filter((s) => s.id !== id))
-    if (id === activeSessionId) setActiveSessionId(nanoid())
+    if (id === activeSessionId) router.push(`/chat/${nanoid()}`)
     toast(`Deleted "${session.title || "Untitled"}"`, {
       duration: 5000,
       action: {
