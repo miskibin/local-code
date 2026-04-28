@@ -82,8 +82,15 @@ async def _all_tools(state) -> list[BaseTool]:
     return local + mcp
 
 
-def _task_md(step: TaskStep) -> dict:
-    return {"task": {"stepId": step.id, "title": step.title, "kind": step.kind}}
+def _task_md(step: TaskStep, task_id: str) -> dict:
+    return {
+        "task": {
+            "taskId": task_id,
+            "stepId": step.id,
+            "title": step.title,
+            "kind": step.kind,
+        }
+    }
 
 
 def _subagent_md(step: TaskStep) -> dict:
@@ -326,7 +333,7 @@ async def run_task(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits woul
     for step_dto in dto.steps:
         step = step_dto
         step_id = step.id
-        task_md = _task_md(step)
+        task_md = _task_md(step, task.id)
 
         try:
             args_template = step.args_template or {}

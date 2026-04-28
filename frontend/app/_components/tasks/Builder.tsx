@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { MetadataPanel } from "./MetadataPanel"
 import { RunVarsModal } from "./RunVarsModal"
+import { StepOutputsPanel } from "./StepOutputsPanel"
 import { TaskStepsSection } from "./TaskStepsSection"
 import { VariablesPanel } from "./VariablesPanel"
 
@@ -173,12 +174,16 @@ export function Builder({ taskId }: { taskId: string }) {
             variables={task.variables}
             onChange={(variables) => updateTask({ variables })}
           />
+          <StepOutputsPanel steps={task.steps} />
         </div>
 
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
           <header
             className="sticky top-0 z-10 flex items-center gap-3 px-6 py-3"
-            style={{ borderBottom: "1px solid var(--border)", background: "var(--bg)" }}
+            style={{
+              borderBottom: "1px solid var(--border)",
+              background: "var(--bg)",
+            }}
           >
             <Input
               value={task.title}
