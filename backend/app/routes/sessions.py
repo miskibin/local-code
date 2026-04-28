@@ -10,6 +10,7 @@ from pydantic import BaseModel
 from sqlmodel import select
 
 from app.artifact_store import get_artifact
+from app.auth import CurrentUser
 from app.config import get_settings
 from app.db import async_session
 from app.models import ChatSession, MessageTrace
@@ -70,12 +71,14 @@ def _artifact_id_from_tool_message(tm: Any) -> str | None:
 
 
 @router.get("/sessions", response_model=list[SessionDTO])
-async def list_sessions():
+async def list_sessions(user: CurrentUser):
     async with async_session() as s:
         rows = (
             (
                 await s.execute(
-                    select(ChatSession).order_by(
+                    select(ChatSession)
+                    .where(ChatSession.owner_id == user.id)
+                    .order_by(
                         ChatSession.is_pinned.desc(),
                         ChatSession.pinned_at.desc().nullslast(),
                         ChatSession.created_at.desc(),
@@ -89,11 +92,11 @@ async def list_sessions():
 
 
 @router.post("/sessions", response_model=SessionDTO)
-async def create_session(dto: SessionDTO):
+async def create_session(dto: SessionDTO, user: CurrentUser):
     async with async_session() as s:
         if await s.get(ChatSession, dto.id):
             return dto
-        s.add(ChatSession(id=dto.id, title=dto.title))
+        s.add(ChatSession(id=dto.id, owner_id=user.id, title=dto.title))
         await s.commit()
     return dto
 
@@ -134,8 +137,10 @@ async def get_messages(sid: str, request: Request):  # noqa: PLR0912, PLR0915 --
 
     async with async_session() as s:
         rows = (
-            await s.execute(select(MessageTrace).where(MessageTrace.session_id == sid))
-        ).scalars().all()
+            (await s.execute(select(MessageTrace).where(MessageTrace.session_id == sid)))
+            .scalars()
+            .all()
+        )
     traces_by_msg_id: dict[str, str] = {r.ai_message_id: r.trace_id for r in rows}
 
     feedback_by_trace: dict[str, int] = {}
@@ -144,9 +149,7 @@ async def get_messages(sid: str, request: Request):  # noqa: PLR0912, PLR0915 --
         from langfuse import get_client
 
         client = get_client()
-        scores = client.api.scores.get_many(
-            session_id=sid, name="user-feedback", limit=100
-        )
+        scores = client.api.scores.get_many(session_id=sid, name="user-feedback", limit=100)
         for sc in getattr(scores, "data", []) or []:
             tid = getattr(sc, "trace_id", None)
             val = getattr(sc, "value", None)
@@ -210,9 +213,7 @@ async def get_messages(sid: str, request: Request):  # noqa: PLR0912, PLR0915 --
                 aid = _artifact_id_from_tool_message(tm)
                 if aid:
                     row = await get_artifact(aid)
-                    if row is not None and (
-                        row.session_id is None or row.session_id == sid
-                    ):
+                    if row is not None and (row.session_id is None or row.session_id == sid):
                         parts.append(
                             {
                                 "type": "data-artifact",
@@ -229,9 +230,7 @@ async def get_messages(sid: str, request: Request):  # noqa: PLR0912, PLR0915 --
                         )
 
         umd = getattr(m, "usage_metadata", None)
-        if isinstance(umd, dict) and (
-            umd.get("input_tokens") or umd.get("output_tokens")
-        ):
+        if isinstance(umd, dict) and (umd.get("input_tokens") or umd.get("output_tokens")):
             parts.append(
                 {
                     "type": "data-usage",

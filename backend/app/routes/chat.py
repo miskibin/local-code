@@ -5,6 +5,7 @@ from loguru import logger
 from sqlmodel import select
 
 from app import tool_registry
+from app.auth import CurrentUser
 from app.config import get_settings
 from app.db import async_session
 from app.graphs.main_agent import (
@@ -14,7 +15,7 @@ from app.graphs.main_agent import (
     default_subagents,
 )
 from app.llm import context_max_tokens, resolve_llm
-from app.models import SkillFlag, ToolFlag
+from app.models import MCPServerUserFlag, SkillFlag, ToolFlag
 from app.schemas.chat import ChatRequest
 from app.skills_registry import discover_skills, filter_enabled
 from app.streaming import stream_chat
@@ -24,15 +25,47 @@ from app.tasks.storage import get_task
 router = APIRouter()
 
 
-async def _load_enabled_flags(model_cls: type) -> dict[str, bool]:
+async def _load_tool_flags(user_id: str) -> dict[str, bool]:
     async with async_session() as s:
-        rows = (await s.execute(select(model_cls))).scalars().all()
+        rows = (
+            (await s.execute(select(ToolFlag).where(ToolFlag.user_id == user_id))).scalars().all()
+        )
         return {r.name: r.enabled for r in rows}
 
 
-async def _enabled_skills():
-    flags = await _load_enabled_flags(SkillFlag)
+async def _load_skill_flags(user_id: str) -> dict[str, bool]:
+    async with async_session() as s:
+        rows = (
+            (await s.execute(select(SkillFlag).where(SkillFlag.user_id == user_id))).scalars().all()
+        )
+        return {r.name: r.enabled for r in rows}
+
+
+async def _load_mcp_user_flags(user_id: str) -> dict[str, bool]:
+    async with async_session() as s:
+        rows = (
+            (await s.execute(select(MCPServerUserFlag).where(MCPServerUserFlag.user_id == user_id)))
+            .scalars()
+            .all()
+        )
+        return {r.name: r.enabled for r in rows}
+
+
+async def _enabled_skills(user_id: str):
+    flags = await _load_skill_flags(user_id)
     return filter_enabled(discover_skills(get_settings().skills_dir), flags)
+
+
+def _filter_mcp_tools(
+    mcp_tools,
+    tools_by_server: dict[str, list[str]],
+    user_flags: dict[str, bool],
+):
+    disabled_names: set[str] = set()
+    for server_name, names in tools_by_server.items():
+        if not user_flags.get(server_name, True):
+            disabled_names.update(names)
+    return [t for t in mcp_tools if t.name not in disabled_names]
 
 
 _STREAM_HEADERS = {
@@ -43,11 +76,11 @@ _STREAM_HEADERS = {
 
 
 @router.post("/chat")
-async def chat(req: ChatRequest, request: Request):
+async def chat(req: ChatRequest, request: Request, user: CurrentUser):
     state = request.app.state
     llm = resolve_llm(state, req.model)
     logger.info(
-        f"/chat thread={req.id} reset={req.reset} msgs={len(req.messages)} "
+        f"/chat thread={req.id} user={user.email} reset={req.reset} msgs={len(req.messages)} "
         f"model={req.model} task_run={bool(req.task_run)}"
     )
     if req.reset:
@@ -66,6 +99,7 @@ async def chat(req: ChatRequest, request: Request):
                 req.task_run.variables,
                 state=state,
                 session_id=req.id,
+                owner_id=user.id,
                 llm=llm,
                 lc_messages=lc,
             ):
@@ -77,12 +111,15 @@ async def chat(req: ChatRequest, request: Request):
             media_type="text/event-stream",
             headers=_STREAM_HEADERS,
         )
-    flags = await _load_enabled_flags(ToolFlag)
+    tool_flags = await _load_tool_flags(user.id)
+    mcp_user_flags = await _load_mcp_user_flags(user.id)
     mcp_tools = state.mcp_registry.tools if hasattr(state, "mcp_registry") else []
+    tools_by_server = state.mcp_registry.tools_by_server if hasattr(state, "mcp_registry") else {}
+    mcp_tools = _filter_mcp_tools(mcp_tools, tools_by_server, mcp_user_flags)
     tools = tool_registry.active_tools(
         tool_registry.discover_tools(),
         mcp_tools,
-        flags,
+        tool_flags,
     )
     logger.debug(
         f"tools active={len(tools)} (local+mcp post-filter, names={[t.name for t in tools]})"
@@ -94,7 +131,7 @@ async def chat(req: ChatRequest, request: Request):
         if "tools" in resolved:
             resolved["tools"] = [tools_by_name[n] for n in resolved["tools"] if n in tools_by_name]
         subagents.append(resolved)
-    enabled_skills = await _enabled_skills()
+    enabled_skills = await _enabled_skills(user.id)
     graph = build_agent_for_turn(
         llm=llm,
         tools=tools,
@@ -118,6 +155,7 @@ async def chat(req: ChatRequest, request: Request):
                 graph=graph,
                 thread_id=req.id,
                 lc_messages=[],
+                owner_id=user.id,
                 session_id=req.id,
                 resume_value=req.resume.value,
                 context_max_tokens=ctx_max,
@@ -134,6 +172,7 @@ async def chat(req: ChatRequest, request: Request):
             graph=graph,
             thread_id=req.id,
             lc_messages=lc_messages,
+            owner_id=user.id,
             session_id=req.id,
             context_max_tokens=ctx_max,
             model_id=req.model,

@@ -3,6 +3,7 @@ from pydantic import BaseModel
 from sqlmodel import select
 
 from app import tool_registry
+from app.auth import CurrentUser
 from app.db import async_session
 from app.models import ToolFlag
 
@@ -20,10 +21,13 @@ class ToolPatch(BaseModel):
 
 
 @router.get("/tools", response_model=list[ToolDTO])
-async def list_tools():
+async def list_tools(user: CurrentUser):
     discovered = tool_registry.discover_tools()
     async with async_session() as s:
-        flags = {f.name: f.enabled for f in (await s.execute(select(ToolFlag))).scalars().all()}
+        rows = (
+            (await s.execute(select(ToolFlag).where(ToolFlag.user_id == user.id))).scalars().all()
+        )
+        flags = {f.name: f.enabled for f in rows}
     return [
         ToolDTO(
             name=t.name,
@@ -35,14 +39,14 @@ async def list_tools():
 
 
 @router.patch("/tools/{name}", response_model=ToolDTO)
-async def patch_tool(name: str, patch: ToolPatch):
+async def patch_tool(name: str, patch: ToolPatch, user: CurrentUser):
     discovered = {t.name: t for t in tool_registry.discover_tools()}
     if name not in discovered:
         raise HTTPException(404, "unknown tool")
     async with async_session() as s:
-        existing = await s.get(ToolFlag, name)
+        existing = await s.get(ToolFlag, (user.id, name))
         if existing is None:
-            existing = ToolFlag(name=name, enabled=patch.enabled)
+            existing = ToolFlag(user_id=user.id, name=name, enabled=patch.enabled)
             s.add(existing)
         else:
             existing.enabled = patch.enabled

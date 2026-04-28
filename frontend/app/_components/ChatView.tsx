@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation"
 import { useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 import { api, CHAT_URL } from "@/lib/api"
+import { authHeaders } from "@/lib/auth"
 import type { Artifact, SubagentStep, Todo, ToolStep } from "@/lib/types"
 import { Composer } from "./Composer"
 import { EmptyState } from "./EmptyState"
@@ -464,6 +465,7 @@ export function ChatView({
     () =>
       new DefaultChatTransport({
         api: CHAT_URL,
+        headers: () => authHeaders(),
         prepareSendMessagesRequest: ({ id, messages, body, trigger }) => {
           const b = body as
             | {

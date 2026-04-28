@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -27,6 +28,15 @@ class Settings(BaseSettings):
     langfuse_secret_key: str = ""
     langfuse_public_key: str = ""
     langfuse_base_url: str = "https://cloud.langfuse.com"
+
+    admin_emails: list[str] = []
+
+    @field_validator("admin_emails", "cors_origins", mode="before")
+    @classmethod
+    def _split_csv(cls, v):
+        if isinstance(v, str):
+            return [s.strip().lower() for s in v.split(",") if s.strip()]
+        return v
 
 
 @lru_cache

@@ -8,7 +8,7 @@ from sqlmodel import select
 from app.db import async_session
 from app.models import SavedArtifact, SavedTask
 from app.tasks.generator import generate_task_from_run
-from tests.conftest import reset_task_tables
+from tests.conftest import TEST_OWNER_ID, reset_task_tables
 
 
 def _trace_messages():
@@ -60,7 +60,9 @@ async def test_generate_task_persists_and_validates_json():
         }
     )
     llm = FakeListChatModel(responses=[response_json])
-    dto = await generate_task_from_run(session_id="sess-gen", messages=_trace_messages(), llm=llm)
+    dto = await generate_task_from_run(
+        session_id="sess-gen", messages=_trace_messages(), llm=llm, owner_id=TEST_OWNER_ID
+    )
     assert dto.id.startswith("tsk_")
     assert dto.title == "Top customers report"
     assert len(dto.variables) == 1 and dto.variables[0].name == "limit"
@@ -77,7 +79,9 @@ async def test_generate_task_strips_markdown_code_fence():
 
     fenced = "```json\n" + json.dumps({"title": "T", "variables": [], "steps": []}) + "\n```"
     llm = FakeListChatModel(responses=[fenced])
-    dto = await generate_task_from_run(session_id="sess-fence", messages=_trace_messages(), llm=llm)
+    dto = await generate_task_from_run(
+        session_id="sess-fence", messages=_trace_messages(), llm=llm, owner_id=TEST_OWNER_ID
+    )
     assert dto.title == "T"
 
 
@@ -87,7 +91,9 @@ async def test_generate_task_raises_on_garbage():
 
     llm = FakeListChatModel(responses=["not json at all"])
     with pytest.raises(ValueError):
-        await generate_task_from_run(session_id="sess-bad", messages=_trace_messages(), llm=llm)
+        await generate_task_from_run(
+            session_id="sess-bad", messages=_trace_messages(), llm=llm, owner_id=TEST_OWNER_ID
+        )
 
 
 def _sql_subagent_trace(artifact_id: str = "art_genx111111"):
@@ -147,6 +153,7 @@ async def test_subagent_sql_step_replaced_with_sql_query_tool():
         "JOIN Genre g ON g.GenreId = t.GenreId GROUP BY g.Name LIMIT 200"
     )
     await create_artifact(
+        owner_id=TEST_OWNER_ID,
         kind="table",
         title="Genre Revenue",
         payload={"columns": [{"key": "Genre", "label": "Genre"}], "rows": []},
@@ -159,7 +166,7 @@ async def test_subagent_sql_step_replaced_with_sql_query_tool():
 
     llm = FakeListChatModel(responses=[_subagent_task_json()])
     dto = await generate_task_from_run(
-        session_id="sess-genre", messages=_sql_subagent_trace(), llm=llm
+        session_id="sess-genre", messages=_sql_subagent_trace(), llm=llm, owner_id=TEST_OWNER_ID
     )
     step = dto.steps[0]
     assert step.kind == "tool"
@@ -207,7 +214,7 @@ async def test_generator_appends_report_step_referencing_artifact_steps():
     )
     llm = FakeListChatModel(responses=[response_json])
     dto = await generate_task_from_run(
-        session_id="sess-report", messages=_trace_messages(), llm=llm
+        session_id="sess-report", messages=_trace_messages(), llm=llm, owner_id=TEST_OWNER_ID
     )
     assert len(dto.steps) == 3
     report = dto.steps[-1]
@@ -242,7 +249,7 @@ async def test_generator_skips_report_when_no_artifact_steps():
     )
     llm = FakeListChatModel(responses=[response_json])
     dto = await generate_task_from_run(
-        session_id="sess-prompt-only", messages=_trace_messages(), llm=llm
+        session_id="sess-prompt-only", messages=_trace_messages(), llm=llm, owner_id=TEST_OWNER_ID
     )
     assert len(dto.steps) == 1
     assert dto.steps[0].kind == "prompt"
@@ -255,7 +262,7 @@ async def test_subagent_sql_step_kept_when_artifact_missing():
 
     llm = FakeListChatModel(responses=[_subagent_task_json()])
     dto = await generate_task_from_run(
-        session_id="sess-no-art", messages=_sql_subagent_trace(), llm=llm
+        session_id="sess-no-art", messages=_sql_subagent_trace(), llm=llm, owner_id=TEST_OWNER_ID
     )
     assert dto.steps[0].kind == "subagent"
     assert dto.steps[0].subagent == "sql-agent"

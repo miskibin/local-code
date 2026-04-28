@@ -7,7 +7,11 @@ async def test_refresh_python_artifact_updates_payload_and_timestamp(chinook_pat
     from app.db import init_db
 
     await init_db()
+    from tests.conftest import TEST_OWNER_ID, ensure_test_user
+
+    await ensure_test_user()
     art = await create_artifact(
+        owner_id=TEST_OWNER_ID,
         kind="table",
         title="seed",
         payload={"columns": [{"key": "n", "label": "n"}], "rows": [{"n": 1}]},
@@ -27,7 +31,11 @@ async def test_refresh_sql_artifact_round_trip(chinook_path):
     from app.db import init_db
 
     await init_db()
+    from tests.conftest import TEST_OWNER_ID, ensure_test_user
+
+    await ensure_test_user()
     art = await create_artifact(
+        owner_id=TEST_OWNER_ID,
         kind="table",
         title="seed",
         payload={"columns": [], "rows": []},
@@ -47,7 +55,11 @@ async def test_refresh_rejects_artifact_with_no_source(chinook_path):
     from app.db import init_db
 
     await init_db()
+    from tests.conftest import TEST_OWNER_ID, ensure_test_user
+
+    await ensure_test_user()
     art = await create_artifact(
+        owner_id=TEST_OWNER_ID,
         kind="text",
         title="no source",
         payload={"text": "x"},

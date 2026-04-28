@@ -23,7 +23,9 @@ async def test_tools_list_reflects_discovered_and_flags(monkeypatch):
 
     monkeypatch.setattr(tool_registry, "discover_tools", lambda: [stub_tool])
 
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+    async with AsyncClient(
+        transport=transport, base_url="http://test", headers={"X-User-Email": "test@example.com"}
+    ) as ac:
         r = await ac.get("/tools")
     assert r.status_code == 200
     body = r.json()
@@ -50,7 +52,9 @@ async def test_patch_tool_updates_flag(monkeypatch):
     transport = ASGITransport(app=app)
     await init_db()
 
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+    async with AsyncClient(
+        transport=transport, base_url="http://test", headers={"X-User-Email": "test@example.com"}
+    ) as ac:
         r = await ac.patch("/tools/stub_tool", json={"enabled": False})
         assert r.status_code == 200
         r2 = await ac.get("/tools")

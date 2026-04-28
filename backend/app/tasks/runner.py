@@ -155,6 +155,7 @@ async def _run_tool_step(
     *,
     tools_by_key: dict[tuple[str | None, str], BaseTool],
     session_id: str,
+    owner_id: str,
 ) -> tuple[Any, dict[str, Any]]:
     """Resolve + invoke a registered/MCP tool. Returns (output, outputs_dict)."""
     if not step.tool:
@@ -163,7 +164,7 @@ async def _run_tool_step(
     tool = tools_by_key.get((server_key, step.tool)) or tools_by_key.get((None, step.tool))
     if tool is None:
         raise LookupError(f"tool {step.tool!r} not available (server={step.server})")
-    config = {"configurable": {"thread_id": session_id}}
+    config = {"configurable": {"thread_id": session_id, "owner_id": owner_id}}
     # Invoke as a ToolCall so content_and_artifact tools return a ToolMessage
     # with both .content and .artifact populated (a bare args dict drops the
     # artifact). Plain tools still return the raw value.
@@ -182,7 +183,9 @@ async def _run_tool_step(
         summary = raw
     summary_text = coerce_lc_content(summary)
     if isinstance(artifact, dict) and artifact and not artifact.get("id"):
-        row = await persist_tool_artifact(artifact=artifact, session_id=session_id)
+        row = await persist_tool_artifact(
+            artifact=artifact, session_id=session_id, owner_id=owner_id
+        )
         artifact = {**artifact, "id": row.id}
     outputs: dict[str, Any] = {step.output_name: artifact or summary_text}
     if isinstance(artifact, dict) and artifact.get("id"):
@@ -198,11 +201,12 @@ async def _run_code_step(
     code: str,
     *,
     session_id: str,
+    owner_id: str,
 ) -> tuple[Any, dict[str, Any]]:
     if not code:
         raise ValueError(f"step {step.id}: code required for kind=code")
     result = await run_python_artifact(code)
-    config = {"configurable": {"thread_id": session_id}}
+    config = {"configurable": {"thread_id": session_id, "owner_id": owner_id}}
     summary, artifact = await build_and_persist_tool_artifact(
         result=result, source_kind="python", source_code=code, config=config
     )
@@ -232,6 +236,7 @@ async def _run_subagent_step(
     llm: BaseChatModel,
     all_tools: list[BaseTool],
     session_id: str,
+    owner_id: str,
 ) -> AsyncIterator[str | tuple[str, dict[str, Any]]]:
     """Run a subagent ReAct loop, yielding SSE strings for each inner tool call.
 
@@ -261,7 +266,7 @@ async def _run_subagent_step(
         if not tool_calls:
             clean_finish = True
             break
-        config = {"configurable": {"thread_id": session_id}}
+        config = {"configurable": {"thread_id": session_id, "owner_id": owner_id}}
         for tc in tool_calls:
             inner_id = tc.get("id") or f"sa_{uuid4().hex}"
             inner_name = tc["name"]
@@ -295,6 +300,7 @@ async def run_task(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits woul
     *,
     state,
     session_id: str,
+    owner_id: str,
     llm: BaseChatModel,
     lc_messages: list | None = None,
 ) -> AsyncIterator[str]:
@@ -340,7 +346,11 @@ async def run_task(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits woul
                 yield _emit_input_start(step_id, tool_name, provider_md=task_md)
                 yield _emit_input(step_id, tool_name, args_dict, provider_md=task_md)
                 summary, step_outputs = await _run_tool_step(
-                    step, args_dict, tools_by_key=tools_by_key, session_id=session_id
+                    step,
+                    args_dict,
+                    tools_by_key=tools_by_key,
+                    session_id=session_id,
+                    owner_id=owner_id,
                 )
                 yield _emit_output(step_id, summary, provider_md=task_md)
                 ai_tool_calls.append({"id": step_id, "name": tool_name, "args": args_dict})
@@ -350,7 +360,9 @@ async def run_task(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits woul
                 code_str = resolved_code or ""
                 yield _emit_input_start(step_id, "python_exec", provider_md=task_md)
                 yield _emit_input(step_id, "python_exec", {"code": code_str}, provider_md=task_md)
-                summary, step_outputs = await _run_code_step(step, code_str, session_id=session_id)
+                summary, step_outputs = await _run_code_step(
+                    step, code_str, session_id=session_id, owner_id=owner_id
+                )
                 yield _emit_output(step_id, summary, provider_md=task_md)
                 ai_tool_calls.append(
                     {"id": step_id, "name": "python_exec", "args": {"code": code_str}}
@@ -372,6 +384,7 @@ async def run_task(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits woul
                     llm=llm,
                     all_tools=all_tools,
                     session_id=session_id,
+                    owner_id=owner_id,
                 ):
                     if isinstance(evt, str):
                         yield evt

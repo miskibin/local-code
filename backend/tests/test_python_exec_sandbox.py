@@ -139,11 +139,7 @@ async def test_pandas_smoke_still_works():
 
 
 async def test_matplotlib_smoke_still_works():
-    code = (
-        "import matplotlib.pyplot as plt\n"
-        "plt.bar(['a', 'b'], [1, 2])\n"
-        "out_image(title='t')\n"
-    )
+    code = "import matplotlib.pyplot as plt\nplt.bar(['a', 'b'], [1, 2])\nout_image(title='t')\n"
     msg = await _invoke(code)
     assert msg.status != "error", msg.content
     assert msg.artifact.get("kind") == "image"

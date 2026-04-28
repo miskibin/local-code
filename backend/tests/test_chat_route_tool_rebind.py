@@ -59,7 +59,11 @@ async def test_chat_skips_disabled_tool(monkeypatch):
     }
     transport = ASGITransport(app=app)
     try:
-        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        async with AsyncClient(
+            transport=transport,
+            base_url="http://test",
+            headers={"X-User-Email": "test@example.com"},
+        ) as ac:
             await ac.post("/chat", json=payload)
 
         assert captured and captured[0] == []  # tool was filtered out

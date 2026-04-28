@@ -161,8 +161,11 @@ def _build_canonical_event_sequence(artifact_id: str):
 
 async def _seed_artifact(art_id: str) -> None:
     from app.artifact_store import create_artifact
+    from tests.conftest import TEST_OWNER_ID, ensure_test_user
 
+    await ensure_test_user()
     await create_artifact(
+        owner_id=TEST_OWNER_ID,
         artifact_id=art_id,
         kind="table",
         title="Top customers",
@@ -224,7 +227,9 @@ async def test_chat_post_emits_canonical_v6_frame_sequence(monkeypatch):
         ],
     }
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+    async with AsyncClient(
+        transport=transport, base_url="http://test", headers={"X-User-Email": "test@example.com"}
+    ) as ac:
         r = await ac.post("/chat", json=payload)
 
     assert r.status_code == 200
@@ -336,7 +341,9 @@ async def test_chat_post_with_no_subagent_dispatch_still_terminates_cleanly(monk
         "model": "test-model",
         "messages": [{"id": "u1", "role": "user", "parts": [{"type": "text", "text": "hi"}]}],
     }
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+    async with AsyncClient(
+        transport=transport, base_url="http://test", headers={"X-User-Email": "test@example.com"}
+    ) as ac:
         r = await ac.post("/chat", json=payload)
 
     events = parse_sse_events(r.text.splitlines())

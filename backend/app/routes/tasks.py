@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi import APIRouter, HTTPException, Request
 from loguru import logger
 
+from app.auth import CurrentUser
 from app.llm import resolve_llm
 from app.tasks.generator import generate_task_from_run
 from app.tasks.schemas import (
@@ -23,8 +24,8 @@ router = APIRouter()
 
 
 @router.get("/tasks", response_model=list[TaskListItem])
-async def list_tasks_route():
-    rows = await list_tasks()
+async def list_tasks_route(user: CurrentUser):
+    rows = await list_tasks(user.id)
     return [
         TaskListItem(
             id=r.id,
@@ -53,7 +54,7 @@ async def update_task_route(tid: str, dto: TaskDTO):
     if existing is None:
         raise HTTPException(404)
     payload = dto.model_copy(update={"id": tid})
-    row = await upsert_task(payload)
+    row = await upsert_task(payload, existing.owner_id)
     return to_dto(row)
 
 
@@ -83,13 +84,14 @@ async def export_task_route(tid: str):
 
 
 @router.post("/tasks/import", response_model=TaskDTO)
-async def import_task_route(dto: TaskDTO):
-    row = await create_task(dto.model_copy(update={"created_at": None, "updated_at": None}))
+async def import_task_route(dto: TaskDTO, user: CurrentUser):
+    payload = dto.model_copy(update={"created_at": None, "updated_at": None})
+    row = await create_task(payload, user.id)
     return to_dto(row)
 
 
 @router.post("/tasks/generate", response_model=TaskDTO)
-async def generate_task_route(req: GenerateTaskRequest, request: Request):
+async def generate_task_route(req: GenerateTaskRequest, request: Request, user: CurrentUser):
     state = request.app.state
     cp = state.checkpointer
     tup = await cp.aget_tuple({"configurable": {"thread_id": req.session_id}})
@@ -99,7 +101,9 @@ async def generate_task_route(req: GenerateTaskRequest, request: Request):
 
     llm = resolve_llm(state, req.model)
     try:
-        return await generate_task_from_run(session_id=req.session_id, messages=messages, llm=llm)
+        return await generate_task_from_run(
+            session_id=req.session_id, messages=messages, llm=llm, owner_id=user.id
+        )
     except ValueError as e:
         logger.exception("task generator failed")
         raise HTTPException(422, f"task generation failed: {e}") from e

@@ -40,7 +40,9 @@ async def test_get_messages_no_checkpoint_returns_empty(app_with_msgs):
     app = app_with_msgs
     app.state.checkpointer = _FakeCheckpointer(None)
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+    async with AsyncClient(
+        transport=transport, base_url="http://test", headers={"X-User-Email": "test@example.com"}
+    ) as ac:
         r = await ac.get("/sessions/missing/messages")
     assert r.status_code == 200
     assert r.json() == []
@@ -58,7 +60,9 @@ async def test_get_messages_returns_human_and_ai_text(app_with_msgs):
     ]
     app.state.checkpointer = _FakeCheckpointer(msgs)
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+    async with AsyncClient(
+        transport=transport, base_url="http://test", headers={"X-User-Email": "test@example.com"}
+    ) as ac:
         r = await ac.get("/sessions/s1/messages")
     assert r.status_code == 200
     body = r.json()
@@ -86,7 +90,9 @@ async def test_get_messages_extracts_text_from_block_content(app_with_msgs):
     ]
     app.state.checkpointer = _FakeCheckpointer(msgs)
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+    async with AsyncClient(
+        transport=transport, base_url="http://test", headers={"X-User-Email": "test@example.com"}
+    ) as ac:
         r = await ac.get("/sessions/s1/messages")
     assert r.json() == [
         {"id": "a1", "role": "assistant", "parts": [{"type": "text", "text": "part 1 part 2"}]}
@@ -104,7 +110,9 @@ async def test_get_messages_emits_data_usage_when_metadata_present(app_with_msgs
     msgs = [ai]
     app.state.checkpointer = _FakeCheckpointer(msgs)
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+    async with AsyncClient(
+        transport=transport, base_url="http://test", headers={"X-User-Email": "test@example.com"}
+    ) as ac:
         r = await ac.get("/sessions/s1/messages")
     body = r.json()
     parts = body[0]["parts"]
@@ -123,7 +131,9 @@ async def test_get_messages_omits_data_usage_when_no_metadata(app_with_msgs):
     msgs = [AIMessage(id="a1", content="hello")]
     app.state.checkpointer = _FakeCheckpointer(msgs)
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+    async with AsyncClient(
+        transport=transport, base_url="http://test", headers={"X-User-Email": "test@example.com"}
+    ) as ac:
         r = await ac.get("/sessions/s1/messages")
     parts = r.json()[0]["parts"]
     assert all(p.get("type") != "data-usage" for p in parts)
@@ -132,10 +142,13 @@ async def test_get_messages_omits_data_usage_when_no_metadata(app_with_msgs):
 @pytest.mark.asyncio
 async def test_get_messages_emits_data_artifact_from_tool_output(app_with_msgs):
     from app.artifact_store import create_artifact
+    from tests.conftest import TEST_OWNER_ID, ensure_test_user
 
     app = app_with_msgs
+    await ensure_test_user()
     aid = "art_reloadtest001"
     await create_artifact(
+        owner_id=TEST_OWNER_ID,
         kind="table",
         title="Top 10 Genres",
         payload={"columns": [{"key": "a", "label": "A"}], "rows": []},
@@ -155,7 +168,9 @@ async def test_get_messages_emits_data_artifact_from_tool_output(app_with_msgs):
     ]
     app.state.checkpointer = _FakeCheckpointer(msgs)
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+    async with AsyncClient(
+        transport=transport, base_url="http://test", headers={"X-User-Email": "test@example.com"}
+    ) as ac:
         r = await ac.get("/sessions/s1/messages")
     assert r.status_code == 200
     body = r.json()

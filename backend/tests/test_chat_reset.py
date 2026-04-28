@@ -50,7 +50,9 @@ async def chat_app(monkeypatch):
 async def test_chat_reset_true_deletes_thread(chat_app):
     app, cp = chat_app
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+    async with AsyncClient(
+        transport=transport, base_url="http://test", headers={"X-User-Email": "test@example.com"}
+    ) as ac:
         r = await ac.post(
             "/chat",
             json={
@@ -70,7 +72,9 @@ async def test_chat_reset_true_deletes_thread(chat_app):
 async def test_chat_reset_default_false_keeps_thread(chat_app):
     app, cp = chat_app
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+    async with AsyncClient(
+        transport=transport, base_url="http://test", headers={"X-User-Email": "test@example.com"}
+    ) as ac:
         r = await ac.post(
             "/chat",
             json={

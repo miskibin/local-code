@@ -20,6 +20,7 @@ import {
   Database,
   ExternalLink,
   ListChecks,
+  LogOut,
   MoreHorizontal,
   PanelLeft,
   Pencil,
@@ -38,6 +39,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { useAuthOptional } from "@/lib/auth"
 import type { Artifact, Session } from "@/lib/types"
 
 type Props = {
@@ -318,8 +320,31 @@ export function Sidebar({
         <Link href="/settings" className="block">
           <SideRow icon={<Settings className="h-4 w-4" />}>Settings</SideRow>
         </Link>
+        <UserFooter />
       </div>
     </div>
+  )
+}
+
+function UserFooter() {
+  const auth = useAuthOptional()
+  if (!auth?.user) return null
+  const { user, logout } = auth
+  return (
+    <button
+      type="button"
+      onClick={logout}
+      className="hover:bg-accent flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left text-[13.5px]"
+      title="Sign out"
+    >
+      <span className="inline-flex" style={{ color: "var(--ink-2)" }}>
+        <LogOut className="h-4 w-4" />
+      </span>
+      <span className="flex-1 truncate">{user.email}</span>
+      <span className="text-muted-foreground text-[11px] tracking-wide uppercase">
+        Sign out
+      </span>
+    </button>
   )
 }
 

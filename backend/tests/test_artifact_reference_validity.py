@@ -65,8 +65,12 @@ async def test_every_artifact_reference_in_final_text_resolves_in_store():
     from app.db import init_db
 
     await init_db()
+    from tests.conftest import TEST_OWNER_ID, ensure_test_user
+
+    await ensure_test_user()
     art_id = "art_arefvalid01"
     await create_artifact(
+        owner_id=TEST_OWNER_ID,
         artifact_id=art_id,
         kind="table",
         title="t",
@@ -198,8 +202,12 @@ async def test_artifact_id_in_subagent_text_is_NOT_a_top_level_reference():
     from app.db import init_db
 
     await init_db()
+    from tests.conftest import TEST_OWNER_ID, ensure_test_user
+
+    await ensure_test_user()
     aid = "art_arefvalid02"
     await create_artifact(
+        owner_id=TEST_OWNER_ID,
         artifact_id=aid,
         kind="text",
         title="t",

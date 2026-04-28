@@ -58,6 +58,7 @@ async def stream_chat(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits w
     graph,
     thread_id: str,
     lc_messages: list,
+    owner_id: str,
     session_id: str | None = None,
     resume_value: object = None,
     context_max_tokens: int | None = None,
@@ -187,7 +188,7 @@ async def stream_chat(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits w
         Command(resume=resume_value) if resume_value is not None else {"messages": lc_messages}
     )
     try:
-        astream_config: dict = {"configurable": {"thread_id": thread_id}}
+        astream_config: dict = {"configurable": {"thread_id": thread_id, "owner_id": owner_id}}
         if langfuse_handler is not None:
             astream_config["callbacks"] = [langfuse_handler]
             astream_config["metadata"] = {
@@ -222,7 +223,6 @@ async def stream_chat(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits w
                 continue
             node = (meta or {}).get("langgraph_node")
             is_top_level = not namespace
-
 
             # Snapshot terminal metadata only from the *parent* model node.
             # Subagents emit their own terminal chunks (often with SAFETY /
@@ -280,7 +280,6 @@ async def stream_chat(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits w
                         yield sse({"type": "text-delta", "id": text_id, "delta": delta_text})
                         counters["text_chunks"] += 1
                         last_step = "text"
-
 
                 for tcc in chunk.tool_call_chunks or []:
                     cid = tcc.get("id")
@@ -391,7 +390,9 @@ async def stream_chat(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits w
                                     row = await get_artifact(artifact_id)
                                 else:
                                     row = await persist_tool_artifact(
-                                        artifact=artifact, session_id=session_id
+                                        artifact=artifact,
+                                        session_id=session_id,
+                                        owner_id=owner_id,
                                     )
                             except Exception:
                                 logger.exception(

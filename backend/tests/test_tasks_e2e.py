@@ -64,7 +64,9 @@ async def test_e2e_prompt_task_resolves_var_refs():
     await reset_task_tables(ChatMessage, ChatSession, SavedArtifact, SavedTask)
     app = _bootstrap_app(["A small CLI for time."])
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+    async with AsyncClient(
+        transport=transport, base_url="http://test", headers={"X-User-Email": "test@example.com"}
+    ) as ac:
         imported = await ac.post("/tasks/import", json=_load_fixture("task_prompt.json"))
         assert imported.status_code == 200, imported.text
         task_id = imported.json()["id"]
@@ -94,7 +96,9 @@ async def test_e2e_task_run_messages_reload_via_checkpointer():
     await reset_task_tables(ChatMessage, ChatSession, SavedArtifact, SavedTask)
     app = _bootstrap_app(["A small CLI for time."])
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+    async with AsyncClient(
+        transport=transport, base_url="http://test", headers={"X-User-Email": "test@example.com"}
+    ) as ac:
         imported = await ac.post("/tasks/import", json=_load_fixture("task_prompt.json"))
         assert imported.status_code == 200, imported.text
         task_id = imported.json()["id"]
@@ -131,7 +135,9 @@ async def test_e2e_subagent_then_code_propagates_artifact_id():
     )
     app = _bootstrap_app([sql_response])
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+    async with AsyncClient(
+        transport=transport, base_url="http://test", headers={"X-User-Email": "test@example.com"}
+    ) as ac:
         imported = await ac.post("/tasks/import", json=_load_fixture("task_chart.json"))
         assert imported.status_code == 200, imported.text
         task_id = imported.json()["id"]

@@ -34,10 +34,11 @@ def to_dto(row: SavedTask) -> TaskDTO:
     )
 
 
-def to_row(dto: TaskDTO) -> SavedTask:
+def to_row(dto: TaskDTO, owner_id: str) -> SavedTask:
     now = now_utc()
     return SavedTask(
         id=dto.id or _new_id(),
+        owner_id=owner_id,
         title=dto.title,
         description=dto.description,
         source_session_id=dto.source_session_id,
@@ -51,10 +52,16 @@ def to_row(dto: TaskDTO) -> SavedTask:
     )
 
 
-async def list_tasks() -> list[SavedTask]:
+async def list_tasks(owner_id: str) -> list[SavedTask]:
     async with async_session() as s:
         rows = (
-            (await s.execute(select(SavedTask).order_by(SavedTask.updated_at.desc())))
+            (
+                await s.execute(
+                    select(SavedTask)
+                    .where(SavedTask.owner_id == owner_id)
+                    .order_by(SavedTask.updated_at.desc())
+                )
+            )
             .scalars()
             .all()
         )
@@ -66,11 +73,11 @@ async def get_task(task_id: str) -> SavedTask | None:
         return await s.get(SavedTask, task_id)
 
 
-async def upsert_task(dto: TaskDTO) -> SavedTask:
+async def upsert_task(dto: TaskDTO, owner_id: str) -> SavedTask:
     async with async_session() as s:
         existing = await s.get(SavedTask, dto.id) if dto.id else None
         if existing is None:
-            row = to_row(dto)
+            row = to_row(dto, owner_id)
             s.add(row)
             await s.commit()
             await s.refresh(row)
@@ -100,7 +107,7 @@ async def delete_task(task_id: str) -> bool:
     return True
 
 
-async def create_task(dto: TaskDTO) -> SavedTask:
+async def create_task(dto: TaskDTO, owner_id: str) -> SavedTask:
     """Always insert a new row with a fresh id (used by /generate and /import)."""
     payload = dto.model_copy(update={"id": _new_id()})
-    return await upsert_task(payload)
+    return await upsert_task(payload, owner_id)

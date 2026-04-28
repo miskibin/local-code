@@ -30,8 +30,47 @@ def stub_state():
     return SimpleNamespace(mcp_registry=SimpleNamespace(tools=[]))
 
 
+TEST_OWNER_ID = "usr_test"
+TEST_OWNER_EMAIL = "test@example.com"
+
+
+async def ensure_test_user() -> str:
+    """Insert (or no-op) the shared test user. Returns its id."""
+    from app.db import async_session
+    from app.models import User
+    from app.utils import now_utc
+
+    async with async_session() as s:
+        existing = await s.get(User, TEST_OWNER_ID)
+        if existing is None:
+            s.add(User(id=TEST_OWNER_ID, email=TEST_OWNER_EMAIL, created_at=now_utc()))
+            await s.commit()
+    return TEST_OWNER_ID
+
+
+@pytest.fixture(autouse=True)
+def _patch_owner_id_for_tests(monkeypatch):
+    """Tests rarely pass through the `/chat` route that injects owner_id into the
+    runnable config. Default any missing owner_id to the shared test user so
+    `create_artifact` (called from tools / runners) doesn't blow up."""
+    from app import artifact_store
+
+    real = artifact_store.owner_id_from_config
+
+    def _safe(config):
+        try:
+            return real(config)
+        except RuntimeError:
+            return TEST_OWNER_ID
+
+    monkeypatch.setattr(artifact_store, "owner_id_from_config", _safe)
+
+
 async def reset_task_tables(*models) -> None:
-    """init_db + truncate the supplied SQLModel tables in one go."""
+    """init_db + truncate the supplied SQLModel tables in one go.
+
+    Recreates the shared test user after truncation so foreign keys hold.
+    """
     from app.db import async_session, init_db
 
     await init_db()
@@ -39,6 +78,7 @@ async def reset_task_tables(*models) -> None:
         for model in models:
             await s.execute(delete(model))
         await s.commit()
+    await ensure_test_user()
 
 
 def parse_sse_events(lines: Iterable[str]) -> list[dict]:

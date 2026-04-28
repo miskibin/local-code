@@ -18,7 +18,11 @@ async def test_tasks_crud_and_export_import():
 
     transport = ASGITransport(app=app)
     try:
-        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        async with AsyncClient(
+            transport=transport,
+            base_url="http://test",
+            headers={"X-User-Email": "test@example.com"},
+        ) as ac:
             # create-via-import (no id required)
             payload = {
                 "id": "",
@@ -101,7 +105,11 @@ async def test_marketplace_fields_round_trip():
 
     transport = ASGITransport(app=app)
     try:
-        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        async with AsyncClient(
+            transport=transport,
+            base_url="http://test",
+            headers={"X-User-Email": "test@example.com"},
+        ) as ac:
             payload = {
                 "id": "",
                 "title": "Standup digest",
@@ -170,7 +178,9 @@ async def test_update_missing_returns_404():
         await s.commit()
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+    async with AsyncClient(
+        transport=transport, base_url="http://test", headers={"X-User-Email": "test@example.com"}
+    ) as ac:
         r = await ac.put(
             "/tasks/nope",
             json={"id": "nope", "title": "x", "variables": [], "steps": []},

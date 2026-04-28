@@ -61,6 +61,7 @@ def _cap_payload(payload: dict[str, Any]) -> tuple[dict[str, Any], int, bool]:
 
 async def create_artifact(
     *,
+    owner_id: str,
     kind: str,
     title: str,
     payload: dict[str, Any],
@@ -77,6 +78,7 @@ async def create_artifact(
     now = now_utc()
     row = SavedArtifact(
         id=aid,
+        owner_id=owner_id,
         session_id=session_id,
         kind=kind,
         title=title,
@@ -167,17 +169,41 @@ _PROJECT_ROOT = str(Path(__file__).resolve().parents[2])
 _BLOCKED_USER_IMPORTS = frozenset(
     {
         # SQL / DB drivers (use sql_query / sql-agent instead)
-        "sqlite3", "aiosqlite", "sqlalchemy", "asyncpg",
-        "psycopg", "psycopg2", "pymongo", "redis",
-        "pymysql", "mysql", "oracledb", "pyodbc", "duckdb",
+        "sqlite3",
+        "aiosqlite",
+        "sqlalchemy",
+        "asyncpg",
+        "psycopg",
+        "psycopg2",
+        "pymongo",
+        "redis",
+        "pymysql",
+        "mysql",
+        "oracledb",
+        "pyodbc",
+        "duckdb",
         # Network
-        "socket", "ssl", "urllib", "urllib3", "http",
-        "httpx", "requests", "aiohttp", "websockets",
-        "ftplib", "smtplib", "telnetlib", "paramiko",
+        "socket",
+        "ssl",
+        "urllib",
+        "urllib3",
+        "http",
+        "httpx",
+        "requests",
+        "aiohttp",
+        "websockets",
+        "ftplib",
+        "smtplib",
+        "telnetlib",
+        "paramiko",
         # Process escape
-        "subprocess", "multiprocessing",
+        "subprocess",
+        "multiprocessing",
         # Loader / FFI escapes
-        "ctypes", "_ctypes", "importlib", "builtins",
+        "ctypes",
+        "_ctypes",
+        "importlib",
+        "builtins",
     }
 )
 
@@ -188,12 +214,29 @@ _BLOCKED_USER_CALLABLES = frozenset({"__import__", "exec", "eval", "compile"})
 # os.environ) stay available — they're inert.
 _BLOCKED_OS_ATTRS = frozenset(
     {
-        "system", "popen",
-        "exec", "execv", "execve", "execvp", "execvpe",
-        "execl", "execle", "execlp", "execlpe",
-        "spawn", "spawnv", "spawnve", "spawnvp", "spawnvpe",
-        "spawnl", "spawnle", "spawnlp", "spawnlpe",
-        "fork", "forkpty", "kill",
+        "system",
+        "popen",
+        "exec",
+        "execv",
+        "execve",
+        "execvp",
+        "execvpe",
+        "execl",
+        "execle",
+        "execlp",
+        "execlpe",
+        "spawn",
+        "spawnv",
+        "spawnve",
+        "spawnvp",
+        "spawnvpe",
+        "spawnl",
+        "spawnle",
+        "spawnlp",
+        "spawnlpe",
+        "fork",
+        "forkpty",
+        "kill",
     }
 )
 
@@ -220,9 +263,7 @@ def _validate_user_code(code: str) -> None:
         elif isinstance(node, ast.ImportFrom):
             top = (node.module or "").split(".", 1)[0]
             if top in _BLOCKED_USER_IMPORTS:
-                raise ValueError(
-                    f"python_exec: import from {node.module!r} is blocked"
-                )
+                raise ValueError(f"python_exec: import from {node.module!r} is blocked")
         elif isinstance(node, ast.Call):
             f = node.func
             if isinstance(f, ast.Name) and f.id in _BLOCKED_USER_CALLABLES:
@@ -234,6 +275,7 @@ def _validate_user_code(code: str) -> None:
                 and f.attr in _BLOCKED_OS_ATTRS
             ):
                 raise ValueError(f"python_exec: os.{f.attr} is blocked")
+
 
 _PY_PRELUDE = textwrap.dedent(
     f"""
@@ -529,9 +571,7 @@ def _run_python_sync(code: str, staged: dict[str, str]) -> dict[str, Any]:
                     cwd=sandbox_dir,
                 )
             except subprocess.TimeoutExpired as err:
-                raise TimeoutError(
-                    f"python_exec timed out after {PY_TIMEOUT_SECONDS}s"
-                ) from err
+                raise TimeoutError(f"python_exec timed out after {PY_TIMEOUT_SECONDS}s") from err
         stdout = _read_capped(stdout_path)
         stderr = _read_capped(stderr_path)
     finally:
@@ -691,9 +731,11 @@ async def persist_tool_artifact(
     *,
     artifact: dict[str, Any],
     session_id: str | None,
+    owner_id: str,
 ) -> SavedArtifact:
     """Called from streaming.py when a ToolMessage carries an `artifact` dict."""
     return await create_artifact(
+        owner_id=owner_id,
         kind=artifact.get("kind", "text"),
         title=artifact.get("title", "Artifact"),
         payload=artifact.get("payload", {}),
@@ -708,6 +750,13 @@ async def persist_tool_artifact(
 
 def session_id_from_config(config: RunnableConfig | None) -> str | None:
     return ((config or {}).get("configurable") or {}).get("thread_id")
+
+
+def owner_id_from_config(config: RunnableConfig | None) -> str:
+    owner_id = ((config or {}).get("configurable") or {}).get("owner_id")
+    if not owner_id:
+        raise RuntimeError("missing owner_id in RunnableConfig.configurable")
+    return owner_id
 
 
 async def build_and_persist_tool_artifact(
@@ -728,7 +777,11 @@ async def build_and_persist_tool_artifact(
     }
     if parent_artifact_ids:
         artifact["parent_artifact_ids"] = parent_artifact_ids
-    row = await persist_tool_artifact(artifact=artifact, session_id=session_id_from_config(config))
+    row = await persist_tool_artifact(
+        artifact=artifact,
+        session_id=session_id_from_config(config),
+        owner_id=owner_id_from_config(config),
+    )
     summary = f"{row.id} · {result['summary']}"
     if result.get("kind") == "table":
         from app.services.table_summary import build_compact_table_summary
