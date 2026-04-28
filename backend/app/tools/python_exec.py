@@ -32,18 +32,19 @@ async def python_exec(code: str, config: RunnableConfig) -> tuple[str, dict]:
     Subprocess, 20-second timeout, no state between calls. The summary you see
     starts with the artifact id (looks like `art_abc123def456`).
 
-    Sandbox — DO NOT attempt these (they will be rejected before run):
+    Sandbox — DO NOT attempt these (they will be blocked):
     - NO database access: do NOT `import sqlite3 / sqlalchemy / aiosqlite /
-      asyncpg / pymongo / redis`. For any SQL question delegate to the
-      `sql-agent` subagent (or call `sql_query` directly).
+      asyncpg / pymongo / redis` (rejected at submit time). For any SQL
+      question delegate to the `sql-agent` subagent (or call `sql_query`).
     - NO network: do NOT `import socket / urllib / requests / httpx /
-      aiohttp`. Don't try to download data.
+      aiohttp` (rejected at submit time). Don't try to download data.
     - NO subprocess / shell: do NOT `import subprocess`, do NOT call
-      `os.system` / `os.popen` / `os.exec*`.
-    - NO project filesystem: do NOT open files in the project tree, do NOT
-      open `*.db` or `.env*` files. To read prior data use
-      `read_artifact("art_…")` only.
-    - NO `__import__`, `eval`, `exec`, `compile`, `ctypes`.
+      `os.system` / `os.popen` / `os.exec*` (rejected at submit time).
+    - NO project filesystem: any `open(...)` against project files, `*.db`,
+      or `.env*` is blocked at runtime by the in-process audit hook (so it
+      raises mid-execution). To read prior data use `read_artifact("art_…")`.
+    - NO `__import__`, `eval`, `exec`, `compile`, `ctypes` (rejected at
+      submit time).
     Compute, transform DataFrames, and plot with matplotlib — that's it.
     """
     try:

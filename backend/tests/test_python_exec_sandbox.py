@@ -80,9 +80,12 @@ async def test_blocked_os_attrs_rejected_at_ast(code):
     assert "blocked" in msg.content.lower()
 
 
-async def test_runtime_blocks_writing_outside_sandbox():
-    # AST has no opinion on `open()` calls — audit hook is the gate.
-    code = 'open("/tmp/../etc/lc_sandbox_breakout", "w").write("x")'
+async def test_runtime_blocks_writing_outside_sandbox(tmp_path):
+    # AST has no opinion on `open()` calls — audit hook is the gate. tmp_path
+    # is the pytest tmp dir, which is OUTSIDE the per-run sandbox cwd
+    # (a different mkdtemp under the OS temp root), so this must be blocked.
+    target = tmp_path / "lc_sandbox_breakout"
+    code = f'open({str(target)!r}, "w").write("x")'
     msg = await _invoke(code)
     assert msg.status == "error"
     assert "sandbox" in msg.content.lower()
@@ -97,27 +100,23 @@ async def test_runtime_blocks_reading_project_file():
     assert "sandbox" in msg.content.lower()
 
 
-async def test_runtime_blocks_reading_dot_env():
-    code = 'open("/tmp/.env.fake", "r").read()'
-    # Pre-create file so the failure is the audit hook, not FileNotFoundError.
-    Path("/tmp/.env.fake").write_text("X=1")
-    try:
-        msg = await _invoke(code)
-        assert msg.status == "error"
-        assert "sandbox" in msg.content.lower()
-    finally:
-        Path("/tmp/.env.fake").unlink(missing_ok=True)
+async def test_runtime_blocks_reading_dot_env(tmp_path):
+    target = tmp_path / ".env.fake"
+    target.write_text("X=1")
+    code = f'open({str(target)!r}, "r").read()'
+    msg = await _invoke(code)
+    assert msg.status == "error"
+    assert "sandbox" in msg.content.lower()
 
 
-async def test_runtime_blocks_reading_db_file():
+async def test_runtime_blocks_reading_db_file(tmp_path):
     # Even a path with a `.db` basename is rejected before sqlite would touch it.
-    Path("/tmp/lc_fake.db").write_bytes(b"SQLite format 3\x00")
-    try:
-        msg = await _invoke('open("/tmp/lc_fake.db", "rb").read(16)')
-        assert msg.status == "error"
-        assert "sandbox" in msg.content.lower()
-    finally:
-        Path("/tmp/lc_fake.db").unlink(missing_ok=True)
+    target = tmp_path / "lc_fake.db"
+    target.write_bytes(b"SQLite format 3\x00")
+    code = f'open({str(target)!r}, "rb").read(16)'
+    msg = await _invoke(code)
+    assert msg.status == "error"
+    assert "sandbox" in msg.content.lower()
 
 
 async def test_writes_inside_sandbox_cwd_succeed():

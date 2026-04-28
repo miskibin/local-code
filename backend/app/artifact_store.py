@@ -270,7 +270,7 @@ _PY_PRELUDE = textwrap.dedent(
             ap = _os.path.abspath(_os.fspath(p))
         except TypeError:
             return True
-        return ap == _SANDBOX_CWD or ap.startswith(_SANDBOX_CWD + _os.sep) or ap.startswith("/tmp/")
+        return ap == _SANDBOX_CWD or ap.startswith(_SANDBOX_CWD + _os.sep)
 
     def _sb_dangerous_read(p):
         if isinstance(p, int):
@@ -451,6 +451,10 @@ async def _stage_artifacts_for_code(
 
 
 async def run_python_artifact(code: str) -> dict[str, Any]:
+    # Normalize before validation so the AST validator and the executor see
+    # identical text (otherwise a leading-indent block would syntax-fail at
+    # validate time but parse fine after dedent).
+    code = textwrap.dedent(code)
     _validate_user_code(code)
     paths, tmp = await _stage_artifacts_for_code(code)
     try:
@@ -476,9 +480,22 @@ _SAFE_ENV_KEYS = (
     "LC_CTYPE",
 )
 
+PY_OUTPUT_CAP_BYTES = 8 * 1024 * 1024
+_TRUNCATED_MARKER = "\n[... output truncated; exceeded 8 MB cap ...]"
+
+
+def _read_capped(p: Path) -> str:
+    with p.open("rb") as f:
+        data = f.read(PY_OUTPUT_CAP_BYTES + 1)
+    truncated = len(data) > PY_OUTPUT_CAP_BYTES
+    text = data[:PY_OUTPUT_CAP_BYTES].decode("utf-8", errors="replace")
+    if truncated:
+        text += _TRUNCATED_MARKER
+    return text
+
 
 def _run_python_sync(code: str, staged: dict[str, str]) -> dict[str, Any]:
-    wrapped = _PY_PRELUDE + "\n" + textwrap.dedent(code)
+    wrapped = _PY_PRELUDE + "\n" + code
     # Minimal env: subprocess inherits only what's needed to start Python.
     # Avoids leaking secrets (API keys, DB URLs, .env) to LLM-controlled code.
     env = {k: os.environ[k] for k in _SAFE_ENV_KEYS if k in os.environ}
@@ -486,28 +503,43 @@ def _run_python_sync(code: str, staged: dict[str, str]) -> dict[str, Any]:
     env[_PROJECT_ROOT_ENV] = _PROJECT_ROOT
     if _FONT_DIR.is_dir():
         env[_FONT_DIR_ENV] = str(_FONT_DIR)
-    # Per-run sandbox dir = subprocess cwd. Relative paths and matplotlib's
-    # config cache (HOME/MPLCONFIGDIR) all resolve here, so unauthorized
-    # writes land inside an ephemeral dir we wipe in the finally branch.
+    # Per-run sandbox dir = subprocess cwd. Relative paths, matplotlib's
+    # config cache (HOME/MPLCONFIGDIR), and tempfile.mkdtemp() inside user
+    # code (TMPDIR/TEMP/TMP) all resolve here so unauthorized writes land
+    # inside an ephemeral dir we wipe in the finally branch.
     sandbox_dir = tempfile.mkdtemp(prefix="lc_pyexec_")
     env["HOME"] = sandbox_dir
     env["MPLCONFIGDIR"] = sandbox_dir
+    env["TMPDIR"] = sandbox_dir
+    env["TEMP"] = sandbox_dir
+    env["TMP"] = sandbox_dir
+    # Redirect to disk-backed files instead of `capture_output=True` PIPEs:
+    # PIPE buffers in our process memory unbounded, so a runaway `print(…)`
+    # in LLM-authored code can OOM the API. RLIMIT_FSIZE in the preamble
+    # caps each file at 50 MB in the subprocess, and we additionally cap
+    # what we read back in-process below.
+    stdout_path = Path(sandbox_dir) / ".stdout"
+    stderr_path = Path(sandbox_dir) / ".stderr"
     try:
-        proc = subprocess.run(
-            [sys.executable, "-I", "-c", wrapped],
-            capture_output=True,
-            timeout=PY_TIMEOUT_SECONDS,
-            check=False,
-            env=env,
-            cwd=sandbox_dir,
-        )
-    except subprocess.TimeoutExpired as err:
-        raise TimeoutError(f"python_exec timed out after {PY_TIMEOUT_SECONDS}s") from err
+        with stdout_path.open("wb") as so, stderr_path.open("wb") as se:
+            try:
+                proc = subprocess.run(
+                    [sys.executable, "-I", "-c", wrapped],
+                    stdout=so,
+                    stderr=se,
+                    timeout=PY_TIMEOUT_SECONDS,
+                    check=False,
+                    env=env,
+                    cwd=sandbox_dir,
+                )
+            except subprocess.TimeoutExpired as err:
+                raise TimeoutError(
+                    f"python_exec timed out after {PY_TIMEOUT_SECONDS}s"
+                ) from err
+        stdout = _read_capped(stdout_path)
+        stderr = _read_capped(stderr_path)
     finally:
         shutil.rmtree(sandbox_dir, ignore_errors=True)
-
-    stdout = proc.stdout.decode("utf-8", errors="replace") if proc.stdout else ""
-    stderr = proc.stderr.decode("utf-8", errors="replace") if proc.stderr else ""
     if proc.returncode != 0:
         raise RuntimeError(f"python failed (exit {proc.returncode}):\n{stderr or stdout}")
 
