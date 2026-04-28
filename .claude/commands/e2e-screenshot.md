@@ -13,7 +13,7 @@ Spin up the full stack, send a chat query that exercises SQL + Python tools, wai
 
 Backend needs `backend/.env`:
 ```
-google_api_key=<KEY>
+GOOGLE_API_KEY=<KEY>
 ```
 
 Frontend needs `frontend/.env.local`:
