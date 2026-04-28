@@ -119,7 +119,7 @@
 /* ---- Local Chat design tokens (scoped to app body) ----------------------- */
 body[data-app="local-chat"] {
     /* Override shadcn surfaces to design hex equivalents */
-    --background: #ffffff;
+    --background: #faf9f6;
     --foreground: #0d0d0d;
     --card: #ffffff;
     --card-foreground: #0d0d0d;
@@ -129,10 +129,10 @@ body[data-app="local-chat"] {
     --primary-foreground: #ffffff;
     --secondary: #f4f4f4;
     --secondary-foreground: #0d0d0d;
-    --muted: #f9f9f9;
+    --muted: #f3f1ec;
     --muted-foreground: #5d5d5d;
-    --border: #e5e5e5;
-    --input: #e5e5e5;
+    --border: #e3e0d8;
+    --input: #e3e0d8;
     --ring: #2563eb;
 
     /* Accent — design blue. Pre-paint boot script in layout sets --accent-boot
@@ -147,12 +147,12 @@ body[data-app="local-chat"] {
     --sidebar-ring: var(--accent);
 
     /* Surfaces */
-    --bg: #ffffff;
-    --bg-soft: #f9f9f9;
-    --bg-sidebar: #f7f7f7;
+    --bg: #faf9f6;
+    --bg-soft: #f3f1ec;
+    --bg-sidebar: #efede7;
     --surface: #ffffff;
-    --hover: #ececec;
-    --hover-strong: #e4e4e4;
+    --hover: #e8e5de;
+    --hover-strong: #ddd9d0;
 
     /* Text */
     --ink: #0d0d0d;
@@ -161,16 +161,16 @@ body[data-app="local-chat"] {
     --ink-4: #b4b4b4;
 
     /* Border */
-    --border-strong: #d4d4d4;
+    --border-strong: #d2cec3;
 
     /* Bubble */
-    --user-bubble: #f4f4f4;
+    --user-bubble: #ecebe4;
 
     /* Tool block */
-    --tool-bg: #fafafa;
-    --tool-border: #ececec;
-    --code-bg: #fafafa;
-    --code-bg-2: #f4f4f4;
+    --tool-bg: #f5f3ee;
+    --tool-border: #e3e0d8;
+    --code-bg: #f5f3ee;
+    --code-bg-2: #ecebe4;
     --code-ink: #1f1f1f;
 
     /* Status */
