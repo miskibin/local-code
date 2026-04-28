@@ -60,9 +60,9 @@ cd /home/user/local-code/backend
 uv run uvicorn app.main:app --port 8000 > /tmp/backend.log 2>&1 &
 ```
 
-Wait up to 20 s, poll until `curl -s http://localhost:8000/` returns JSON:
+Wait up to 20 s, poll until `curl -sf http://localhost:8000/health` returns `{"status":"ok"}`:
 ```bash
-for i in $(seq 1 20); do sleep 1; curl -s http://localhost:8000/ && break; done
+for i in $(seq 1 20); do sleep 1; RESPONSE=$(curl -sf http://localhost:8000/health) && echo "$RESPONSE" | grep -q '"status"[[:space:]]*:[[:space:]]*"ok"' && break; done
 ```
 
 If it never responds check `/tmp/backend.log` for errors.
