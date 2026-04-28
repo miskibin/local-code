@@ -6,14 +6,14 @@ import ErrorState from "./_components/ErrorState"
 
 export default function ErrorBoundary({
   error,
-  unstable_retry,
+  reset,
 }: {
   error: Error & { digest?: string }
-  unstable_retry: () => void
+  reset: () => void
 }) {
   useEffect(() => {
     console.error(error)
   }, [error])
 
-  return <ErrorState kind="500" onPrimary={unstable_retry} primaryHref="/" />
+  return <ErrorState kind="500" onPrimary={reset} primaryHref="/" />
 }

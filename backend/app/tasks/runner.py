@@ -11,6 +11,7 @@ On any step failure we halt and surface the error — no retry, no skip.
 
 from __future__ import annotations
 
+import asyncio
 import json
 import re
 from collections.abc import AsyncIterator
@@ -77,7 +78,10 @@ def _extract_subagent_outputs(text: str, *, trailer_only: bool = False) -> dict[
 
 
 async def _all_tools(state) -> list[BaseTool]:
-    local = tool_registry.discover_tools()
+    # discover_tools imports every `app/tools/*` module and inspects members;
+    # the import / filesystem walk is synchronous and would block the event
+    # loop on the first call per process.
+    local = await asyncio.to_thread(tool_registry.discover_tools)
     mcp = state.mcp_registry.tools if hasattr(state, "mcp_registry") else []
     return local + mcp
 
@@ -522,6 +526,10 @@ async def persist_run_messages(
             if not existing.title:
                 existing.title = f"Task: {task.title}"
             s.add(existing)
+        # Flush so the ChatSession row exists before the ChatMessage FKs
+        # reference it — Postgres enforces FK at statement level even within
+        # the same transaction when bulk insertmany batches reorder.
+        await s.flush()
         s.add(
             ChatMessage(
                 session_id=session_id,

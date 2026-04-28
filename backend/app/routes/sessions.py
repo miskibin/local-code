@@ -1,6 +1,5 @@
 import json
 import re
-from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
@@ -14,7 +13,7 @@ from app.auth import CurrentUser
 from app.config import get_settings
 from app.db import async_session
 from app.models import ChatSession, MessageTrace
-from app.utils import ARTIFACT_DOT_PREFIX_RE, coerce_output, extract_text
+from app.utils import ARTIFACT_DOT_PREFIX_RE, coerce_output, extract_text, now_utc
 
 router = APIRouter()
 
@@ -126,7 +125,7 @@ async def patch_session(sid: str, patch: SessionPatch):
             row.title = patch.title
         if patch.is_pinned is not None:
             row.is_pinned = patch.is_pinned
-            row.pinned_at = datetime.now(UTC) if patch.is_pinned else None
+            row.pinned_at = now_utc() if patch.is_pinned else None
         s.add(row)
         await s.commit()
         await s.refresh(row)

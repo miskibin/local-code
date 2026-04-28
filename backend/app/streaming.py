@@ -407,6 +407,10 @@ async def stream_chat(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits w
                                 )
                                 raise
                             if row is None:
+                                logger.warning(
+                                    f"artifact lookup miss thread={thread_id} cid={cid} "
+                                    f"artifact_id={artifact_id!r} — tool card will have no artifact"
+                                )
                                 continue
                             data: dict = {
                                 "toolCallId": cid,
@@ -440,12 +444,13 @@ async def stream_chat(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits w
         raise
     except Exception as e:  # noqa: BLE001 -- protocol boundary; surface as SSE error so client gets a clean finish
         err_text = f"{type(e).__name__}: {e}"
+        # Exception traceback is the only place we keep err_text — it can echo
+        # user prompt fragments via the underlying LLM/library error string,
+        # so don't re-log it at higher levels.
         logger.exception(
             f"stream error thread={thread_id} last_step={last_step} counters={counters} "
-            f"finish_reason={last_finish_reason!r} usage={last_usage_metadata!r} "
-            f"err={err_text!r}"
+            f"finish_reason={last_finish_reason!r} usage={last_usage_metadata!r}"
         )
-        logger.warning(f"stream emitting SSE error to client thread={thread_id} text={err_text!r}")
         yield sse({"type": "error", "errorText": err_text})
     finally:
         # Detect silent failures the upstream model gave us:
@@ -478,30 +483,38 @@ async def stream_chat(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits w
         if langfuse_handler is not None:
             trace_id = getattr(langfuse_handler, "last_trace_id", None)
             if trace_id:
-                from langfuse import get_client  # noqa: PLC0415
+                # Network calls + DB writes inside `finally` must not swallow the
+                # [DONE] terminator below: the client hangs waiting for it. Log
+                # any failure and keep going — the trace data is best-effort.
+                try:
+                    from langfuse import get_client  # noqa: PLC0415
 
-                trace_url = get_client().get_trace_url(trace_id=trace_id)
-                yield sse(
-                    {
-                        "type": "data-trace",
-                        "id": f"trace_{msg_id}",
-                        "data": {
-                            "traceId": trace_id,
-                            "messageId": ai_message_id,
-                            "traceUrl": trace_url,
-                        },
-                    }
-                )
-                if ai_message_id and session_id:
-                    async with async_session() as s:
-                        await s.merge(
-                            MessageTrace(
-                                ai_message_id=ai_message_id,
-                                session_id=session_id,
-                                trace_id=trace_id,
+                    trace_url = get_client().get_trace_url(trace_id=trace_id)
+                    yield sse(
+                        {
+                            "type": "data-trace",
+                            "id": f"trace_{msg_id}",
+                            "data": {
+                                "traceId": trace_id,
+                                "messageId": ai_message_id,
+                                "traceUrl": trace_url,
+                            },
+                        }
+                    )
+                    if ai_message_id and session_id:
+                        async with async_session() as s:
+                            await s.merge(
+                                MessageTrace(
+                                    ai_message_id=ai_message_id,
+                                    session_id=session_id,
+                                    trace_id=trace_id,
+                                )
                             )
-                        )
-                        await s.commit()
+                            await s.commit()
+                except Exception:  # noqa: BLE001 -- protect the [DONE] terminator
+                    logger.exception(
+                        f"langfuse trace emit/persist fail thread={thread_id} trace_id={trace_id!r}"
+                    )
         # Always emit one data-usage part per turn. durationMs is meaningful
         # even when the model returned no usage_metadata (e.g. local Ollama),
         # and the client hides zero-token columns in the rendered row.

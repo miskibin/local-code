@@ -14,6 +14,8 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev
 
 COPY app/ ./app/
+COPY alembic/ ./alembic/
+COPY alembic.ini ./alembic.ini
 COPY data/chinook.db ./chinook.db
 
 EXPOSE 8000

@@ -1,8 +1,10 @@
 "use client"
 
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { toast } from "sonner"
+import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useAuth } from "@/lib/auth"
@@ -35,31 +37,40 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="lc-login-bg relative flex min-h-dvh w-full flex-col">
-      <header className="flex w-full items-center justify-between px-8 py-6 text-xs tracking-wide">
-        <div className="flex items-center gap-2 text-sm font-semibold">
+    <main
+      className="lc-login-bg relative flex min-h-dvh w-full flex-col"
+      aria-labelledby="login-heading"
+    >
+      <header className="flex w-full items-center justify-between px-4 py-5 sm:px-8 sm:py-6">
+        <Link
+          href="/"
+          className="flex items-center gap-2 text-sm font-semibold transition-opacity hover:opacity-90"
+        >
           <span className="grid size-7 place-items-center rounded-md bg-emerald-100 text-emerald-700">
             ✦
           </span>
           Local Chat
-        </div>
-        <div className="text-muted-foreground flex items-center gap-2 uppercase">
-          <span className="size-1.5 rounded-full bg-emerald-500" />
+        </Link>
+        <div className="text-muted-foreground hidden items-center gap-2 text-xs tracking-wide uppercase sm:flex">
+          <span className="size-1.5 shrink-0 rounded-full bg-emerald-500" />
           Workspace · auto-code
         </div>
       </header>
 
-      <div className="flex flex-1 items-center justify-center px-4 py-10">
+      <div className="flex flex-1 items-center justify-center px-4 pb-10 pt-4 sm:px-6 sm:py-12">
         <div className="w-full max-w-md">
           <p className="text-muted-foreground mb-2 text-xs tracking-[0.18em] uppercase">
             Sign in
           </p>
-          <h1 className="font-serif text-4xl tracking-tight">
+          <h1
+            id="login-heading"
+            className="font-serif text-3xl tracking-tight sm:text-4xl"
+          >
             Continue to Local Chat
           </h1>
-          <p className="text-muted-foreground mt-3 text-sm">
-            Use your email to access local models, tasks, and saved artifacts.
-            No password required for local development.
+          <p className="text-muted-foreground mt-3 text-pretty text-sm leading-relaxed">
+            Use your work email to access local models, tasks, and saved
+            artifacts. No password in this dev build.
           </p>
 
           <form
@@ -79,54 +90,69 @@ export default function LoginPage() {
               onChange={(e) => setEmail(e.target.value)}
               disabled={submitting}
             />
-            <Button type="submit" disabled={submitting}>
+            <Button type="submit" disabled={submitting} className="w-full">
               {submitting ? "Signing in…" : "Continue"}
             </Button>
           </form>
 
-          <div className="mt-6 grid gap-2">
-            {ssoProviders.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                disabled
-                title="Demo — use email above"
-                className="bg-card hover:bg-card flex w-full cursor-not-allowed items-center justify-between rounded-xl border p-4 text-left opacity-60"
-              >
-                <div className="flex items-center gap-3">
-                  <span className="grid size-8 place-items-center rounded-md border text-base">
-                    {p.icon}
-                  </span>
-                  <div>
-                    <div className="text-sm font-medium">{p.label}</div>
-                    <div className="text-muted-foreground text-[11px] tracking-wider uppercase">
-                      {p.subtitle}
+          <section
+            className="mt-8"
+            aria-label="Enterprise single sign-on (not connected)"
+          >
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <h2 className="text-muted-foreground text-xs tracking-[0.18em] uppercase">
+                Enterprise SSO
+              </h2>
+              <Badge variant="secondary" className="font-normal">
+                Not connected
+              </Badge>
+            </div>
+            <div className="grid gap-2">
+              {ssoProviders.map((p) => (
+                <div
+                  key={p.id}
+                  className="bg-card text-muted-foreground flex w-full items-center justify-between rounded-xl border border-dashed p-4 text-left"
+                >
+                  <div className="flex min-w-0 items-center gap-3">
+                    <span
+                      className="grid size-8 shrink-0 place-items-center rounded-md border text-base"
+                      aria-hidden
+                    >
+                      {p.icon}
+                    </span>
+                    <div className="min-w-0">
+                      <div className="text-foreground text-sm font-medium">
+                        {p.label}
+                      </div>
+                      <div className="text-[11px] tracking-wider uppercase opacity-80">
+                        {p.subtitle}
+                      </div>
                     </div>
                   </div>
+                  <span className="shrink-0 opacity-50" aria-hidden>
+                    ›
+                  </span>
                 </div>
-                <span className="text-muted-foreground">›</span>
-              </button>
-            ))}
-          </div>
+              ))}
+            </div>
+          </section>
 
-          <div className="bg-card text-muted-foreground mt-6 flex items-start gap-3 rounded-xl border p-4 text-xs">
-            <span className="text-emerald-600">⊙</span>
-            <span>
-              Email-only sign-in for local development. The SSO button is mocked
-              — pick any email to identify your sessions, tasks, and artifacts.
+          <aside className="bg-card text-muted-foreground mt-6 flex items-start gap-3 rounded-xl border p-4 text-xs leading-relaxed">
+            <span className="text-emerald-600" aria-hidden>
+              ⊙
             </span>
-          </div>
+            <p>
+              This page is for local development: sign in with any email to
+              label your session. Wire Okta (or another IdP) when you deploy.
+            </p>
+          </aside>
 
-          <div className="text-muted-foreground mt-6 flex justify-between text-xs">
-            <span>
-              No SSO? <span className="underline">Request access</span>
-            </span>
-            <span className="space-x-3">
-              <span>Privacy</span>
-              <span>·</span>
-              <span>Terms</span>
-            </span>
-          </div>
+          <footer className="text-muted-foreground mt-8 border-t border-border/50 pt-6 text-xs leading-relaxed">
+            <p className="text-pretty">
+              Need company SSO or access policies? Configure them in your
+              deployment; this build only stores data locally.
+            </p>
+          </footer>
         </div>
       </div>
     </main>

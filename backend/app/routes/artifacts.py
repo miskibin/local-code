@@ -16,6 +16,7 @@ from app.config import get_settings
 from app.db import async_session
 from app.models import SavedArtifact
 from app.services.table_summary import summarize_csv
+from app.utils import now_utc
 
 router = APIRouter()
 
@@ -106,7 +107,7 @@ async def upsert_artifact(dto: ArtifactDTO, user: CurrentUser):
         existing.source_code = dto.source_code
         existing.parent_artifact_ids = list(dto.parent_artifact_ids or [])
         existing.pinned = True
-        existing.updated_at = datetime.now(UTC)
+        existing.updated_at = now_utc()
         s.add(existing)
         await s.commit()
         await s.refresh(existing)

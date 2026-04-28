@@ -90,6 +90,20 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    @app.exception_handler(Exception)
+    async def _unhandled_exc(request: Request, exc: Exception):
+        # Return JSON so the response goes through CORSMiddleware (Starlette's
+        # default ServerErrorMiddleware emits a plain-text 500 outside CORS,
+        # which the browser surfaces only as "Failed to fetch").
+        logger.exception(f"unhandled {request.method} {request.url.path}: {exc!r}")
+        return JSONResponse(
+            status_code=500,
+            content={
+                "detail": f"{type(exc).__name__}: {exc}",
+                "traceback": traceback.format_exc(),
+            },
+        )
+
     @app.get("/health")
     async def health():
         return {"status": "ok"}

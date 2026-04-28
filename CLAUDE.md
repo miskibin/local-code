@@ -45,6 +45,7 @@ Frontend (`cd frontend`):
 - **Stay minimal.** No speculative abstractions, no helpers for one caller. Three similar lines beat premature abstraction.
 - **Reuse before adding.** Look for existing logic to extract; duplicated logic across files = fix. Edit existing code over new branches.
 - **Performance + reliability first.** Predictable under load, restarts, reconnects, partial streams.
+- **Trusted-client deployment.** App runs behind trusted infra; clients are trusted. No per-route ownership / authorization checks needed. `X-User-Email` is sufficient identity. Don't add auth gating, ownership filters, CSRF, rate limits, or sandbox hardening unless asked — infra handles it.
 
 ## Quality gates
 

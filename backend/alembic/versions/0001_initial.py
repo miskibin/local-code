@@ -34,7 +34,7 @@ def upgrade() -> None:
         sa.Column("owner_id", sa.String(), nullable=False),
         sa.Column("title", sa.String(), nullable=False, server_default=""),
         sa.Column("created_at", sa.DateTime(), nullable=False),
-        sa.Column("is_pinned", sa.Boolean(), nullable=False, server_default=sa.text("0")),
+        sa.Column("is_pinned", sa.Boolean(), nullable=False, server_default=sa.text("false")),
         sa.Column("pinned_at", sa.DateTime(), nullable=True),
         sa.ForeignKeyConstraint(["owner_id"], ["user.id"]),
         sa.PrimaryKeyConstraint("id"),
@@ -68,7 +68,7 @@ def upgrade() -> None:
     op.create_table(
         "mcpserverconfig",
         sa.Column("name", sa.String(), nullable=False),
-        sa.Column("enabled", sa.Boolean(), nullable=False, server_default=sa.text("1")),
+        sa.Column("enabled", sa.Boolean(), nullable=False, server_default=sa.text("true")),
         sa.Column("connection", sa.JSON(), nullable=False),
         sa.PrimaryKeyConstraint("name"),
     )
@@ -77,7 +77,7 @@ def upgrade() -> None:
         "mcpserveruserflag",
         sa.Column("user_id", sa.String(), nullable=False),
         sa.Column("name", sa.String(), nullable=False),
-        sa.Column("enabled", sa.Boolean(), nullable=False, server_default=sa.text("1")),
+        sa.Column("enabled", sa.Boolean(), nullable=False, server_default=sa.text("true")),
         sa.ForeignKeyConstraint(["user_id"], ["user.id"]),
         sa.PrimaryKeyConstraint("user_id", "name"),
     )
@@ -86,7 +86,7 @@ def upgrade() -> None:
         "toolflag",
         sa.Column("user_id", sa.String(), nullable=False),
         sa.Column("name", sa.String(), nullable=False),
-        sa.Column("enabled", sa.Boolean(), nullable=False, server_default=sa.text("1")),
+        sa.Column("enabled", sa.Boolean(), nullable=False, server_default=sa.text("true")),
         sa.ForeignKeyConstraint(["user_id"], ["user.id"]),
         sa.PrimaryKeyConstraint("user_id", "name"),
     )
@@ -95,7 +95,7 @@ def upgrade() -> None:
         "skillflag",
         sa.Column("user_id", sa.String(), nullable=False),
         sa.Column("name", sa.String(), nullable=False),
-        sa.Column("enabled", sa.Boolean(), nullable=False, server_default=sa.text("1")),
+        sa.Column("enabled", sa.Boolean(), nullable=False, server_default=sa.text("true")),
         sa.ForeignKeyConstraint(["user_id"], ["user.id"]),
         sa.PrimaryKeyConstraint("user_id", "name"),
     )
@@ -113,7 +113,7 @@ def upgrade() -> None:
         sa.Column("source_code", sa.String(), nullable=True),
         sa.Column("parent_artifact_ids", sa.JSON(), nullable=False),
         sa.Column("payload_size", sa.Integer(), nullable=False, server_default="0"),
-        sa.Column("pinned", sa.Boolean(), nullable=False, server_default=sa.text("0")),
+        sa.Column("pinned", sa.Boolean(), nullable=False, server_default=sa.text("false")),
         sa.Column("created_at", sa.DateTime(), nullable=False),
         sa.Column("updated_at", sa.DateTime(), nullable=False),
         sa.ForeignKeyConstraint(["owner_id"], ["user.id"]),

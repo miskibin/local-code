@@ -1,6 +1,5 @@
 from deepagents import create_deep_agent
 from deepagents.backends.state import StateBackend
-from deepagents.middleware._tool_exclusion import _ToolExclusionMiddleware
 from deepagents.middleware.summarization import (
     SummarizationToolMiddleware,
     create_summarization_middleware,
@@ -11,6 +10,7 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_ollama import ChatOllama
 
 from app.middleware.skills_state import StateSkillsMiddleware
+from app.middleware.tool_exclusion import ToolExclusionMiddleware
 from app.skills_registry import SkillInfo
 from app.tools.sql_subagent_query import schema_blob
 
@@ -96,7 +96,7 @@ def build_agent(
             **spec,
             "middleware": [
                 *list(spec.get("middleware") or []),
-                _ToolExclusionMiddleware(excluded=subagent_excluded),
+                ToolExclusionMiddleware(excluded=subagent_excluded),
             ],
         }
         for spec in (subagents or [])
@@ -109,7 +109,7 @@ def build_agent(
     if enabled_skills:
         parent_excluded = parent_excluded - {"read_file"}
         parent_middleware.append(StateSkillsMiddleware(skills=enabled_skills))
-    parent_middleware.insert(0, _ToolExclusionMiddleware(excluded=parent_excluded))
+    parent_middleware.insert(0, ToolExclusionMiddleware(excluded=parent_excluded))
 
     # Add the manual `compact_conversation` tool. `create_deep_agent` already
     # injects a SummarizationMiddleware for auto-compaction; this exposes the

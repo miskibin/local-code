@@ -103,6 +103,22 @@ async def get_artifact(artifact_id: str) -> SavedArtifact | None:
         return await s.get(SavedArtifact, artifact_id)
 
 
+async def get_artifacts(artifact_ids: list[str]) -> dict[str, SavedArtifact]:
+    """Batch-load artifacts by id. Missing ids are absent from the result."""
+    if not artifact_ids:
+        return {}
+    unique_ids = list({aid for aid in artifact_ids if aid})
+    if not unique_ids:
+        return {}
+    async with async_session() as s:
+        rows = (
+            (await s.execute(select(SavedArtifact).where(SavedArtifact.id.in_(unique_ids))))
+            .scalars()
+            .all()
+        )
+    return {row.id: row for row in rows}
+
+
 async def refresh_artifact(artifact_id: str) -> SavedArtifact:
     async with async_session() as s:
         row = await s.get(SavedArtifact, artifact_id)
@@ -113,6 +129,11 @@ async def refresh_artifact(artifact_id: str) -> SavedArtifact:
         source_kind = row.source_kind
         source_code = row.source_code
         parent_ids = list(row.parent_artifact_ids or [])
+        # Optimistic concurrency token: capture updated_at and source_code so
+        # we can detect a concurrent overwrite between read and write. The
+        # executor below can run for many seconds, so we cannot hold the
+        # session open across it.
+        prior_updated_at = row.updated_at
 
     result = await _run_executor(source_kind, source_code, parent_artifact_ids=parent_ids)
 
@@ -120,6 +141,10 @@ async def refresh_artifact(artifact_id: str) -> SavedArtifact:
         row = await s.get(SavedArtifact, artifact_id)
         if row is None:
             raise LookupError(f"artifact {artifact_id} not found")
+        if row.updated_at != prior_updated_at or row.source_code != source_code:
+            raise RuntimeError(
+                f"artifact {artifact_id} changed during refresh; refusing to overwrite"
+            )
         capped_payload, size, _ = _cap_payload(result["payload"])
         row.kind = result.get("kind", row.kind)
         row.title = result.get("title", row.title)
@@ -518,11 +543,18 @@ async def run_python_artifact(code: str) -> dict[str, Any]:
     code = textwrap.dedent(code)
     _validate_user_code(code)
     paths, tmp = await _stage_artifacts_for_code(code)
-    try:
-        return await asyncio.to_thread(_run_python_sync, code, paths)
-    finally:
-        if tmp is not None:
-            shutil.rmtree(tmp, ignore_errors=True)
+
+    # Cleanup runs INSIDE the worker thread: an `await` cancellation cannot
+    # interrupt the thread on Windows, so an outer async `finally` would
+    # `rmtree(tmp)` while the still-running thread is reading those files.
+    def _execute_and_cleanup() -> dict[str, Any]:
+        try:
+            return _run_python_sync(code, paths)
+        finally:
+            if tmp is not None:
+                shutil.rmtree(tmp, ignore_errors=True)
+
+    return await asyncio.to_thread(_execute_and_cleanup)
 
 
 _SAFE_ENV_KEYS = (

@@ -107,11 +107,12 @@ export function extractArtifactIds(parts: AnyPart[]): string[] {
 }
 
 function getParentToolCallId(p: AnyPart): string | null {
+  // Prefer call metadata over result metadata: during streaming only the
+  // call side is populated, so reading the result first leaves child tool
+  // events parentless and they flash as top-level steps until completion.
   const sub =
-    (p.resultProviderMetadata?.subagent as
-      | Record<string, unknown>
-      | undefined) ??
-    (p.callProviderMetadata?.subagent as Record<string, unknown> | undefined)
+    (p.callProviderMetadata?.subagent as Record<string, unknown> | undefined) ??
+    (p.resultProviderMetadata?.subagent as Record<string, unknown> | undefined)
   const parent = sub?.parentToolCallId
   return typeof parent === "string" ? parent : null
 }
@@ -610,8 +611,9 @@ export function ChatView({
     [selectedModel]
   )
   const [streamFault, setStreamFault] = useState<
-    "incomplete" | "unreachable" | null
+    "incomplete" | "unreachable" | "error" | null
   >(null)
+  const [streamFaultMessage, setStreamFaultMessage] = useState<string>("")
   const messagesRef = useRef<{ role: string }[]>([])
   const resumePendingRef = useRef(false)
   const pendingAttachmentsRef = useRef<Artifact[]>([])
@@ -627,8 +629,7 @@ export function ChatView({
         resumePendingRef.current = false
         api
           .getMessages(sessionId)
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          .then((m) => setMessages(m as any))
+          .then((m) => setMessages(m as unknown as typeof messages))
           .catch(() => {})
       },
       onError: (e) => {
@@ -638,14 +639,18 @@ export function ChatView({
           /failed to fetch|networkerror|fetch/i.test(msg)
         if (isNetwork) {
           setStreamFault("unreachable")
+          setStreamFaultMessage(msg)
           toast.error("Can't reach backend", { description: msg })
           return
         }
         const last = messagesRef.current[messagesRef.current.length - 1]
         if (last?.role === "assistant") {
           setStreamFault("incomplete")
+          setStreamFaultMessage(msg)
           return
         }
+        setStreamFault("error")
+        setStreamFaultMessage(msg || "Stream error")
         toast.error(msg || "Stream error")
       },
     })
@@ -660,10 +665,7 @@ export function ChatView({
   const sentFirstRef = useRef(false)
   const [loadingHistory, setLoadingHistory] = useState(true)
 
-  const historyLoadTip = useMemo(
-    () => chatUiTipForKey(sessionId),
-    [sessionId]
-  )
+  const historyLoadTip = useMemo(() => chatUiTipForKey(sessionId), [sessionId])
 
   const streaming = status === "streaming" || status === "submitted"
 
@@ -676,8 +678,7 @@ export function ChatView({
       .getMessages(sessionId)
       .then((m) => {
         if (cancelled) return
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        setMessages(m as any)
+        setMessages(m as unknown as typeof messages)
         if (m.length > 0) sentFirstRef.current = true
       })
       .catch(() => {
@@ -691,10 +692,21 @@ export function ChatView({
     }
   }, [sessionId, setMessages])
 
+  // Track message count so initial history hydration / large jumps scroll
+  // instantly (no smooth-scrolling through 100 historical messages), while
+  // incremental updates during streaming stay smooth.
+  const prevMessageCountRef = useRef(0)
   useEffect(() => {
     const el = scrollRef.current
     if (!el) return
-    el.scrollTo({ top: el.scrollHeight, behavior: "smooth" })
+    const prev = prevMessageCountRef.current
+    const curr = messages.length
+    prevMessageCountRef.current = curr
+    const isInitialOrJump = prev === 0 || curr - prev > 1
+    el.scrollTo({
+      top: el.scrollHeight,
+      behavior: isInitialOrJump ? "auto" : "smooth",
+    })
   }, [messages])
 
   useEffect(() => {
@@ -807,6 +819,7 @@ export function ChatView({
 
   const send = (text: string, attachments: Artifact[] = []) => {
     setStreamFault(null)
+    setStreamFaultMessage("")
     pendingAttachmentsRef.current = attachments
     if (attachments.length > 0) {
       const id =
@@ -842,6 +855,7 @@ export function ChatView({
 
   const submitQuizAnswer = (toolCallId: string, value: string) => {
     setStreamFault(null)
+    setStreamFaultMessage("")
     resumePendingRef.current = true
     sendMessage(
       { text: "__resume__" },
@@ -876,15 +890,26 @@ export function ChatView({
     const idx = messages.findIndex((m) => m.id === userId)
     if (idx < 0) return
     setStreamFault(null)
+    setStreamFaultMessage("")
     setMessages((prev) => prev.slice(0, idx))
     sendMessage({ text: newText }, { body: { reset: true } })
   }
 
   const retryStreamFault = () => {
     setStreamFault(null)
+    setStreamFaultMessage("")
+    // regenerate against an assistant message that has no text content (e.g.
+    // only tool-call parts) leaves the SDK with nothing to re-trigger on, so
+    // we fall back to re-sending the last user message.
     if (lastAssistantId) {
-      void regenerate({ messageId: lastAssistantId })
-      return
+      const lastAssistant = messages.find((m) => m.id === lastAssistantId)
+      const hasText = (lastAssistant?.parts ?? []).some(
+        (p) => p.type === "text" && (p as { text?: string }).text
+      )
+      if (hasText) {
+        void regenerate({ messageId: lastAssistantId })
+        return
+      }
     }
     const lastUser = [...messages].reverse().find((m) => m.role === "user")
     if (!lastUser) return

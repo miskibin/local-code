@@ -5,7 +5,8 @@ from typing import Annotated, Any, Literal
 from langchain_core.messages import AIMessage, BaseMessage, HumanMessage, SystemMessage
 from pydantic import BaseModel, Field
 
-from app.artifact_store import get_artifact
+from app.artifact_store import get_artifacts
+from app.models import SavedArtifact
 from app.services.table_summary import build_table_summary
 
 
@@ -54,6 +55,16 @@ class ChatRequest(BaseModel):
 
     async def to_lc_messages(self, *, last_only: bool = False) -> list[BaseMessage]:
         msgs = self.messages[-1:] if last_only and self.messages else self.messages
+        # Single batched DB lookup for all FilePart artifacts in this turn,
+        # so attachment-heavy messages don't fan out N serial queries on the
+        # /chat hot path before streaming starts.
+        attachment_ids = [
+            part.artifact_id
+            for m in msgs
+            for part in m.parts
+            if isinstance(part, FilePart)
+        ]
+        artifact_cache = await get_artifacts(attachment_ids)
         out: list[BaseMessage] = []
         for m in msgs:
             blocks: list[dict[str, Any]] = []
@@ -62,7 +73,7 @@ class ChatRequest(BaseModel):
                 if isinstance(part, TextPart):
                     text_buf.append(part.text)
                 else:
-                    block = await _file_part_to_block(part)
+                    block = _file_part_to_block(part, artifact_cache.get(part.artifact_id))
                     if block is None:
                         continue
                     if block["type"] == "text":
@@ -88,8 +99,9 @@ def _make_message(role: str, content: Any) -> BaseMessage:
     return SystemMessage(content=content)
 
 
-async def _file_part_to_block(part: FilePart) -> dict[str, Any] | None:
-    artifact = await get_artifact(part.artifact_id)
+def _file_part_to_block(
+    part: FilePart, artifact: SavedArtifact | None
+) -> dict[str, Any] | None:
     if artifact is None:
         return {"type": "text", "text": f"\n[missing attachment {part.artifact_id}]\n"}
     media = part.media_type or (artifact.payload or {}).get("mime", "")

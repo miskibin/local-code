@@ -448,35 +448,45 @@ html.dark body[data-app="local-chat"] {
 }
 .lc-markdown tr:hover td { background: var(--bg-soft); }
 
-/* Settings nav (scoped): accent active state + line indicator */
-body[data-app="local-chat"] .lc-settings-tabs [data-slot="tabs-trigger"] {
-    justify-content: flex-start;
-    gap: 10px;
-    padding: 8px 10px;
-    font-size: 13.5px;
+/* Settings nav (scoped): accent active state + line indicator — row layout from Tailwind on .lc-settings-nav-link */
+body[data-app="local-chat"] .lc-settings-layout a.lc-settings-nav-link {
+    position: relative;
     color: var(--ink-2) !important;
     background: transparent !important;
     border: 0 !important;
     box-shadow: none !important;
     text-shadow: none !important;
     border-radius: 8px;
+    text-decoration: none;
 }
-body[data-app="local-chat"] .lc-settings-tabs [data-slot="tabs-trigger"]:hover {
+body[data-app="local-chat"] .lc-settings-layout a.lc-settings-nav-link::after {
+    content: "";
+    position: absolute;
+    inset-block: 0;
+    right: -1px;
+    width: 2px;
+    border-radius: 1px;
+    background: transparent;
+    opacity: 0;
+    transition: opacity 0.15s ease, background 0.15s ease;
+}
+body[data-app="local-chat"] .lc-settings-layout a.lc-settings-nav-link:hover {
     background: var(--hover) !important;
     color: var(--ink) !important;
 }
-body[data-app="local-chat"] .lc-settings-tabs [data-slot="tabs-trigger"][data-state="active"] {
+body[data-app="local-chat"] .lc-settings-layout a.lc-settings-nav-link[data-active="true"] {
     background: var(--accent-soft) !important;
     color: var(--accent-ink) !important;
     font-weight: 500;
 }
-body[data-app="local-chat"] .lc-settings-tabs [data-slot="tabs-trigger"][data-state="active"]::after {
+body[data-app="local-chat"] .lc-settings-layout a.lc-settings-nav-link[data-active="true"]::after {
     background: var(--accent) !important;
+    opacity: 1;
 }
-body[data-app="local-chat"] .lc-settings-tabs [data-slot="tabs-trigger"] svg {
+body[data-app="local-chat"] .lc-settings-layout a.lc-settings-nav-link svg {
     color: var(--ink-3);
 }
-body[data-app="local-chat"] .lc-settings-tabs [data-slot="tabs-trigger"][data-state="active"] svg {
+body[data-app="local-chat"] .lc-settings-layout a.lc-settings-nav-link[data-active="true"] svg {
     color: var(--accent);
 }
 

@@ -7,7 +7,7 @@ ARTIFACT_DOT_PREFIX_RE = re.compile(r"^\s*(art_[A-Za-z0-9]+)\s*·")
 
 
 def now_utc() -> datetime:
-    return datetime.now(UTC)
+    return datetime.now(UTC).replace(tzinfo=None)
 
 
 def extract_text(content: Any) -> str:

@@ -1,7 +1,14 @@
 "use client"
 
 import Link from "next/link"
-import { useCallback, useEffect, useMemo, useState } from "react"
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ComponentType,
+} from "react"
 import {
   ArrowLeft,
   Check,
@@ -20,7 +27,6 @@ import {
   Wrench,
 } from "lucide-react"
 import { Markdown } from "@/app/_components/Markdown"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import {
   Dialog,
@@ -46,8 +52,104 @@ import {
 } from "@/lib/font-preset"
 import { AddServerDialog } from "../_components/AddServerDialog"
 
+const SETTINGS_SECTION_IDS = [
+  "appearance",
+  "skills",
+  "instructions",
+  "mcp",
+  "tools",
+] as const
+
+type SettingsSectionId = (typeof SETTINGS_SECTION_IDS)[number]
+
+const SETTINGS_NAV: {
+  id: SettingsSectionId
+  label: string
+  icon: ComponentType<{ className?: string }>
+}[] = [
+  { id: "appearance", label: "Appearance", icon: Palette },
+  { id: "skills", label: "Skills", icon: Sparkles },
+  { id: "instructions", label: "Instructions", icon: FileText },
+  { id: "mcp", label: "MCP servers", icon: Server },
+  { id: "tools", label: "Tools", icon: Wrench },
+]
+
+const settingsNavLinkClass =
+  "lc-settings-nav-link flex w-full min-w-0 flex-row flex-nowrap items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-[13.5px] font-medium whitespace-nowrap text-[var(--ink-2)] no-underline outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+
+/** Content Y from top of scrollport at which we switch the active nav item (stable TOC behavior). */
+const SETTINGS_SCROLL_ACTIVATION_PX = 32
+/** When this close to scroll bottom, highlight the last section (short final blocks). */
+const SETTINGS_SCROLL_BOTTOM_SLACK_PX = 48
+
 export default function SettingsPage() {
-  const [tab, setTab] = useState("appearance")
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const scrollRafRef = useRef(0)
+  const [activeSection, setActiveSection] =
+    useState<SettingsSectionId>("appearance")
+
+  const updateActiveFromScroll = useCallback(() => {
+    const root = scrollRef.current
+    if (!root) return
+
+    const scrollTop = root.scrollTop
+    const lastId = SETTINGS_SECTION_IDS[SETTINGS_SECTION_IDS.length - 1]
+
+    if (
+      root.scrollHeight - root.clientHeight - scrollTop <=
+      SETTINGS_SCROLL_BOTTOM_SLACK_PX
+    ) {
+      setActiveSection((p) => (p === lastId ? p : lastId))
+      return
+    }
+
+    const activation = scrollTop + SETTINGS_SCROLL_ACTIVATION_PX
+    const rootRect = root.getBoundingClientRect()
+    let next: SettingsSectionId = SETTINGS_SECTION_IDS[0]
+
+    for (const id of SETTINGS_SECTION_IDS) {
+      const el = document.getElementById(id)
+      if (!el) continue
+      const elRect = el.getBoundingClientRect()
+      const topInContent = elRect.top - rootRect.top + scrollTop
+      if (topInContent <= activation) next = id
+    }
+
+    setActiveSection((prev) => (prev === next ? prev : next))
+  }, [])
+
+  useEffect(() => {
+    const root = scrollRef.current
+    if (!root) return
+
+    const schedule = () => {
+      if (scrollRafRef.current) return
+      scrollRafRef.current = requestAnimationFrame(() => {
+        scrollRafRef.current = 0
+        updateActiveFromScroll()
+      })
+    }
+
+    updateActiveFromScroll()
+    root.addEventListener("scroll", schedule, { passive: true })
+    const ro = new ResizeObserver(() => updateActiveFromScroll())
+    ro.observe(root)
+
+    return () => {
+      root.removeEventListener("scroll", schedule)
+      ro.disconnect()
+      if (scrollRafRef.current) cancelAnimationFrame(scrollRafRef.current)
+    }
+  }, [updateActiveFromScroll])
+
+  const scrollToSection = (id: SettingsSectionId) => {
+    document.getElementById(id)?.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    })
+    setActiveSection(id)
+  }
+
   return (
     <div className="flex h-dvh flex-col" style={{ background: "var(--bg)" }}>
       <div
@@ -69,12 +171,7 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      <Tabs
-        value={tab}
-        onValueChange={setTab}
-        className="lc-settings-tabs flex min-h-0 flex-1"
-        orientation="vertical"
-      >
+      <div className="lc-settings-layout flex min-h-0 flex-1">
         <div
           className="flex w-[200px] flex-shrink-0 flex-col gap-1 px-3 py-4"
           style={{
@@ -83,62 +180,51 @@ export default function SettingsPage() {
               "1px solid color-mix(in oklab, var(--accent) 24%, var(--border))",
           }}
         >
-          <TabsList
-            variant="line"
-            className="flex h-auto w-full flex-col items-stretch gap-0.5 bg-transparent p-0"
+          <nav
+            aria-label="Settings sections"
+            className="flex flex-col gap-0.5"
           >
-            <TabsTrigger
-              value="appearance"
-              className="justify-start gap-2.5 px-2.5 py-2"
-            >
-              <Palette className="h-3.5 w-3.5" /> Appearance
-            </TabsTrigger>
-            <TabsTrigger
-              value="skills"
-              className="justify-start gap-2.5 px-2.5 py-2"
-            >
-              <Sparkles className="h-3.5 w-3.5" /> Skills
-            </TabsTrigger>
-            <TabsTrigger
-              value="instructions"
-              className="justify-start gap-2.5 px-2.5 py-2"
-            >
-              <FileText className="h-3.5 w-3.5" /> Instructions
-            </TabsTrigger>
-            <TabsTrigger
-              value="mcp"
-              className="justify-start gap-2.5 px-2.5 py-2"
-            >
-              <Server className="h-3.5 w-3.5" /> MCP servers
-            </TabsTrigger>
-            <TabsTrigger
-              value="tools"
-              className="justify-start gap-2.5 px-2.5 py-2"
-            >
-              <Wrench className="h-3.5 w-3.5" /> Tools
-            </TabsTrigger>
-          </TabsList>
+            {SETTINGS_NAV.map(({ id, label, icon: Icon }) => (
+              <a
+                key={id}
+                href={`#${id}`}
+                className={settingsNavLinkClass}
+                data-active={activeSection === id ? "true" : undefined}
+                aria-current={activeSection === id ? "location" : undefined}
+                onClick={(e) => {
+                  e.preventDefault()
+                  scrollToSection(id)
+                }}
+              >
+                <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                <span className="min-w-0">{label}</span>
+              </a>
+            ))}
+          </nav>
         </div>
-        <div className="lc-scroll flex-1 overflow-y-auto px-10 py-8">
-          <div className="mx-auto max-w-[760px]">
-            <TabsContent value="appearance">
+        <div
+          ref={scrollRef}
+          className="lc-scroll lc-settings-main flex-1 overflow-y-auto px-10 py-8"
+        >
+          <div className="mx-auto max-w-[760px] space-y-16">
+            <section id="appearance" className="scroll-mt-4">
               <AppearanceTab />
-            </TabsContent>
-            <TabsContent value="skills">
+            </section>
+            <section id="skills" className="scroll-mt-4">
               <SkillsTab />
-            </TabsContent>
-            <TabsContent value="instructions">
+            </section>
+            <section id="instructions" className="scroll-mt-4">
               <InstructionsTab />
-            </TabsContent>
-            <TabsContent value="mcp">
+            </section>
+            <section id="mcp" className="scroll-mt-4">
               <McpTab />
-            </TabsContent>
-            <TabsContent value="tools">
+            </section>
+            <section id="tools" className="scroll-mt-4 pb-4">
               <ToolsTab />
-            </TabsContent>
+            </section>
           </div>
         </div>
-      </Tabs>
+      </div>
     </div>
   )
 }
@@ -732,7 +818,7 @@ function AppearanceTab() {
     "px-4 py-2 uppercase border-b border-[var(--border)]" as const
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
+    <div className="space-y-6">
       <SectionHeader
         title="Appearance"
         desc="Accent for focus and primary actions. Body type follows your font preset everywhere in the app, including this page."

@@ -62,14 +62,21 @@ function EditingForm({
   const [draft, setDraft] = useState(initialText)
   const taRef = useRef<HTMLTextAreaElement>(null)
 
+  // Auto-grow on every change. Selection/focus must NOT live here — moving
+  // the cursor on every keystroke makes mid-text editing impossible.
   useEffect(() => {
     const ta = taRef.current
     if (!ta) return
     ta.style.height = "auto"
     ta.style.height = ta.scrollHeight + "px"
+  }, [draft])
+
+  useEffect(() => {
+    const ta = taRef.current
+    if (!ta) return
     ta.focus()
     ta.setSelectionRange(ta.value.length, ta.value.length)
-  }, [draft])
+  }, [])
 
   const save = () => {
     const t = draft.trim()
@@ -110,6 +117,7 @@ function EditingForm({
         />
         <div className="flex justify-end gap-2">
           <button
+            type="button"
             onClick={onCancel}
             className="rounded-md px-3 py-1 text-[13px]"
             style={{
@@ -121,6 +129,7 @@ function EditingForm({
             Cancel
           </button>
           <button
+            type="button"
             onClick={save}
             disabled={!draft.trim()}
             className="rounded-md px-3 py-1 text-[13px] text-accent-foreground"
