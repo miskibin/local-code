@@ -7,6 +7,7 @@ import { toast } from "sonner"
 import { api } from "@/lib/api"
 import { decodeTaskRun } from "@/lib/tasks"
 import type { Artifact, Session } from "@/lib/types"
+import { showUndoableDelete, type UndoableEntry } from "@/lib/undoable-delete"
 import { ArtifactModal } from "./ArtifactModal"
 import { ChatView } from "./ChatView"
 import { SearchDialog } from "./SearchDialog"
@@ -100,43 +101,24 @@ export function ChatShell({ initialSessionId }: { initialSessionId: string }) {
     }
   }
 
-  const pendingTrashRef = useRef(
-    new Map<string, { undone: boolean; session: Session; index: number }>()
-  )
+  const pendingTrashRef = useRef(new Map<string, UndoableEntry<Session>>())
 
   const onTrashSession = (id: string) => {
-    const idx = sessions.findIndex((s) => s.id === id)
-    if (idx < 0) return
-    const session = sessions[idx]
-    pendingTrashRef.current.set(id, { undone: false, session, index: idx })
-    setSessions((prev) => prev.filter((s) => s.id !== id))
-    if (id === activeSessionId) router.push(`/chat/${nanoid()}`)
-    toast(`Deleted "${session.title || "Untitled"}"`, {
-      duration: 5000,
-      action: {
-        label: "Undo",
-        onClick: () => {
-          const entry = pendingTrashRef.current.get(id)
-          if (!entry) return
-          entry.undone = true
-          pendingTrashRef.current.delete(id)
-          setSessions((prev) => {
-            if (prev.some((s) => s.id === id)) return prev
-            const next = [...prev]
-            next.splice(Math.min(entry.index, next.length), 0, entry.session)
-            return next
-          })
-        },
+    showUndoableDelete<Session>({
+      id,
+      items: sessions,
+      pending: pendingTrashRef.current,
+      setItems: setSessions,
+      getId: (s) => s.id,
+      toastTitle: (s) => `Deleted "${s.title || "Untitled"}"`,
+      errorTitle: "Couldn't delete session",
+      errorLogTag: "deleteSession",
+      confirm: (sid) => api.deleteSession(sid),
+      refresh: () => {
+        void refreshSessions()
       },
-      onAutoClose: () => {
-        const entry = pendingTrashRef.current.get(id)
-        if (!entry || entry.undone) return
-        pendingTrashRef.current.delete(id)
-        api.deleteSession(id).catch((e) => {
-          console.error("deleteSession", e)
-          toast.error("Couldn't delete session", { description: String(e) })
-          void refreshSessions()
-        })
+      beforeShow: () => {
+        if (id === activeSessionId) router.push(`/chat/${nanoid()}`)
       },
     })
   }
@@ -172,43 +154,24 @@ export function ChatShell({ initialSessionId }: { initialSessionId: string }) {
     }
   }
 
-  const pendingArtifactRef = useRef(
-    new Map<string, { undone: boolean; artifact: Artifact; index: number }>()
-  )
+  const pendingArtifactRef = useRef(new Map<string, UndoableEntry<Artifact>>())
 
   const onTrashArtifact = (id: string) => {
-    const idx = savedArtifacts.findIndex((a) => a.id === id)
-    if (idx < 0) return
-    const artifact = savedArtifacts[idx]
-    pendingArtifactRef.current.set(id, { undone: false, artifact, index: idx })
-    setSavedArtifacts((prev) => prev.filter((a) => a.id !== id))
-    if (openArtifact?.id === id) setOpenArtifact(null)
-    toast(`Deleted "${artifact.title || "Untitled"}"`, {
-      duration: 5000,
-      action: {
-        label: "Undo",
-        onClick: () => {
-          const entry = pendingArtifactRef.current.get(id)
-          if (!entry) return
-          entry.undone = true
-          pendingArtifactRef.current.delete(id)
-          setSavedArtifacts((prev) => {
-            if (prev.some((a) => a.id === id)) return prev
-            const next = [...prev]
-            next.splice(Math.min(entry.index, next.length), 0, entry.artifact)
-            return next
-          })
-        },
+    showUndoableDelete<Artifact>({
+      id,
+      items: savedArtifacts,
+      pending: pendingArtifactRef.current,
+      setItems: setSavedArtifacts,
+      getId: (a) => a.id,
+      toastTitle: (a) => `Deleted "${a.title || "Untitled"}"`,
+      errorTitle: "Couldn't delete artifact",
+      errorLogTag: "deleteArtifact",
+      confirm: (aid) => api.deleteArtifact(aid),
+      refresh: () => {
+        void refreshArtifacts()
       },
-      onAutoClose: () => {
-        const entry = pendingArtifactRef.current.get(id)
-        if (!entry || entry.undone) return
-        pendingArtifactRef.current.delete(id)
-        api.deleteArtifact(id).catch((e) => {
-          console.error("deleteArtifact", e)
-          toast.error("Couldn't delete artifact", { description: String(e) })
-          void refreshArtifacts()
-        })
+      beforeShow: () => {
+        if (openArtifact?.id === id) setOpenArtifact(null)
       },
     })
   }

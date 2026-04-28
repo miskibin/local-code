@@ -25,6 +25,7 @@ import {
   useState,
 } from "react";
 import { toast } from "sonner";
+import { useClickOutside } from "@/hooks/use-click-outside";
 import { api } from "@/lib/api";
 import { getRole, hexAlpha, type TaskRole, TASK_ROLES } from "@/lib/roles";
 import { navigateToTaskRunUrl } from "@/lib/tasks";
@@ -902,14 +903,11 @@ function SortMenu({
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement | null>(null);
-  useEffect(() => {
-    if (!open) return;
-    const onClick = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", onClick);
-    return () => document.removeEventListener("mousedown", onClick);
-  }, [open]);
+  useClickOutside(
+    ref,
+    useCallback(() => setOpen(false), []),
+    open,
+  );
   return (
     <div ref={ref} style={{ position: "relative" }}>
       <button
