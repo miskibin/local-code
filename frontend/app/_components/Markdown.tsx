@@ -23,6 +23,11 @@ const linkSafety: ComponentProps<typeof Streamdown>["linkSafety"] = {
 const rehypePlugins: ComponentProps<typeof Streamdown>["rehypePlugins"] = []
 
 const components: ComponentProps<typeof Streamdown>["components"] = {
+  p: ({ node: _node, children, ...rest }) => (
+    <div data-lc-md-p {...rest}>
+      {children}
+    </div>
+  ),
   a: ({ href, children, ...rest }) => {
     if (typeof href === "string" && href.startsWith(ARTIFACT_PREFIX)) {
       const id = href.slice(ARTIFACT_PREFIX.length).trim()
@@ -38,6 +43,17 @@ const components: ComponentProps<typeof Streamdown>["components"] = {
   },
 }
 
+/** Disables Streamdown linkSafety + default rehype-harden (`[blocked]` on custom protocols). */
+export const trustedStreamdownMarkdownProps: Pick<
+  ComponentProps<typeof Streamdown>,
+  "urlTransform" | "linkSafety" | "rehypePlugins" | "components"
+> = {
+  urlTransform,
+  linkSafety,
+  rehypePlugins,
+  components,
+}
+
 export function Markdown({ text }: { text: string }) {
   return (
     <div
@@ -46,10 +62,7 @@ export function Markdown({ text }: { text: string }) {
     >
       <Streamdown
         plugins={streamdownPlugins}
-        components={components}
-        urlTransform={urlTransform}
-        linkSafety={linkSafety}
-        rehypePlugins={rehypePlugins}
+        {...trustedStreamdownMarkdownProps}
       >
         {text}
       </Streamdown>

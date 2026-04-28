@@ -28,6 +28,7 @@ import {
   useMemo,
   useState,
 } from "react";
+import { trustedStreamdownMarkdownProps } from "@/app/_components/Markdown";
 import { Streamdown } from "streamdown";
 
 export type MessageProps = HTMLAttributes<HTMLDivElement> & {
@@ -331,6 +332,7 @@ export const MessageResponse = memo(
         className
       )}
       plugins={streamdownPlugins}
+      {...trustedStreamdownMarkdownProps}
       {...props}
     />
   ),

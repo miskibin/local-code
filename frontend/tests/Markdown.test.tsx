@@ -40,6 +40,17 @@ describe("Markdown link behavior", () => {
     expect(container.querySelector("span.text-gray-500")).toBeNull()
   })
 
+  it("decodes percent-encoded artifact ids for chip title", () => {
+    const { container } = render(
+      <Markdown text="[step](artifact:%7B%7Bs2.artifact_id%7D%7D)" />
+    )
+    const chip = container.querySelector(
+      '[role="button"][title="{{s2.artifact_id}}"]'
+    )
+    expect(chip).not.toBeNull()
+    expect(chip?.textContent).toContain("{{s2.artifact_id}}")
+  })
+
   it("does not block uncommon protocols (file://, ftp://)", () => {
     const { container } = render(
       <Markdown text="open [local](file:///tmp/x) and [old](ftp://example.com)" />

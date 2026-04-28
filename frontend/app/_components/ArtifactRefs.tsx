@@ -416,7 +416,20 @@ function InlineArtifactPptx({
   )
 }
 
-export function InlineArtifact({ id }: { id: string }) {
+/** `artifact:` targets may arrive percent-encoded from the markdown/HTML pipeline. */
+function decodeArtifactLinkId(raw: string): string {
+  const t = raw.trim()
+  if (!t) return t
+  if (!/%[0-9A-Fa-f]{2}/.test(t)) return t
+  try {
+    return decodeURIComponent(t)
+  } catch {
+    return t
+  }
+}
+
+export function InlineArtifact({ id: idRaw }: { id: string }) {
+  const id = decodeArtifactLinkId(idRaw)
   const refs = useArtifactRefs()
   const artifact = refs?.getArtifact(id)
   if (!artifact) return <ArtifactChip id={id} />

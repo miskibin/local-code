@@ -359,8 +359,10 @@ html.dark body[data-app="local-chat"] {
     font-size: 15px;
     line-height: var(--density-line);
 }
-.lc-markdown p { margin: 0 0 12px; }
-.lc-markdown p:last-child { margin-bottom: 0; }
+.lc-markdown p,
+.lc-markdown [data-lc-md-p] { margin: 0 0 12px; }
+.lc-markdown p:last-child,
+.lc-markdown [data-lc-md-p]:last-child { margin-bottom: 0; }
 .lc-markdown h1, .lc-markdown h2, .lc-markdown h3, .lc-markdown h4 {
     color: var(--ink);
     font-weight: 600;
@@ -377,7 +379,8 @@ html.dark body[data-app="local-chat"] {
 .lc-markdown em { font-style: italic; }
 .lc-markdown ul, .lc-markdown ol { margin: 0 0 12px; padding-left: 22px; }
 .lc-markdown li { margin: 4px 0; }
-.lc-markdown li > p { margin: 0; }
+.lc-markdown li > p,
+.lc-markdown li > [data-lc-md-p] { margin: 0; }
 .lc-markdown blockquote {
     border-left: 3px solid var(--border);
     padding: 4px 12px;
