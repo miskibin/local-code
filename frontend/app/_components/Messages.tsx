@@ -153,10 +153,8 @@ export function UserMessage({
 }) {
   const [editing, setEditing] = useState(false)
   const [longPromptExpanded, setLongPromptExpanded] = useState(false)
-  const { preview: textPreview, remainder: textRemainder } = previewUserMessageText(
-    text,
-    USER_MESSAGE_PREVIEW_MAX_WORDS
-  )
+  const { preview: textPreview, remainder: textRemainder } =
+    previewUserMessageText(text, USER_MESSAGE_PREVIEW_MAX_WORDS)
 
   if (editing) {
     return (
@@ -326,9 +324,9 @@ export type ContentBlock =
       to: string
       subject: string
       body: string
-      from: string
       cc: string[]
       bcc: string[]
+      attachmentArtifactIds: string[]
       status: "running" | "done" | "error"
     }
 
@@ -484,9 +482,9 @@ export function AssistantMessage({
               to={b.to}
               subject={b.subject}
               body={b.body}
-              from={b.from}
               cc={b.cc}
               bcc={b.bcc}
+              attachmentArtifactIds={b.attachmentArtifactIds}
               status={b.status}
             />
           ) : b.step.kind === "subagent" ? (

@@ -44,7 +44,7 @@ export type AnyPart = {
 export type ArtifactDataPart = {
   toolCallId: string
   artifactId: string
-  kind: "table" | "image" | "text"
+  kind: "table" | "image" | "text" | "pptx"
   title: string
   summary: string
   updatedAt: string
@@ -216,9 +216,9 @@ function extractEmailDraftBlock(
     to?: unknown
     subject?: unknown
     body?: unknown
-    from_address?: unknown
     cc?: unknown
     bcc?: unknown
+    attachment_artifact_ids?: unknown
   }
   const asStr = (v: unknown) => (typeof v === "string" ? v : "")
   const asStrList = (v: unknown) =>
@@ -236,9 +236,9 @@ function extractEmailDraftBlock(
     to: asStr(input.to),
     subject: asStr(input.subject),
     body: asStr(input.body),
-    from: asStr(input.from_address),
     cc: asStrList(input.cc),
     bcc: asStrList(input.bcc),
+    attachmentArtifactIds: asStrList(input.attachment_artifact_ids),
     status,
   }
 }
@@ -279,7 +279,24 @@ function extractQuizBlock(
   }
 }
 
-function partsToContentBlocks(parts: AnyPart[]): ContentBlock[] {
+type PartsToContentBlocksOpts = {
+  /** When false, the resolved plan block is suppressed (write_todos parts
+   * are still skipped from raw rendering). Used to dedupe across multiple
+   * assistant messages — only one survives. Defaults to true. */
+  emitPlan?: boolean
+  /** When provided alongside emitPlan, render this todos list instead of
+   * the local latest. Used to surface the cumulative latest plan state on
+   * the surviving message. */
+  overrideTodos?: Todo[]
+  /** Paired with overrideTodos. */
+  overrideStreaming?: boolean
+}
+
+function partsToContentBlocks(
+  parts: AnyPart[],
+  opts: PartsToContentBlocksOpts = {}
+): ContentBlock[] {
+  const emitPlan = opts.emitPlan !== false
   // Pass 1 — collect every tool part keyed by its toolCallId, plus its parent
   // link if any.
   const stepByCallId = new Map<string, ToolStep>()
@@ -313,7 +330,9 @@ function partsToContentBlocks(parts: AnyPart[]): ContentBlock[] {
   // Pass 1.5 — collect `write_todos` state. The agent calls it repeatedly to
   // mutate statuses; each call replaces the entire list. We render a single
   // plan block, using the latest non-empty todos. Streaming = latest call's
-  // output hasn't arrived.
+  // output hasn't arrived. write_todos is excluded from subagent tool rosters
+  // (see backend/app/graphs/main_agent.py) so every call is top-level — no
+  // anchor traversal needed.
   let firstWriteTodosCallId: string | null = null
   let latestTodos: Todo[] | null = null
   let latestWriteTodosState: string | undefined
@@ -332,21 +351,11 @@ function partsToContentBlocks(parts: AnyPart[]): ContentBlock[] {
     ? latestWriteTodosState !== "output-available" &&
       latestWriteTodosState !== "output-error"
     : false
-
-  // Resolve plan anchor: the top-level ancestor of the first write_todos call.
-  // When write_todos runs inside a subagent, the plan describes that
-  // subagent's work — render it just before the subagent's tool block, not
-  // after (which is where the child's stream position would otherwise put it).
-  let planAnchorCallId: string | null = firstWriteTodosCallId
-  if (planAnchorCallId) {
-    let cur = planAnchorCallId
-    while (true) {
-      const parent = parentOf.get(cur)
-      if (!parent || !stepByCallId.has(parent)) break
-      cur = parent
-    }
-    planAnchorCallId = cur
-  }
+  const planAnchorCallId: string | null = firstWriteTodosCallId
+  const renderTodos = opts.overrideTodos ?? latestTodos
+  const renderStreaming = opts.overrideTodos
+    ? (opts.overrideStreaming ?? false)
+    : planStreaming
 
   // Pass 2 — walk parts in stream order. Skip tool parts that have a known
   // parent (they're rendered as nested children below). Group children whose
@@ -363,13 +372,14 @@ function partsToContentBlocks(parts: AnyPart[]): ContentBlock[] {
   let planEmitted = false
   const emitPlanIfAnchor = (callId: string) => {
     if (planEmitted) return
+    if (!emitPlan) return
     if (callId !== planAnchorCallId) return
-    if (!latestTodos) return
+    if (!renderTodos) return
     flush()
     out.push({
       type: "plan",
-      todos: latestTodos,
-      streaming: planStreaming,
+      todos: renderTodos,
+      streaming: renderStreaming,
     })
     planEmitted = true
   }
@@ -898,6 +908,39 @@ export function ChatView({
     return null
   }, [messages])
 
+  // Cross-message plan dedup. The agent calls `write_todos` across multiple
+  // assistant turns to tick statuses; each turn becomes its own message and
+  // would otherwise emit its own plan card. Resolve the cumulative latest
+  // plan state and the surviving message — the one that actually renders the
+  // PlanCard.
+  const planState = useMemo<{
+    planMessageId: string | null
+    todos: Todo[] | null
+    streaming: boolean
+  }>(() => {
+    let planMessageId: string | null = null
+    let todos: Todo[] | null = null
+    let streaming = false
+    for (const m of messages) {
+      if (m.role !== "assistant") continue
+      const parts = (m.parts ?? []) as AnyPart[]
+      let touched = false
+      for (const p of parts) {
+        if (getToolName(p) !== "write_todos") continue
+        touched = true
+        const t = extractTodos(p)
+        if (t) {
+          todos = t
+          const state = p.state
+          streaming =
+            !!state && state !== "output-available" && state !== "output-error"
+        }
+      }
+      if (touched) planMessageId = m.id
+    }
+    return { planMessageId, todos, streaming }
+  }, [messages])
+
   const latestUsage = useMemo<UsageDataPart | undefined>(() => {
     for (let i = messages.length - 1; i >= 0; i--) {
       const m = messages[i]
@@ -954,7 +997,16 @@ export function ChatView({
                     )
                   }
                   const isLast = m.id === lastAssistantId
-                  const contentBlocks = partsToContentBlocks(parts)
+                  const isPlanCarrier = m.id === planState.planMessageId
+                  const contentBlocks = partsToContentBlocks(parts, {
+                    emitPlan: isPlanCarrier,
+                    overrideTodos: isPlanCarrier
+                      ? (planState.todos ?? undefined)
+                      : undefined,
+                    overrideStreaming: isPlanCarrier
+                      ? planState.streaming
+                      : undefined,
+                  })
                   const liveArtifacts = extractArtifactIds(parts)
                     .map((id) => artifactCache[id])
                     .filter((a): a is Artifact => !!a)

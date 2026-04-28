@@ -99,7 +99,7 @@ OUTPUT — STRICT JSON, NO commentary, NO markdown fences. Shape:
       "steps": [{
         "id": str, "kind": "tool"|"code"|"subagent"|"prompt",
         "title": str,
-        "server"?: str, "tool"?: str, "args_template"?: object,
+        "tool"?: str, "args_template"?: object,
         "code"?: str, "subagent"?: str, "prompt"?: str,
         "output_name": str,
         "output_kind": "rows"|"text"|"chart"|"json"|"file"

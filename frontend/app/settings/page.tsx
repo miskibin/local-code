@@ -9,6 +9,8 @@ import {
   Folder,
   Globe,
   Palette,
+  ChevronRight,
+  Loader2,
   Plus,
   Server,
   Sparkles,
@@ -16,7 +18,14 @@ import {
   Trash2,
   Wrench,
 } from "lucide-react"
+import { Markdown } from "@/app/_components/Markdown"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
 import { Switch } from "@/components/ui/switch"
 import { Button } from "@/components/ui/button"
 import { api } from "@/lib/api"
@@ -327,13 +336,13 @@ function McpResolvedTools({ server }: { server: MCPServer }) {
     )
   }
   return (
-    <details className="mt-1.5">
-      <summary
-        className="cursor-pointer text-[11px] font-medium"
+    <div className="mt-1.5">
+      <div
+        className="text-[11px] font-medium"
         style={{ color: "var(--ink-2)" }}
       >
         {tools.length} tool{tools.length === 1 ? "" : "s"}
-      </summary>
+      </div>
       <div className="mt-1.5 flex flex-wrap gap-1">
         {tools.map((t) => (
           <span
@@ -351,7 +360,7 @@ function McpResolvedTools({ server }: { server: MCPServer }) {
           </span>
         ))}
       </div>
-    </details>
+    </div>
   )
 }
 
@@ -383,6 +392,199 @@ function guessIcon(name: string) {
   return Server
 }
 
+const TOOL_SECTION_HEADER =
+  "px-4 py-2 uppercase border-b border-[var(--border)]" as const
+
+const MAX_TOOL_SECTIONS = 3
+
+type ToolSection = { id: string; title: string; tools: Tool[] }
+
+type BuiltinFoldDef = {
+  id: string
+  title: string
+  sourceIds: readonly string[]
+}
+
+const BUILTIN_FOLD_TO_THREE: BuiltinFoldDef[] = [
+  {
+    id: "builtin-fold-0",
+    title: "Data & execution",
+    sourceIds: ["builtin-data", "builtin-code"],
+  },
+  {
+    id: "builtin-fold-1",
+    title: "Web & documents",
+    sourceIds: ["builtin-web", "builtin-outputs"],
+  },
+  {
+    id: "builtin-fold-2",
+    title: "Agent, UI & other",
+    sourceIds: ["builtin-agent", "builtin-other"],
+  },
+]
+
+function foldBuiltinSectionsToThree(biSecs: ToolSection[]): ToolSection[] {
+  const byId = Object.fromEntries(biSecs.map((s) => [s.id, s.tools]))
+  const out: ToolSection[] = []
+  for (const def of BUILTIN_FOLD_TO_THREE) {
+    const tools = def.sourceIds
+      .flatMap((id) => byId[id] ?? [])
+      .sort((a, b) => a.name.localeCompare(b.name))
+    if (tools.length > 0) {
+      out.push({ id: def.id, title: def.title, tools })
+    }
+  }
+  return out
+}
+
+type BuiltinTypeDef = { id: string; title: string; names: readonly string[] }
+
+const BUILTIN_TYPE_ORDER: BuiltinTypeDef[] = [
+  {
+    id: "builtin-data",
+    title: "Data & SQL",
+    names: ["sql_query", "read_table_summary"],
+  },
+  { id: "builtin-code", title: "Code & execution", names: ["python_exec"] },
+  { id: "builtin-web", title: "Web & fetch", names: ["web_fetch"] },
+  {
+    id: "builtin-outputs",
+    title: "Documents & email",
+    names: ["email_draft", "generate_pptx"],
+  },
+  { id: "builtin-agent", title: "Agent & UI", names: ["quiz"] },
+]
+
+function builtinTypeIdForName(name: string): string | null {
+  for (const def of BUILTIN_TYPE_ORDER) {
+    if (def.names.includes(name)) return def.id
+  }
+  return null
+}
+
+function buildBuiltinSections(tools: Tool[]): ToolSection[] {
+  if (tools.length === 0) return []
+  const byId: Record<string, Tool[]> = {}
+  const unknown: Tool[] = []
+  for (const t of tools) {
+    const id = builtinTypeIdForName(t.name)
+    if (id) {
+      ;(byId[id] ||= []).push(t)
+    } else {
+      unknown.push(t)
+    }
+  }
+  const sections: ToolSection[] = []
+  for (const def of BUILTIN_TYPE_ORDER) {
+    const list = byId[def.id]
+    if (list?.length) {
+      sections.push({
+        id: def.id,
+        title: def.title,
+        tools: [...list].sort((a, b) => a.name.localeCompare(b.name)),
+      })
+    }
+  }
+  if (unknown.length > 0) {
+    sections.push({
+      id: "builtin-other",
+      title: "Other built-in",
+      tools: [...unknown].sort((a, b) => a.name.localeCompare(b.name)),
+    })
+  }
+  return sections
+}
+
+function capToolSectionsAtMax(sections: ToolSection[]): ToolSection[] {
+  if (sections.length <= MAX_TOOL_SECTIONS) return sections
+
+  const biSecs = sections.filter((s) => s.id.startsWith("builtin-"))
+  const mcpSecs = sections.filter((s) => s.id.startsWith("mcp:"))
+
+  if (mcpSecs.length === 0 && biSecs.length > MAX_TOOL_SECTIONS) {
+    return foldBuiltinSectionsToThree(biSecs)
+  }
+
+  const biTools = biSecs
+    .flatMap((s) => s.tools)
+    .sort((a, b) => a.name.localeCompare(b.name))
+
+  const out: ToolSection[] = []
+  if (biTools.length > 0) {
+    out.push({ id: "builtin", title: "Built-in", tools: biTools })
+  }
+
+  const budget = MAX_TOOL_SECTIONS - out.length
+  if (budget <= 0) {
+    return out.slice(0, MAX_TOOL_SECTIONS)
+  }
+
+  if (mcpSecs.length <= budget) {
+    out.push(
+      ...[...mcpSecs].sort((a, b) => a.title.localeCompare(b.title))
+    )
+    return out
+  }
+
+  const byCount = [...mcpSecs].sort(
+    (a, b) => b.tools.length - a.tools.length || a.title.localeCompare(b.title)
+  )
+  const keepCount = Math.max(0, budget - 1)
+  const kept = byCount.slice(0, keepCount)
+  const mergedTools = byCount.slice(keepCount).flatMap((s) => s.tools)
+  const sortTools = (ts: Tool[]) =>
+    [...ts].sort((a, b) => a.name.localeCompare(b.name))
+  for (const s of kept) {
+    out.push({ id: s.id, title: s.title, tools: sortTools(s.tools) })
+  }
+  if (mergedTools.length > 0) {
+    out.push({
+      id: "mcp:other",
+      title: "Other MCP",
+      tools: sortTools(mergedTools),
+    })
+  }
+  return out
+}
+
+function buildToolSections(tools: Tool[]): ToolSection[] {
+  const builtin = tools.filter((t) => t.source !== "mcp")
+  const mcp = tools.filter((t) => t.source === "mcp")
+  const sections: ToolSection[] = [...buildBuiltinSections(builtin)]
+
+  const byServer: Record<string, Tool[]> = {}
+  for (const t of mcp) {
+    const key = t.server?.trim() || "MCP"
+    ;(byServer[key] ||= []).push(t)
+  }
+  const mcpEntries = Object.entries(byServer).map(([title, list]) => ({
+    title,
+    tools: list,
+  }))
+  mcpEntries.sort((a, b) => a.title.localeCompare(b.title))
+  for (const e of mcpEntries) {
+    sections.push({
+      id: `mcp:${e.title}`,
+      title: e.title,
+      tools: e.tools,
+    })
+  }
+  return capToolSectionsAtMax(sections)
+}
+
+function ToolDescription({ text }: { text: string }) {
+  const oneLine = text.trim().split(/\s+/).join(" ")
+  return (
+    <div
+      className="mt-0.5 line-clamp-2 text-[12.5px] leading-snug"
+      style={{ color: "var(--ink-2)" }}
+      title={oneLine}
+    >
+      {oneLine}
+    </div>
+  )
+}
+
 function ToolsTab() {
   const [tools, setTools] = useState<Tool[]>([])
 
@@ -403,16 +605,7 @@ function ToolsTab() {
     [tools]
   )
 
-  const grouped = useMemo(() => {
-    const m: Record<string, Tool[]> = {}
-    for (const t of tools) {
-      const server = t.name.includes("_")
-        ? t.name.slice(0, t.name.indexOf("_"))
-        : "local"
-      ;(m[server] ||= []).push(t)
-    }
-    return m
-  }, [tools])
+  const sections = useMemo(() => buildToolSections(tools), [tools])
 
   const onToggle = async (name: string, enabled: boolean) => {
     setTools((p) => p.map((t) => (t.name === name ? { ...t, enabled } : t)))
@@ -430,75 +623,77 @@ function ToolsTab() {
         title="Tools"
         desc={`${enabledCount} of ${tools.length} tools available to the agent. Disabled tools are hidden from the model entirely.`}
       />
-      <div
-        className="overflow-hidden rounded-xl"
-        style={{
-          border: "1px solid var(--border)",
-          background: "var(--surface)",
-        }}
-      >
-        {Object.entries(grouped).map(([server, list], gi) => (
-          <div
-            key={server}
-            style={{ borderTop: gi === 0 ? 0 : "1px solid var(--border)" }}
-          >
+      {tools.length === 0 ? (
+        <div
+          className="overflow-hidden rounded-xl px-4 py-6 text-center text-[13px]"
+          style={{
+            border: "1px solid var(--border)",
+            background: "var(--surface)",
+            color: "var(--ink-3)",
+          }}
+        >
+          No tools discovered.
+        </div>
+      ) : (
+        <div className="flex flex-col gap-5">
+          {sections.map((sec) => (
             <div
-              className="px-4 py-2 uppercase"
+              key={sec.id}
+              className="overflow-hidden rounded-xl"
               style={{
-                fontFamily: "var(--font-mono)",
-                fontSize: 11,
-                fontWeight: 500,
-                letterSpacing: ".04em",
-                color: "var(--ink-3)",
-                background: "var(--bg-soft)",
-                borderBottom: "1px solid var(--border)",
+                border: "1px solid var(--border)",
+                background: "var(--surface)",
               }}
             >
-              {server}
-            </div>
-            {list.map((t, i) => (
               <div
-                key={t.name}
-                className="flex items-center gap-3.5 px-4 py-3"
-                style={{ borderTop: i === 0 ? 0 : "1px solid var(--border)" }}
+                className={TOOL_SECTION_HEADER}
+                style={{
+                  fontFamily: "var(--font-mono)",
+                  fontSize: 11,
+                  fontWeight: 500,
+                  letterSpacing: ".04em",
+                  color: "var(--ink-3)",
+                  background: "var(--bg-soft)",
+                }}
               >
-                <div className="min-w-0 flex-1">
-                  <div
-                    style={{
-                      fontFamily: "var(--font-mono)",
-                      fontSize: 13,
-                      color: "var(--ink)",
-                    }}
-                  >
-                    {t.name}
-                  </div>
-                  {t.description && (
-                    <div
-                      className="mt-0.5 text-[12.5px]"
-                      style={{ color: "var(--ink-2)" }}
-                    >
-                      {t.description}
-                    </div>
-                  )}
-                </div>
-                <Switch
-                  checked={t.enabled}
-                  onCheckedChange={(v) => onToggle(t.name, v)}
-                  aria-label={`Toggle ${t.name}`}
-                />
+                {sec.title}
               </div>
-            ))}
-          </div>
-        ))}
-        {tools.length === 0 && (
-          <div
-            className="px-4 py-6 text-center text-[13px]"
-            style={{ color: "var(--ink-3)" }}
-          >
-            No tools discovered.
-          </div>
-        )}
-      </div>
+              <div
+                className="grid grid-cols-1 gap-px md:grid-cols-2"
+                style={{ background: "var(--border)" }}
+              >
+                {sec.tools.map((t) => (
+                  <div
+                    key={t.name}
+                    className="flex items-start gap-3.5 bg-[var(--surface)] px-4 py-3"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div
+                        style={{
+                          fontFamily: "var(--font-mono)",
+                          fontSize: 13,
+                          color: "var(--ink)",
+                        }}
+                      >
+                        {t.name}
+                      </div>
+                      {t.description ? (
+                        <ToolDescription text={t.description} />
+                      ) : null}
+                    </div>
+                    <Switch
+                      className="mt-0.5 shrink-0"
+                      checked={t.enabled}
+                      onCheckedChange={(v) => onToggle(t.name, v)}
+                      aria-label={`Toggle ${t.name}`}
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </>
   )
 }
@@ -699,8 +894,16 @@ function AppearanceTab() {
   )
 }
 
+const SKILL_FRONTMATTER_RE = /^---\s*\n[\s\S]*?\n---\s*\n+/
+
 function SkillsTab() {
   const [skills, setSkills] = useState<Skill[]>([])
+  const [viewer, setViewer] = useState<{
+    name: string | null
+    markdown: string | null
+    loading: boolean
+    error: string | null
+  }>({ name: null, markdown: null, loading: false, error: null })
 
   const reload = useCallback(async () => {
     try {
@@ -729,11 +932,35 @@ function SkillsTab() {
     }
   }
 
+  const openSkillViewer = (name: string) => {
+    setViewer({ name, markdown: null, loading: true, error: null })
+    void (async () => {
+      try {
+        const r = await api.getSkillContent(name)
+        setViewer((v) =>
+          v.name === name
+            ? { ...v, markdown: r.markdown, loading: false, error: null }
+            : v
+        )
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e)
+        setViewer((v) =>
+          v.name === name ? { ...v, loading: false, error: msg } : v
+        )
+      }
+    })()
+  }
+
+  const viewerOpen = viewer.name !== null
+  const viewerSkill = viewer.name
+    ? skills.find((x) => x.name === viewer.name)
+    : undefined
+
   return (
     <>
       <SectionHeader
         title="Skills"
-        desc={`${enabledCount} of ${skills.length} skills enabled. Skills are markdown playbooks the agent reads when relevant.`}
+        desc={`${enabledCount} of ${skills.length} skills enabled. Skills are markdown playbooks the agent reads when relevant. Click a row to read the full playbook.`}
       />
       <div
         className="overflow-hidden rounded-xl"
@@ -745,33 +972,46 @@ function SkillsTab() {
         {skills.map((s, i) => (
           <div
             key={s.name}
-            className="flex items-start gap-3.5 px-4 py-3"
+            className="flex items-start gap-2 px-4 py-3 transition-colors hover:bg-[var(--accent-soft)] focus-within:bg-[var(--accent-soft)]"
             style={{ borderTop: i === 0 ? 0 : "1px solid var(--border)" }}
           >
-            <Sparkles
-              className="mt-0.5 h-4 w-4 flex-shrink-0"
-              style={{ color: "var(--ink-3)" }}
-            />
-            <div className="min-w-0 flex-1">
-              <div
-                style={{
-                  fontFamily: "var(--font-mono)",
-                  fontSize: 13,
-                  color: "var(--ink)",
-                }}
-              >
-                {s.name}
-              </div>
-              {s.description && (
+            <button
+              type="button"
+              className="flex min-w-0 flex-1 items-start gap-3.5 rounded-md py-0.5 pr-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)]"
+              aria-label={`View full playbook: ${s.name}`}
+              onClick={() => openSkillViewer(s.name)}
+            >
+              <Sparkles
+                className="mt-0.5 h-4 w-4 flex-shrink-0"
+                style={{ color: "var(--ink-3)" }}
+              />
+              <div className="min-w-0 flex-1">
                 <div
-                  className="mt-0.5 text-[12.5px]"
-                  style={{ color: "var(--ink-2)" }}
+                  style={{
+                    fontFamily: "var(--font-mono)",
+                    fontSize: 13,
+                    color: "var(--ink)",
+                  }}
                 >
-                  {s.description}
+                  {s.name}
                 </div>
-              )}
-            </div>
+                {s.description && (
+                  <div
+                    className="mt-0.5 text-[12.5px]"
+                    style={{ color: "var(--ink-2)" }}
+                  >
+                    {s.description}
+                  </div>
+                )}
+              </div>
+              <ChevronRight
+                className="mt-0.5 h-4 w-4 flex-shrink-0"
+                style={{ color: "var(--ink-3)" }}
+                aria-hidden
+              />
+            </button>
             <Switch
+              className="mt-0.5 shrink-0"
               checked={s.enabled}
               onCheckedChange={(v) => onToggle(s.name, v)}
               aria-label={`Toggle ${s.name}`}
@@ -787,6 +1027,70 @@ function SkillsTab() {
           </div>
         )}
       </div>
+
+      <Dialog
+        open={viewerOpen}
+        onOpenChange={(o) => {
+          if (!o) {
+            setViewer({
+              name: null,
+              markdown: null,
+              loading: false,
+              error: null,
+            })
+          }
+        }}
+      >
+        <DialogContent
+          showCloseButton
+          className="flex max-h-[min(90vh,920px)] w-[calc(100%-1.5rem)] max-w-[min(96vw,1200px)] flex-col gap-0 overflow-hidden p-0 sm:max-w-[min(96vw,1200px)]"
+        >
+          <DialogHeader className="shrink-0 border-b px-5 py-4 pr-12">
+            <DialogTitle
+              className="font-mono text-base tracking-tight"
+              style={{ color: "var(--ink)" }}
+            >
+              {viewer.name ?? "Skill"}
+            </DialogTitle>
+            {viewerSkill?.description && (
+              <p
+                className="text-[13px] leading-snug font-normal"
+                style={{ color: "var(--ink-2)" }}
+              >
+                {viewerSkill.description}
+              </p>
+            )}
+          </DialogHeader>
+          <div
+            className="lc-scroll min-h-0 flex-1 overflow-y-auto px-5 py-4"
+            style={{ background: "var(--bg-soft)" }}
+          >
+            {viewer.loading && (
+              <div
+                className="flex items-center gap-2 text-[13px]"
+                style={{ color: "var(--ink-2)" }}
+              >
+                <Loader2
+                  className="h-4 w-4 shrink-0 animate-spin"
+                  aria-hidden
+                />
+                Loading playbook…
+              </div>
+            )}
+            {viewer.error && (
+              <p className="text-[13px] text-destructive">{viewer.error}</p>
+            )}
+            {!viewer.loading &&
+              !viewer.error &&
+              viewer.markdown !== null &&
+              viewer.name !== null && (
+                <Markdown
+                  text={viewer.markdown.replace(SKILL_FRONTMATTER_RE, "")}
+                />
+              )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </>
   )
 }

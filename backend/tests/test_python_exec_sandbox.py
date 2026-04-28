@@ -143,3 +143,25 @@ async def test_matplotlib_smoke_still_works():
     msg = await _invoke(code)
     assert msg.status != "error", msg.content
     assert msg.artifact.get("kind") == "image"
+
+
+def test_prelude_audit_hook_skips_dlopen():
+    """Hook must not raise on `ctypes.dlopen` events — trusted libs (sklearn,
+    scipy, matplotlib font_manager on Windows) load native DLLs at runtime.
+    """
+    from app.artifact_store import _PY_PRELUDE
+
+    assert 'sandbox: ctypes.dlopen blocked"' not in _PY_PRELUDE
+
+
+async def test_sklearn_smoke_works():
+    code = (
+        "from sklearn.linear_model import LogisticRegression\n"
+        "import numpy as np\n"
+        "X = np.array([[0, 0], [1, 1], [2, 2], [3, 3]])\n"
+        "y = np.array([0, 0, 1, 1])\n"
+        "clf = LogisticRegression().fit(X, y)\n"
+        "out({'score': float(clf.score(X, y))})\n"
+    )
+    msg = await _invoke(code)
+    assert msg.status != "error", msg.content

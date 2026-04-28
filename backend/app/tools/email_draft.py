@@ -6,19 +6,25 @@ def email_draft(
     to: str,
     subject: str,
     body: str,
-    from_address: str = "",
     cc: list[str] | None = None,
     bcc: list[str] | None = None,
+    attachment_artifact_ids: list[str] | None = None,
 ) -> str:
     """Compose an email draft for the user to review and send manually.
 
     Use when the user asks for an email — follow-up, intro, recap, etc. The
-    draft renders as a card in the assistant response; the user can copy,
-    mark sent, or open it in their mail app. This tool does NOT send anything.
+    draft renders as a card in the assistant response; the user can copy or
+    open it in their mail app. This tool does NOT send anything.
 
     Pass `body` as plain text with blank-line paragraph breaks. Keep `subject`
     short (under ~80 chars). `cc`/`bcc` are optional lists of addresses.
-    Always provide a `from_address` if the user has one — it appears as the
-    From: field on the card.
+
+    The `From:` line is filled automatically from the logged-in user — do not
+    pass or invent a sender address.
+
+    To attach files, pass `attachment_artifact_ids`: a list of artifact IDs
+    from prior tool results in this session (tables, images, text). The card
+    will show attachment chips; clicking "Open in mail" downloads them so the
+    user can attach in their mail app (mailto cannot carry attachments).
     """
     return f"Drafted email to {to}: {subject!r}"

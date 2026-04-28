@@ -5,6 +5,7 @@ from typing import Any
 
 import pandas as pd
 from fastapi import APIRouter, Form, HTTPException, UploadFile
+from fastapi.responses import FileResponse
 from loguru import logger
 from pydantic import BaseModel, Field
 from sqlmodel import select
@@ -226,3 +227,23 @@ async def delete_artifact(aid: str):
         await s.delete(existing)
         await s.commit()
     return {"deleted": aid}
+
+
+@router.get("/artifacts/{aid}/file")
+async def download_artifact_file(aid: str):
+    async with async_session() as s:
+        existing = await s.get(SavedArtifact, aid)
+    if existing is None:
+        raise HTTPException(404, "artifact not found")
+    payload = existing.payload or {}
+    raw_path = payload.get("path")
+    if not raw_path:
+        raise HTTPException(404, "artifact has no file payload")
+    file_path = Path(raw_path)
+    if not file_path.is_file():
+        raise HTTPException(404, "file missing on disk")
+    filename = payload.get("filename") or file_path.name
+    media = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+    if existing.kind != "pptx":
+        media = payload.get("mime") or "application/octet-stream"
+    return FileResponse(str(file_path), filename=filename, media_type=media)

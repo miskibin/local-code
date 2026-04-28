@@ -19,6 +19,8 @@ class Settings(BaseSettings):
     chinook_db_path: str = "./data/chinook.db"
     uploads_dir: str = "./data/uploads"
     skills_dir: str = "./data/skills"
+    decks_dir: str = "./data/decks"
+    pptx_template_path: str = "./data/pptx_templates/default.pptx"
 
     cors_origins: list[str] = ["http://localhost:3000"]
     log_level: str = "DEBUG"

@@ -134,57 +134,54 @@ describe("partsToContentBlocks — plan handling", () => {
     expect(blocks.filter((b) => b.type === "plan")).toHaveLength(0)
   })
 
-  it("renders the plan block above the subagent that produced it", () => {
-    // task dispatcher parent + write_todos child (subagent's own plan).
-    // Stream order: task input → write_todos input/output → task output. The
-    // child's stream position sits after the parent's, so we must hoist the
-    // plan to the parent's position rather than emit it at the child.
-    const subagentMeta = {
-      subagent: {
-        parentToolCallId: "task_1",
-        namespace: ["subagent:sql_agent"],
-      },
-    }
-    const blocks = partsToContentBlocks([
-      {
-        type: "tool-task",
-        toolCallId: "task_1",
-        toolName: "task",
-        state: "output-available",
-        input: {
-          subagent_type: "sql_agent",
-          description: "Inspect the Chinook database schema",
-        },
-        output: "schema markdown",
-      } as AnyPart,
-      {
-        type: "tool-write_todos",
-        toolCallId: "wt_child",
-        toolName: "write_todos",
-        state: "output-available",
-        input: {
-          todos: [
-            { content: "Retrieve schema", status: "completed" },
-            { content: "Format markdown", status: "completed" },
-          ],
-        },
-        output: "ok",
-        callProviderMetadata: subagentMeta,
-        resultProviderMetadata: subagentMeta,
-      } as AnyPart,
-    ])
+  it("suppresses the plan block when emitPlan is false but still hides write_todos parts", () => {
+    const blocks = partsToContentBlocks(
+      [
+        todosPart({
+          callId: "wt_1",
+          todos: [{ content: "Step A", status: "pending" }],
+          output: "ok",
+        }),
+        fetchPart({ callId: "f_1", url: "https://x", output: "page" }),
+      ],
+      { emitPlan: false }
+    )
 
-    expect(blocks).toHaveLength(2)
-    expect(blocks[0].type).toBe("plan")
-    if (blocks[0].type === "plan") {
-      expect(blocks[0].todos).toHaveLength(2)
+    expect(blocks.filter((b) => b.type === "plan")).toHaveLength(0)
+    // write_todos must not leak through as a raw tool step either.
+    const stepBlocks = blocks.filter((b) => b.type === "step")
+    expect(stepBlocks).toHaveLength(1)
+    if (stepBlocks[0].type === "step" && stepBlocks[0].step.kind === "tool") {
+      expect(stepBlocks[0].step.tool).toBe("web_fetch")
     }
-    expect(blocks[1].type).toBe("step")
-    if (blocks[1].type === "step") {
-      expect(blocks[1].step.kind).toBe("subagent")
-      if (blocks[1].step.kind === "subagent") {
-        expect(blocks[1].step.agent.id).toBe("sql_agent")
+  })
+
+  it("uses overrideTodos and overrideStreaming when provided", () => {
+    const blocks = partsToContentBlocks(
+      [
+        todosPart({
+          callId: "wt_1",
+          todos: [{ content: "Local todo", status: "pending" }],
+          output: "ok",
+        }),
+      ],
+      {
+        emitPlan: true,
+        overrideTodos: [
+          { content: "Global todo A", status: "completed" },
+          { content: "Global todo B", status: "in_progress" },
+        ],
+        overrideStreaming: true,
       }
+    )
+
+    const planBlocks = blocks.filter((b) => b.type === "plan")
+    expect(planBlocks).toHaveLength(1)
+    if (planBlocks[0].type === "plan") {
+      expect(planBlocks[0].todos).toHaveLength(2)
+      expect(planBlocks[0].todos[0].content).toBe("Global todo A")
+      expect(planBlocks[0].todos[1].status).toBe("in_progress")
+      expect(planBlocks[0].streaming).toBe(true)
     }
   })
 

@@ -22,16 +22,43 @@ export type StoredMessage = {
   parts: ({ type: "text"; text: string } | FilePart)[]
 }
 
+export type ToolSource = "builtin" | "mcp"
+
 export type Tool = {
   name: string
   enabled: boolean
   description: string
+  source?: ToolSource
+  server?: string | null
+  args_schema?: JSONSchema | null
+}
+
+export type JSONSchema = {
+  type?: string | string[]
+  title?: string
+  description?: string
+  properties?: Record<string, JSONSchema>
+  required?: string[]
+  enum?: (string | number)[]
+  items?: JSONSchema
+  additionalProperties?: boolean | JSONSchema
+  default?: unknown
+  format?: string
+  $ref?: string
+  anyOf?: JSONSchema[]
+  oneOf?: JSONSchema[]
+  allOf?: JSONSchema[]
+  [key: string]: unknown
 }
 
 export type Skill = {
   name: string
   enabled: boolean
   description: string
+}
+
+export type SkillContent = {
+  markdown: string
 }
 
 export type MCPServer = {
@@ -86,16 +113,25 @@ export type ArtifactUploadPayload = {
 
 export type ArtifactSourceKind = "python" | "sql" | "text" | "upload"
 
+export type ArtifactPptxPayload = {
+  path: string
+  filename: string
+  slide_count: number
+  size_bytes: number
+  deck_title?: string
+}
+
 export type Artifact = {
   id: string
   session_id?: string | null
-  kind: "table" | "image" | "text"
+  kind: "table" | "image" | "text" | "pptx"
   title: string
   payload:
     | ArtifactTablePayload
     | ArtifactImagePayload
     | ArtifactTextPayload
     | ArtifactUploadPayload
+    | ArtifactPptxPayload
   summary?: string
   source_kind?: ArtifactSourceKind | null
   source_code?: string | null
@@ -140,19 +176,17 @@ export type TaskVariableType = "string" | "number" | "boolean"
 export type TaskVariable = {
   name: string
   type: TaskVariableType
-  label: string
   default: unknown
   required: boolean
 }
 
-export type TaskStepKind = "tool" | "code" | "subagent" | "prompt"
+export type TaskStepKind = "tool" | "code" | "subagent" | "prompt" | "report"
 export type TaskStepOutputKind = "rows" | "text" | "chart" | "json" | "file"
 
 export type TaskStep = {
   id: string
   kind: TaskStepKind
   title: string
-  server?: string | null
   tool?: string | null
   args_template?: Record<string, unknown> | null
   code?: string | null

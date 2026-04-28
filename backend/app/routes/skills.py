@@ -21,6 +21,10 @@ class SkillPatch(BaseModel):
     enabled: bool
 
 
+class SkillContentDTO(BaseModel):
+    markdown: str
+
+
 @router.get("/skills", response_model=list[SkillDTO])
 async def list_skills(user: CurrentUser):
     discovered = discover_skills(get_settings().skills_dir)
@@ -50,3 +54,11 @@ async def patch_skill(name: str, patch: SkillPatch, user: CurrentUser):
         await s.commit()
     sk = discovered[name]
     return SkillDTO(name=name, description=sk.description, enabled=patch.enabled)
+
+
+@router.get("/skills/{name}/content", response_model=SkillContentDTO)
+async def get_skill_content(name: str, user: CurrentUser):
+    discovered = {sk.name: sk for sk in discover_skills(get_settings().skills_dir)}
+    if name not in discovered:
+        raise HTTPException(404, "unknown skill")
+    return SkillContentDTO(markdown=discovered[name].body)

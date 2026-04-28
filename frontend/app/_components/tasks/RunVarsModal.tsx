@@ -1,6 +1,6 @@
-"use client";
+"use client"
 
-import { useEffect, useState } from "react";
+import { useEffect, useState } from "react"
 import {
   Dialog,
   DialogContent,
@@ -8,65 +8,65 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
-import type { SavedTask, TaskRunVariables } from "@/lib/types";
+} from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { Switch } from "@/components/ui/switch"
+import type { SavedTask, TaskRunVariables } from "@/lib/types"
 
 type Props = {
-  task: SavedTask | null;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onRun: (vars: TaskRunVariables) => void;
-};
+  task: SavedTask | null
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onRun: (vars: TaskRunVariables) => void
+}
 
 function defaultsFor(task: SavedTask | null): TaskRunVariables {
-  const out: TaskRunVariables = {};
-  if (!task) return out;
+  const out: TaskRunVariables = {}
+  if (!task) return out
   for (const v of task.variables) {
     if (v.type === "boolean") {
-      out[v.name] = Boolean(v.default ?? false);
+      out[v.name] = Boolean(v.default ?? false)
     } else if (v.type === "number") {
-      const n = Number(v.default);
-      out[v.name] = Number.isFinite(n) ? n : 0;
+      const n = Number(v.default)
+      out[v.name] = Number.isFinite(n) ? n : 0
     } else {
-      out[v.name] = String(v.default ?? "");
+      out[v.name] = String(v.default ?? "")
     }
   }
-  return out;
+  return out
 }
 
 export function RunVarsModal({ task, open, onOpenChange, onRun }: Props) {
-  const [values, setValues] = useState<TaskRunVariables>({});
-  const [error, setError] = useState<string | null>(null);
+  const [values, setValues] = useState<TaskRunVariables>({})
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
     if (open) {
-      setValues(defaultsFor(task));
-      setError(null);
+      setValues(defaultsFor(task))
+      setError(null)
     }
-  }, [open, task]);
+  }, [open, task])
 
-  if (!task) return null;
+  if (!task) return null
 
   const submit = (e: React.FormEvent) => {
-    e.preventDefault();
+    e.preventDefault()
     for (const v of task.variables) {
-      if (!v.required) continue;
-      const cur = values[v.name];
+      if (!v.required) continue
+      const cur = values[v.name]
       const empty =
         cur === undefined ||
         cur === null ||
-        (typeof cur === "string" && cur.trim() === "");
+        (typeof cur === "string" && cur.trim() === "")
       if (empty) {
-        setError(`Variable "${v.name}" is required`);
-        return;
+        setError(`Variable "${v.name}" is required`)
+        return
       }
     }
-    onRun(values);
-  };
+    onRun(values)
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -84,8 +84,10 @@ export function RunVarsModal({ task, open, onOpenChange, onRun }: Props) {
           {task.variables.map((v) => (
             <div key={v.name} className="flex flex-col gap-1.5">
               <Label htmlFor={`var-${v.name}`}>
-                {v.label || v.name}
-                {v.required && <span style={{ color: "var(--accent)" }}> *</span>}
+                {v.name}
+                {v.required && (
+                  <span style={{ color: "var(--accent)" }}> *</span>
+                )}
               </Label>
               {v.type === "boolean" ? (
                 <Switch
@@ -132,5 +134,5 @@ export function RunVarsModal({ task, open, onOpenChange, onRun }: Props) {
         </form>
       </DialogContent>
     </Dialog>
-  );
+  )
 }

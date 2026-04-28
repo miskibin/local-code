@@ -298,6 +298,11 @@ _PY_PRELUDE = textwrap.dedent(
     # interpreter's own files — must stay readable so imports work.
     _PY_PREFIX = _os.path.abspath(_sys.prefix) + _os.sep
     _PY_BASE_PREFIX = _os.path.abspath(_sys.base_prefix) + _os.sep
+    # Trusted bundled font dir — matplotlib's FT2Font lazily opens TTFs the
+    # first time text renders (after the hook is installed), so we must allow
+    # reads under this dir to keep `out_image` working.
+    _FONT_DIR_PATH = _os.environ.get({_FONT_DIR_ENV!r}, "")
+    _FONT_DIR_PREFIX = (_os.path.abspath(_FONT_DIR_PATH) + _os.sep) if _FONT_DIR_PATH else ""
 
     def _sb_writable(p):
         if isinstance(p, int):
@@ -317,6 +322,8 @@ _PY_PRELUDE = textwrap.dedent(
             return False
         # Allow Python stdlib + site-packages reads (covers venv and system).
         if ap.startswith(_PY_PREFIX) or ap.startswith(_PY_BASE_PREFIX):
+            return False
+        if _FONT_DIR_PREFIX and ap.startswith(_FONT_DIR_PREFIX):
             return False
         base = _os.path.basename(ap)
         if base.endswith(".db") or base.startswith(".env"):
@@ -339,16 +346,13 @@ _PY_PRELUDE = textwrap.dedent(
             raise PermissionError("sandbox: network access blocked")
         elif event in ("subprocess.Popen", "os.system", "os.exec"):
             raise PermissionError("sandbox: subprocess / os.system blocked")
-        elif event == "ctypes.dlopen":
-            raise PermissionError("sandbox: ctypes.dlopen blocked")
-
-    _sys.addaudithook(_sb_audit)
-
-    def out(_obj):
-        _sys.stdout.write({ARTIFACT_START!r})
-        _sys.stdout.write(_json.dumps(_obj, default=str))
-        _sys.stdout.write({ARTIFACT_END!r})
-        _sys.stdout.write("\\n")
+        # Note: `ctypes.dlopen` is intentionally NOT blocked here. The AST
+        # validator already rejects `import ctypes` / `_ctypes` / `__import__`
+        # / `importlib`, so user code has no direct path to dlopen. Allowed
+        # libs (numpy, matplotlib, scipy, sklearn) load native extensions on
+        # Windows at import / first-use time — blocking dlopen here breaks
+        # them. Network / subprocess / file audit events still fire from C
+        # code, so a malicious DLL would still trip those.
 
     def _apply_app_mpl_style():
         import os as _os, glob as _glob
@@ -410,7 +414,15 @@ _PY_PRELUDE = textwrap.dedent(
             "savefig.transparent": True,
         }})
 
+    _sys.addaudithook(_sb_audit)
+
     _apply_app_mpl_style()
+
+    def out(_obj):
+        _sys.stdout.write({ARTIFACT_START!r})
+        _sys.stdout.write(_json.dumps(_obj, default=str))
+        _sys.stdout.write({ARTIFACT_END!r})
+        _sys.stdout.write("\\n")
 
     def out_image(fig=None, *, title=None, caption=None):
         import io as _io, base64 as _b64

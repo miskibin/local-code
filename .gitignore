@@ -32,6 +32,9 @@ dist/
 *.db-wal
 !backend/data/chinook.db
 
+# Generated decks (pptx output)
+backend/data/decks/
+
 # Env
 .env
 .env.local

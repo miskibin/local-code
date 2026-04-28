@@ -111,8 +111,11 @@ async def test_python_exec_image_oversize_returns_tool_error():
 async def test_python_exec_read_artifact_returns_dataframe():
     from app.artifact_store import create_artifact
     from app.tools.python_exec import python_exec
+    from tests.conftest import TEST_OWNER_ID, ensure_test_user
 
+    await ensure_test_user()
     art = await create_artifact(
+        owner_id=TEST_OWNER_ID,
         kind="table",
         title="seed",
         payload={

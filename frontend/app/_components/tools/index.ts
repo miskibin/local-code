@@ -1,3 +1,4 @@
+import { pptxRenderer } from "./pptx"
 import { pythonExecRenderer } from "./python-exec"
 import { readFileRenderer } from "./read-file"
 import { sqlQueryRenderer } from "./sql-query"
@@ -16,6 +17,7 @@ import type { ToolRenderer } from "./types"
  * tool-specific markup in the renderer file.
  */
 const REGISTRY: Record<string, ToolRenderer> = {
+  generate_pptx: pptxRenderer,
   python_exec: pythonExecRenderer,
   read_file: readFileRenderer,
   sql_query: sqlQueryRenderer,

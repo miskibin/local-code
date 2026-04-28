@@ -17,10 +17,11 @@ class TaskVariable(BaseModel):
 
 
 class TaskStep(BaseModel):
+    model_config = {"extra": "ignore"}
+
     id: str
     kind: StepKind
     title: str
-    server: str | None = None
     tool: str | None = None
     args_template: dict[str, Any] | None = None
     code: str | None = None

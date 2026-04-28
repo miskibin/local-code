@@ -4,6 +4,10 @@ from pathlib import Path
 import pytest
 from httpx import ASGITransport, AsyncClient
 
+from tests.conftest import TEST_OWNER_EMAIL
+
+_AUTH = {"X-User-Email": TEST_OWNER_EMAIL}
+
 
 def _write_skill(root: Path, name: str, description: str) -> None:
     d = root / name
@@ -34,7 +38,9 @@ async def test_list_skills_default_enabled(skills_dir):
     app = create_app()
     await init_db()
 
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test", headers=_AUTH
+    ) as ac:
         r = await ac.get("/skills")
     assert r.status_code == 200
     body = r.json()
@@ -51,7 +57,9 @@ async def test_patch_skill_persists(skills_dir):
     app = create_app()
     await init_db()
 
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test", headers=_AUTH
+    ) as ac:
         r = await ac.patch("/skills/data-analysis", json={"enabled": False})
         assert r.status_code == 200
         assert r.json()["enabled"] is False
@@ -70,6 +78,42 @@ async def test_patch_unknown_skill_404(skills_dir):
     app = create_app()
     await init_db()
 
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test", headers=_AUTH
+    ) as ac:
         r = await ac.patch("/skills/does-not-exist", json={"enabled": False})
+    assert r.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_get_skill_content(skills_dir):
+    from app.db import init_db
+    from app.main import create_app
+
+    app = create_app()
+    await init_db()
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test", headers=_AUTH
+    ) as ac:
+        r = await ac.get("/skills/creating-vis/content")
+    assert r.status_code == 200
+    data = r.json()
+    assert "markdown" in data
+    assert "playbook body" in data["markdown"]
+    assert "make charts" in data["markdown"]
+
+
+@pytest.mark.asyncio
+async def test_get_skill_content_unknown_404(skills_dir):
+    from app.db import init_db
+    from app.main import create_app
+
+    app = create_app()
+    await init_db()
+
+    async with AsyncClient(
+        transport=ASGITransport(app=app), base_url="http://test", headers=_AUTH
+    ) as ac:
+        r = await ac.get("/skills/nope-skill/content")
     assert r.status_code == 404

@@ -5,12 +5,14 @@ import {
   Cpu,
   Database,
   Download,
+  FileText,
   Image as ImageIcon,
   Plus,
   RotateCw,
 } from "lucide-react"
 import { createContext, useContext, useState, type ReactNode } from "react"
 import { toast } from "sonner"
+import { BACKEND_URL } from "@/lib/api"
 import type { Artifact, ArtifactImagePayload } from "@/lib/types"
 
 import {
@@ -21,7 +23,7 @@ import { ArtifactCard } from "./Artifact"
 
 export type ToolArtifactRef = {
   artifactId: string
-  kind: "table" | "image" | "text"
+  kind: "table" | "image" | "text" | "pptx"
   title: string
 }
 
@@ -51,7 +53,7 @@ export function ArtifactChip({
 }: {
   id: string
   title?: string
-  kind?: "table" | "image" | "text"
+  kind?: "table" | "image" | "text" | "pptx"
   label?: ReactNode
 }) {
   const refs = useArtifactRefs()
@@ -63,7 +65,9 @@ export function ArtifactChip({
       ? Database
       : resolvedKind === "image"
         ? ImageIcon
-        : Cpu
+        : resolvedKind === "pptx"
+          ? FileText
+          : Cpu
   const onClick = (e: React.MouseEvent) => {
     e.stopPropagation()
     refs?.onOpen(id)
@@ -271,6 +275,147 @@ function InlineArtifactImage({
   )
 }
 
+function InlineArtifactPptx({
+  id,
+  artifact,
+  refs,
+}: {
+  id: string
+  artifact: Artifact
+  refs: ArtifactRefs | null
+}) {
+  const payload = artifact.payload as {
+    filename?: string
+    slide_count?: number
+    size_bytes?: number
+  }
+  const slides = payload?.slide_count
+  const sizeKb =
+    typeof payload?.size_bytes === "number"
+      ? Math.round(payload.size_bytes / 1024)
+      : null
+  const saved = refs?.isSaved?.(id) ?? false
+  const onClickBody = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    refs?.onOpen(id)
+  }
+
+  return (
+    <span
+      style={{
+        display: "block",
+        margin: "0.5rem 0",
+        borderRadius: 12,
+        overflow: "hidden",
+        border: "1px solid var(--border)",
+        background: "var(--surface)",
+      }}
+    >
+      <span
+        role={refs ? "button" : undefined}
+        tabIndex={refs ? 0 : -1}
+        onClick={onClickBody}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault()
+            e.stopPropagation()
+            refs?.onOpen(id)
+          }
+        }}
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+          padding: "12px 14px",
+          background: "var(--bg-soft)",
+          cursor: refs ? "pointer" : "default",
+        }}
+      >
+        <span
+          className="inline-flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-md"
+          style={{
+            background: "var(--accent-soft)",
+            color: "var(--accent)",
+          }}
+        >
+          <FileText className="h-5 w-5" />
+        </span>
+        <span
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            flex: 1,
+            minWidth: 0,
+          }}
+        >
+          <span
+            style={{
+              fontSize: 13.5,
+              fontWeight: 600,
+              color: "var(--ink)",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {artifact.title}
+          </span>
+          <span style={{ fontSize: 12, color: "var(--ink-3)" }}>
+            {slides != null ? `${slides} slides` : "Presentation"}
+            {sizeKb != null ? ` · ${sizeKb} KB` : ""}
+            {" · .pptx"}
+          </span>
+        </span>
+        <a
+          href={`${BACKEND_URL}/artifacts/${id}/file`}
+          download
+          onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => e.stopPropagation()}
+          title="Download .pptx"
+          aria-label="Download .pptx"
+          className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-[12px] font-medium transition"
+          style={{
+            background: "var(--accent)",
+            color: "var(--accent-foreground, #fff)",
+            border: 0,
+          }}
+        >
+          <Download className="h-3.5 w-3.5" />
+          Download
+        </a>
+        {refs?.onSave ? (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              if (!saved) refs.onSave!(artifact)
+            }}
+            disabled={saved}
+            title={saved ? "Saved" : "Save artifact"}
+            className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[12px] font-medium transition"
+            style={{
+              background: saved ? "transparent" : "var(--bg-soft)",
+              color: saved ? "var(--ink-2)" : "var(--ink)",
+              border: "1px solid var(--border)",
+              cursor: saved ? "default" : "pointer",
+            }}
+          >
+            {saved ? (
+              <>
+                <Check className="h-3 w-3" /> Saved
+              </>
+            ) : (
+              <>
+                <Plus className="h-3 w-3" /> Save
+              </>
+            )}
+          </button>
+        ) : null}
+      </span>
+    </span>
+  )
+}
+
 export function InlineArtifact({ id }: { id: string }) {
   const refs = useArtifactRefs()
   const artifact = refs?.getArtifact(id)
@@ -291,6 +436,9 @@ export function InlineArtifact({ id }: { id: string }) {
         />
       </span>
     )
+  }
+  if (artifact.kind === "pptx") {
+    return <InlineArtifactPptx id={id} artifact={artifact} refs={refs} />
   }
   return <ArtifactChip id={id} />
 }

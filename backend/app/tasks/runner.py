@@ -153,17 +153,16 @@ async def _run_tool_step(
     step: TaskStep,
     args: dict[str, Any],
     *,
-    tools_by_key: dict[tuple[str | None, str], BaseTool],
+    tools_by_name: dict[str, BaseTool],
     session_id: str,
     owner_id: str,
 ) -> tuple[Any, dict[str, Any]]:
     """Resolve + invoke a registered/MCP tool. Returns (output, outputs_dict)."""
     if not step.tool:
         raise ValueError(f"step {step.id}: tool name required for kind=tool")
-    server_key = step.server if step.server and step.server != "builtin" else None
-    tool = tools_by_key.get((server_key, step.tool)) or tools_by_key.get((None, step.tool))
+    tool = tools_by_name.get(step.tool)
     if tool is None:
-        raise LookupError(f"tool {step.tool!r} not available (server={step.server})")
+        raise LookupError(f"tool {step.tool!r} not available")
     config = {"configurable": {"thread_id": session_id, "owner_id": owner_id}}
     # Invoke as a ToolCall so content_and_artifact tools return a ToolMessage
     # with both .content and .artifact populated (a bare args dict drops the
@@ -314,12 +313,7 @@ async def run_task(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits woul
     yield _emit_text_delta(text_id, f"Running task **{dto.title}** ({len(dto.steps)} steps).\n\n")
 
     all_tools = await _all_tools(state)
-    tools_by_key: dict[tuple[str | None, str], BaseTool] = {}
-    for t in all_tools:
-        server = getattr(t, "server", None)
-        if server:
-            tools_by_key[(server, t.name)] = t
-        tools_by_key[(None, t.name)] = t
+    tools_by_name: dict[str, BaseTool] = {t.name: t for t in all_tools}
 
     ai_tool_calls: list[dict[str, Any]] = []
     pending_tool_msgs: list[ToolMessage] = []
@@ -348,7 +342,7 @@ async def run_task(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits woul
                 summary, step_outputs = await _run_tool_step(
                     step,
                     args_dict,
-                    tools_by_key=tools_by_key,
+                    tools_by_name=tools_by_name,
                     session_id=session_id,
                     owner_id=owner_id,
                 )

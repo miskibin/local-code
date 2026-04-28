@@ -6,6 +6,7 @@ import type {
   Session,
   SessionPatch,
   Skill,
+  SkillContent,
   StoredMessage,
   TaskListItem,
   Tool,
@@ -74,6 +75,10 @@ export const api = {
       method: "PATCH",
       json: { enabled },
     }),
+  getSkillContent: (name: string) =>
+    jsonFetch<SkillContent>(
+      `/skills/${encodeURIComponent(name)}/content`
+    ),
 
   // MCP
   listMCP: () => jsonFetch<MCPServer[]>("/mcp"),
