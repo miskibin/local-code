@@ -1,0 +1,29 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "fp=$(python -c \"import json,sys; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('file_path',''))\"); if [[ \"$fp\" == *.py ]]; then cd backend && uv run ruff check --fix \"$fp\" 2>&1 && uv run ruff format \"$fp\" 2>&1; fi"
+          },
+          {
+            "type": "command",
+            "command": "fp=$(python -c \"import json,sys; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('file_path',''))\"); if [[ \"$fp\" == *.ts || \"$fp\" == *.tsx ]]; then cd frontend && npx prettier --write \"$fp\" 2>&1 && npx eslint --fix \"$fp\" 2>&1; fi"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd backend && uv run ruff check . 2>&1 | head -50"
+          }
+        ]
+      }
+    ]
+  }
+}
