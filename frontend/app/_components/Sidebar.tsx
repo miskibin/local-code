@@ -32,7 +32,7 @@ import {
   Workflow,
 } from "lucide-react"
 import Link from "next/link"
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -61,6 +61,8 @@ type Props = {
   onTrashArtifact: (id: string) => void
   /** Latest Langfuse trace URL for the active chat (opens from that row’s ⋯ menu). */
   langfuseTraceUrl?: string | null
+  /** Below New chat / Search / Tasks (e.g. tasks list import + labels). */
+  headerExtra?: ReactNode
 }
 
 export function Sidebar({
@@ -80,6 +82,7 @@ export function Sidebar({
   onDeleteArtifact,
   onTrashArtifact,
   langfuseTraceUrl,
+  headerExtra,
 }: Props) {
   const [chatsOpen, setChatsOpen] = useState(true)
   const [artifactsOpen, setArtifactsOpen] = useState(true)
@@ -211,6 +214,15 @@ export function Sidebar({
           <SideRow icon={<ListChecks className="h-4 w-4" />}>Tasks</SideRow>
         </Link>
       </div>
+
+      {headerExtra ? (
+        <div
+          className="border-t px-2 py-2"
+          style={{ borderColor: "var(--border)" }}
+        >
+          {headerExtra}
+        </div>
+      ) : null}
 
       <div className="lc-scroll flex-1 overflow-y-auto px-2 pt-3 pb-2">
         <SectionHead

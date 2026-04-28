@@ -19,9 +19,7 @@ from app.schemas.pptx import (
 )
 from app.services.pptx_render import PptxRenderError, render_deck
 
-TEMPLATE_PATH = (
-    Path(__file__).resolve().parents[1] / "data" / "pptx_templates" / "default.pptx"
-)
+TEMPLATE_PATH = Path(__file__).resolve().parents[1] / "data" / "pptx_templates" / "default.pptx"
 
 
 def _png_bytes() -> bytes:
@@ -57,9 +55,7 @@ def _make_table_artifact(aid: str = "art_table1", n_rows: int = 3):
 
 
 def _make_text_artifact(aid: str = "art_text1"):
-    return SimpleNamespace(
-        id=aid, kind="text", title="t", payload={"text": "hello"}
-    )
+    return SimpleNamespace(id=aid, kind="text", title="t", payload={"text": "hello"})
 
 
 def _lookup(*artifacts):
@@ -148,9 +144,7 @@ def test_max_rows_truncation_adds_footer(tmp_path):
     spec = DeckSpec(
         title="Deck",
         slides=[
-            TableSlide(
-                type="table", title="Big table", artifact_id=art.id, max_rows=5
-            ),
+            TableSlide(type="table", title="Big table", artifact_id=art.id, max_rows=5),
         ],
     )
     out = tmp_path / "out.pptx"
@@ -232,12 +226,8 @@ def test_render_full_deck_smoke(tmp_path):
         slides=[
             TitleSlide(type="title", title="Q3 Review", subtitle="Top-line"),
             SectionSlide(type="section", title="Top-line", eyebrow="Q3 RESULTS"),
-            ChartSlide(
-                type="chart", title="Revenue", artifact_id=img.id, caption="+18% YoY"
-            ),
-            TableSlide(
-                type="table", title="Top customers", artifact_id=tbl.id, max_rows=8
-            ),
+            ChartSlide(type="chart", title="Revenue", artifact_id=img.id, caption="+18% YoY"),
+            TableSlide(type="table", title="Top customers", artifact_id=tbl.id, max_rows=8),
             BulletsSlide(
                 type="bullets",
                 title="Drivers",

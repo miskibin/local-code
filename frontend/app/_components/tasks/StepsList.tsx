@@ -48,8 +48,8 @@ export function makeStep(kind: TaskStepKind, index: number): TaskStep {
 }
 
 /**
- * Thin insertion zone shown between steps. Collapsed: a hover-only hairline
- * with a centered + chip. Expanded: inline kind picker.
+ * Thin insertion zone shown between steps. Collapsed: hairline with a
+ * centered + chip (always visible). Expanded: inline kind picker.
  */
 export function InsertSlot({
   open,
@@ -76,7 +76,7 @@ export function InsertSlot({
           style={{ background: "transparent" }}
         />
         <span
-          className="absolute inline-flex items-center gap-1 rounded-full px-2 py-0.5 opacity-0 transition-opacity group-hover:opacity-100"
+          className="absolute inline-flex items-center gap-1 rounded-full px-2 py-0.5"
           style={{
             background: "var(--bg)",
             border: "1px solid var(--border-strong)",

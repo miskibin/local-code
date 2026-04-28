@@ -20,8 +20,10 @@ from app.artifact_store import get_artifact
 from app.db import async_session
 from app.models import SavedArtifact
 from app.tasks import coerce_lc_content
-from app.tasks.schemas import TaskDTO, TaskStep, TaskVariable
+from app.tasks.schemas import TaskDTO, TaskRole, TaskStep, TaskVariable
 from app.tasks.storage import create_task, to_dto
+
+_ROLE_IDS: frozenset[str] = frozenset(TaskRole.__args__)
 
 _SQL_SUBAGENT_NAME = "sql-agent"
 _ARTIFACT_ID_RE = re.compile(r"\bartifact_id\s*=\s*(art_[A-Za-z0-9]+)")
@@ -132,10 +134,23 @@ the actual run):
   - NEVER emit bare {{name}} references — always use {{var.name}} or
     {{stepId.output}}.
 
+ROLE — pick exactly one of these ids based on who would naturally re-run the
+task. Use null only if the run gives no signal at all.
+  - "local_product_owner"  → site/feature-level PO work: backlog grooming,
+                              acceptance checks, ad-hoc digging into one
+                              product area's data.
+  - "fot_leader"           → feature/operations team leader: cross-team
+                              status, delivery health, blockers, capacity.
+  - "area_product_owner"   → area-level PO: roadmap rollups across multiple
+                              local POs, portfolio metrics, area KPIs.
+  - "product_manager"      → broader PM work: market/customer analysis,
+                              strategy artefacts, exec-facing reports.
+
 OUTPUT — STRICT JSON, NO commentary, NO markdown fences. Shape:
     {
       "title": str,
       "description": str,
+      "role": "local_product_owner"|"fot_leader"|"area_product_owner"|"product_manager"|null,
       "variables": [{"name": str, "type": "string"|"number"|"boolean",
                      "label": str, "default": any, "required": bool}],
       "steps": [{
@@ -317,6 +332,7 @@ async def generate_task_from_run(
     messages: list[Any],
     llm: BaseChatModel,
     owner_id: str,
+    creator: str,
 ) -> TaskDTO:
     trace = _extract_run_trace(messages)
     artifacts = await _session_artifacts(session_id)
@@ -345,6 +361,8 @@ async def generate_task_from_run(
     parsed_steps = _ensure_step_ids(parsed.get("steps") or [])
     await _inline_sql_subagent_steps(parsed_steps, trace["tool_calls"])
     _append_report_step(parsed_steps)
+    raw_role = parsed.get("role")
+    role = raw_role if raw_role in _ROLE_IDS else None
     dto = TaskDTO(
         id="",
         title=parsed.get("title") or "Untitled task",
@@ -352,6 +370,8 @@ async def generate_task_from_run(
         source_session_id=session_id,
         variables=[TaskVariable(**v) for v in parsed.get("variables") or []],
         steps=[TaskStep(**s) for s in parsed_steps],
+        role=role,
+        creator=creator,
     )
     row = await create_task(dto, owner_id)
     logger.info(f"task generated id={row.id} steps={len(dto.steps)} vars={len(dto.variables)}")

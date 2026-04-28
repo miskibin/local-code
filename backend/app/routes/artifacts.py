@@ -191,7 +191,7 @@ async def upload_artifact(
             logger.exception("csv summary failed")
             raise HTTPException(400, f"failed to parse table: {e}") from e
         payload.update(meta)
-        summary = f"{meta['n_rows']} rows × {meta['n_cols']} cols"
+        summary = f"{meta['n_rows']} rows × {meta['n_cols']} cols"  # noqa: RUF001
     elif kind == "image":
         summary = f"image {mime}, {size} bytes"
     else:  # text

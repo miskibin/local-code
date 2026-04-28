@@ -15,20 +15,20 @@ if _settings_for_env.langfuse_secret_key:
     os.environ.setdefault("LANGFUSE_SECRET_KEY", _settings_for_env.langfuse_secret_key)
     os.environ.setdefault("LANGFUSE_PUBLIC_KEY", _settings_for_env.langfuse_public_key)
     os.environ.setdefault("LANGFUSE_BASE_URL", _settings_for_env.langfuse_base_url)
-from app.db import async_session, init_db
-from app.mcp_registry import MCPRegistry
-from app.models import MCPServerConfig
-from app.observability import setup_logging
-from app.routes.artifacts import router as artifacts_router
-from app.routes.auth import router as auth_router
-from app.routes.chat import router as chat_router
-from app.routes.feedback import router as feedback_router
-from app.routes.mcp import router as mcp_router
-from app.routes.sessions import router as sessions_router
-from app.routes.skills import router as skills_router
-from app.routes.tasks import router as tasks_router
-from app.routes.tools import router as tools_router
-from app.tools.sql_subagent_query import schema_blob
+from app.db import async_session, init_db  # noqa: E402
+from app.mcp_registry import MCPRegistry  # noqa: E402
+from app.models import MCPServerConfig  # noqa: E402
+from app.observability import setup_logging  # noqa: E402
+from app.routes.artifacts import router as artifacts_router  # noqa: E402
+from app.routes.auth import router as auth_router  # noqa: E402
+from app.routes.chat import router as chat_router  # noqa: E402
+from app.routes.feedback import router as feedback_router  # noqa: E402
+from app.routes.mcp import router as mcp_router  # noqa: E402
+from app.routes.sessions import router as sessions_router  # noqa: E402
+from app.routes.skills import router as skills_router  # noqa: E402
+from app.routes.tasks import router as tasks_router  # noqa: E402
+from app.routes.tools import router as tools_router  # noqa: E402
+from app.tools.sql_subagent_query import schema_blob  # noqa: E402
 
 
 @asynccontextmanager

@@ -96,7 +96,10 @@ async def export_task_route(tid: str):
 
 @router.post("/tasks/import", response_model=TaskDTO)
 async def import_task_route(dto: TaskDTO, user: CurrentUser):
-    payload = dto.model_copy(update={"created_at": None, "updated_at": None})
+    updates: dict[str, object | None] = {"created_at": None, "updated_at": None}
+    if dto.creator is None:
+        updates["creator"] = user.email
+    payload = dto.model_copy(update=updates)
     issues = validate_task(payload)
     if has_blocking_issues(issues):
         raise HTTPException(422, detail={"issues": [i.model_dump() for i in issues]})
@@ -116,7 +119,11 @@ async def generate_task_route(req: GenerateTaskRequest, request: Request, user: 
     llm = resolve_llm(state, req.model)
     try:
         return await generate_task_from_run(
-            session_id=req.session_id, messages=messages, llm=llm, owner_id=user.id
+            session_id=req.session_id,
+            messages=messages,
+            llm=llm,
+            owner_id=user.id,
+            creator=user.email,
         )
     except ValueError as e:
         logger.exception("task generator failed")

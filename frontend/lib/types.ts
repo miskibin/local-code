@@ -1,3 +1,5 @@
+import type { TaskRoleId } from "@/lib/roles"
+
 export type Session = {
   id: string
   title: string
@@ -206,7 +208,7 @@ export type SavedTask = {
   variables: TaskVariable[]
   steps: TaskStep[]
   tags?: string[]
-  role?: string | null
+  role?: TaskRoleId | null
   creator?: string | null
   created_at?: string | null
   updated_at?: string | null
@@ -217,7 +219,7 @@ export type TaskListItem = {
   title: string
   description: string
   tags?: string[]
-  role?: string | null
+  role?: TaskRoleId | null
   creator?: string | null
   updated_at?: string | null
 }

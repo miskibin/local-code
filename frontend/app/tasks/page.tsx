@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  ArrowLeft,
   Check,
   ChevronDown,
   Download,
@@ -13,7 +12,6 @@ import {
   Upload,
   X,
 } from "lucide-react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   type CSSProperties,
@@ -30,7 +28,9 @@ import { api, TaskValidationError } from "@/lib/api";
 import { getRole, hexAlpha, type TaskRole, TASK_ROLES } from "@/lib/roles";
 import { navigateToTaskRunUrl } from "@/lib/tasks";
 import type { SavedTask, TaskListItem, TaskRunVariables } from "@/lib/types";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { AppSidebarShell } from "@/app/_components/AppSidebarShell";
 import { RunVarsModal } from "../_components/tasks/RunVarsModal";
 
 type SortKey = "recent" | "alpha";
@@ -61,8 +61,10 @@ export default function TasksPage() {
   }, []);
 
   useEffect(() => {
+    /* eslint-disable react-hooks/set-state-in-effect -- list bootstrap */
     setLoading(true);
     refresh().finally(() => setLoading(false));
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [refresh]);
 
   const onDelete = async (id: string) => {
@@ -191,64 +193,196 @@ export default function TasksPage() {
   const hasFilters = !!q || selectedRoles.length > 0 || creator !== "all";
 
   return (
-    <div className="flex h-dvh flex-col" style={{ background: "var(--bg)" }}>
+    <AppSidebarShell activeSessionId="">
       <div
-        className="flex items-center gap-3 px-6 py-3"
-        style={{ borderBottom: "1px solid var(--border)", minHeight: 52 }}
+        className={cn(
+          "lc-login-bg relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
+        )}
       >
-        <Link
-          href="/"
-          aria-label="Back"
-          className="inline-flex items-center justify-center rounded-md p-1.5"
-          style={{ color: "var(--ink-2)" }}
-        >
-          <ArrowLeft className="h-[17px] w-[17px]" />
-        </Link>
-        <div className="flex flex-1 items-center gap-2">
-          <span
-            style={{
-              fontSize: 12,
-              fontWeight: 500,
-              letterSpacing: ".04em",
-              textTransform: "uppercase",
-              color: "var(--ink-3)",
-            }}
-          >
-            Tasks
-          </span>
-          <span style={{ color: "var(--ink-4)", fontSize: 11 }}>·</span>
-          <span style={{ fontSize: 13, color: "var(--ink-2)" }}>Marketplace</span>
-        </div>
-        <input
-          ref={fileInput}
-          type="file"
-          accept="application/json"
-          onChange={(e) => {
-            const f = e.target.files?.[0];
-            if (f) void onImport(f);
-            e.target.value = "";
-          }}
-          style={{ display: "none" }}
-        />
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => fileInput.current?.click()}
-        >
-          <Upload className="h-3.5 w-3.5" /> Import JSON
-        </Button>
-        <Button size="sm">
-          <Plus className="h-3.5 w-3.5" /> New task
-        </Button>
-      </div>
+        <div className="flex min-h-0 flex-1">
+          <div className="lc-scroll min-w-0 flex-1 overflow-y-auto">
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                alignItems: "center",
+                gap: 10,
+                padding: "18px 28px 12px",
+                position: "sticky",
+                top: 0,
+                zIndex: 1,
+                background: "linear-gradient(var(--bg) 80%, transparent)",
+              }}
+            >
+              <div
+                style={{
+                  flex: "1 1 220px",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 8,
+                  padding: "9px 14px",
+                  borderRadius: 10,
+                  background: "var(--bg)",
+                  border: "1px solid var(--border)",
+                  minWidth: 0,
+                }}
+              >
+                <Search className="h-[15px] w-[15px]" style={{ color: "var(--ink-3)" }} />
+                <input
+                  value={q}
+                  onChange={(e) => setQ(e.target.value)}
+                  placeholder="Search tasks, prompts, tags, or authors…"
+                  style={{
+                    flex: 1,
+                    border: 0,
+                    outline: 0,
+                    background: "transparent",
+                    fontSize: 14,
+                    color: "var(--ink)",
+                    minWidth: 0,
+                  }}
+                />
+                {q && (
+                  <button
+                    onClick={() => setQ("")}
+                    title="Clear"
+                    style={{
+                      background: "transparent",
+                      border: 0,
+                      color: "var(--ink-3)",
+                      cursor: "pointer",
+                      padding: 2,
+                      display: "inline-flex",
+                    }}
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                )}
+                <kbd
+                  style={{
+                    fontFamily: "var(--font-mono)",
+                    fontSize: 11,
+                    padding: "1px 6px",
+                    borderRadius: 4,
+                    border: "1px solid var(--border)",
+                    color: "var(--ink-3)",
+                    background: "var(--bg-soft)",
+                  }}
+                >
+                  ⌘K
+                </kbd>
+              </div>
+              <input
+                ref={fileInput}
+                type="file"
+                accept="application/json"
+                onChange={(e) => {
+                  const f = e.target.files?.[0];
+                  if (f) void onImport(f);
+                  e.target.value = "";
+                }}
+                style={{ display: "none" }}
+              />
+              <Button
+                variant="outline"
+                size="sm"
+                className="shrink-0"
+                onClick={() => fileInput.current?.click()}
+              >
+                <Upload className="h-3.5 w-3.5" /> Import JSON
+              </Button>
+              <Button size="sm" className="shrink-0">
+                <Plus className="h-3.5 w-3.5" /> New task
+              </Button>
+              <SortMenu sort={sort} onChange={setSort} />
+            </div>
 
-      <div className="flex min-h-0 flex-1">
+          {(selectedRoles.length > 0 || creator !== "all") && (
+            <div
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: 6,
+                padding: "0 28px 6px",
+              }}
+            >
+              {selectedRoles.map((rid) => {
+                const r = getRole(rid);
+                return r ? (
+                  <ActiveChip
+                    key={rid}
+                    onRemove={() => toggleRole(rid)}
+                    dot={r.color}
+                  >
+                    {r.label}
+                  </ActiveChip>
+                ) : null;
+              })}
+              {creator !== "all" && (
+                <ActiveChip onRemove={() => setCreator("all")}>{creator}</ActiveChip>
+              )}
+            </div>
+          )}
+
+          <div style={{ padding: "4px 28px 10px", fontSize: 12, color: "var(--ink-3)" }}>
+            {loading
+              ? "Loading…"
+              : `${filtered.length} ${filtered.length === 1 ? "task" : "tasks"}`}
+            {q && !loading ? (
+              <>
+                {" "}
+                matching <span style={{ color: "var(--ink)" }}>“{q}”</span>
+              </>
+            ) : null}
+          </div>
+
+          {loading ? (
+            <div
+              className="flex items-center gap-2 px-7 py-12"
+              style={{ color: "var(--ink-3)" }}
+            >
+              <Loader2 className="h-4 w-4 animate-spin" /> Loading…
+            </div>
+          ) : tasks.length === 0 ? (
+            <div style={{ padding: "0 28px 36px" }}>
+              <div
+                className="rounded-lg p-10 text-center"
+                style={{
+                  color: "var(--ink-3)",
+                  border: "1px dashed var(--border)",
+                }}
+              >
+                <div style={{ fontSize: 14, marginBottom: 8 }}>No saved tasks yet.</div>
+                <div style={{ fontSize: 12 }}>
+                  Run something in chat, then click the bookmark icon on the final
+                  assistant reply to save it as a task.
+                </div>
+              </div>
+            </div>
+          ) : filtered.length === 0 ? (
+            <EmptyResults onClear={clearFilters} hasFilters={hasFilters} />
+          ) : (
+            <div className="grid grid-cols-1 gap-3 px-7 pb-9 sm:grid-cols-2 lg:grid-cols-3">
+              {filtered.map((t) => (
+                <TaskCard
+                  key={t.id}
+                  task={t}
+                  role={getRole(t.role)}
+                  onOpen={() => router.push(`/tasks/${t.id}`)}
+                  onRun={() => void onRunRow(t.id)}
+                  onExport={() => void onExport(t.id, t.title)}
+                  onDelete={() => void onDelete(t.id)}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+
         <aside
-          className="lc-scroll"
+          className="lc-scroll flex-shrink-0"
           style={{
             width: 244,
-            flexShrink: 0,
-            borderRight: "1px solid var(--border)",
+            borderLeft: "1px solid var(--border)",
             background: "var(--bg-sidebar)",
             padding: "18px 14px",
             overflowY: "auto",
@@ -319,166 +453,6 @@ export default function TasksPage() {
             </button>
           )}
         </aside>
-
-        <div className="lc-scroll min-w-0 flex-1 overflow-y-auto">
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 10,
-              padding: "18px 28px 12px",
-              position: "sticky",
-              top: 0,
-              zIndex: 1,
-              background: "linear-gradient(var(--bg) 80%, transparent)",
-            }}
-          >
-            <div
-              style={{
-                flex: 1,
-                display: "flex",
-                alignItems: "center",
-                gap: 8,
-                padding: "9px 14px",
-                borderRadius: 10,
-                background: "var(--bg)",
-                border: "1px solid var(--border)",
-              }}
-            >
-              <Search className="h-[15px] w-[15px]" style={{ color: "var(--ink-3)" }} />
-              <input
-                value={q}
-                onChange={(e) => setQ(e.target.value)}
-                placeholder="Search tasks, prompts, tags, or authors…"
-                style={{
-                  flex: 1,
-                  border: 0,
-                  outline: 0,
-                  background: "transparent",
-                  fontSize: 14,
-                  color: "var(--ink)",
-                }}
-              />
-              {q && (
-                <button
-                  onClick={() => setQ("")}
-                  title="Clear"
-                  style={{
-                    background: "transparent",
-                    border: 0,
-                    color: "var(--ink-3)",
-                    cursor: "pointer",
-                    padding: 2,
-                    display: "inline-flex",
-                  }}
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              )}
-              <kbd
-                style={{
-                  fontFamily: "var(--font-mono)",
-                  fontSize: 11,
-                  padding: "1px 6px",
-                  borderRadius: 4,
-                  border: "1px solid var(--border)",
-                  color: "var(--ink-3)",
-                  background: "var(--bg-soft)",
-                }}
-              >
-                ⌘K
-              </kbd>
-            </div>
-            <SortMenu sort={sort} onChange={setSort} />
-          </div>
-
-          {(selectedRoles.length > 0 || creator !== "all") && (
-            <div
-              style={{
-                display: "flex",
-                flexWrap: "wrap",
-                gap: 6,
-                padding: "0 28px 6px",
-              }}
-            >
-              {selectedRoles.map((rid) => {
-                const r = getRole(rid);
-                return r ? (
-                  <ActiveChip
-                    key={rid}
-                    onRemove={() => toggleRole(rid)}
-                    dot={r.color}
-                  >
-                    {r.label}
-                  </ActiveChip>
-                ) : null;
-              })}
-              {creator !== "all" && (
-                <ActiveChip onRemove={() => setCreator("all")}>{creator}</ActiveChip>
-              )}
-            </div>
-          )}
-
-          <div style={{ padding: "4px 28px 10px", fontSize: 12, color: "var(--ink-3)" }}>
-            {loading
-              ? "Loading…"
-              : `${filtered.length} ${filtered.length === 1 ? "task" : "tasks"}`}
-            {q && !loading ? (
-              <>
-                {" "}
-                matching <span style={{ color: "var(--ink)" }}>“{q}”</span>
-              </>
-            ) : null}
-          </div>
-
-          {loading ? (
-            <div
-              className="flex items-center gap-2 px-7 py-12"
-              style={{ color: "var(--ink-3)" }}
-            >
-              <Loader2 className="h-4 w-4 animate-spin" /> Loading…
-            </div>
-          ) : tasks.length === 0 ? (
-            <div style={{ padding: "0 28px 36px" }}>
-              <div
-                className="rounded-lg p-10 text-center"
-                style={{
-                  color: "var(--ink-3)",
-                  border: "1px dashed var(--border)",
-                }}
-              >
-                <div style={{ fontSize: 14, marginBottom: 8 }}>No saved tasks yet.</div>
-                <div style={{ fontSize: 12 }}>
-                  Run something in chat, then click the bookmark icon on the final
-                  assistant reply to save it as a task.
-                </div>
-              </div>
-            </div>
-          ) : filtered.length === 0 ? (
-            <EmptyResults onClear={clearFilters} hasFilters={hasFilters} />
-          ) : (
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(auto-fill, minmax(320px, 1fr))",
-                gap: 12,
-                padding: "0 28px 36px",
-              }}
-            >
-              {filtered.map((t) => (
-                <TaskCard
-                  key={t.id}
-                  task={t}
-                  role={getRole(t.role)}
-                  onOpen={() => router.push(`/tasks/${t.id}`)}
-                  onRun={() => void onRunRow(t.id)}
-                  onExport={() => void onExport(t.id, t.title)}
-                  onDelete={() => void onDelete(t.id)}
-                />
-              ))}
-            </div>
-          )}
-        </div>
       </div>
 
       <RunVarsModal
@@ -490,6 +464,7 @@ export default function TasksPage() {
         onRun={onRunSubmit}
       />
     </div>
+    </AppSidebarShell>
   );
 }
 

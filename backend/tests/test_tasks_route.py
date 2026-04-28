@@ -117,7 +117,7 @@ async def test_marketplace_fields_round_trip():
                 "variables": [],
                 "steps": [],
                 "tags": ["slack", "standup", "daily"],
-                "role": "local-po",
+                "role": "local_product_owner",
                 "creator": "maya@example.com",
             }
             r = await ac.post("/tasks/import", json=payload)
@@ -125,13 +125,13 @@ async def test_marketplace_fields_round_trip():
             created = r.json()
             tid = created["id"]
             assert created["tags"] == ["slack", "standup", "daily"]
-            assert created["role"] == "local-po"
+            assert created["role"] == "local_product_owner"
             assert created["creator"] == "maya@example.com"
 
             listed = (await ac.get("/tasks")).json()
             row = next(x for x in listed if x["id"] == tid)
             assert row["tags"] == ["slack", "standup", "daily"]
-            assert row["role"] == "local-po"
+            assert row["role"] == "local_product_owner"
             assert row["creator"] == "maya@example.com"
 
             full = (await ac.get(f"/tasks/{tid}")).json()
@@ -141,9 +141,9 @@ async def test_marketplace_fields_round_trip():
             after = r2.json()
             assert after["tags"] == ["slack"]
             assert after["creator"] == "ben@example.com"
-            assert after["role"] == "local-po"
+            assert after["role"] == "local_product_owner"
 
-            # Older payload without the new fields still imports cleanly.
+            # Legacy payload with no creator → auto-filled from signed-in user.
             legacy = {
                 "id": "",
                 "title": "Legacy",
@@ -156,7 +156,19 @@ async def test_marketplace_fields_round_trip():
             legacy_row = r3.json()
             assert legacy_row["tags"] == []
             assert legacy_row["role"] is None
-            assert legacy_row["creator"] is None
+            assert legacy_row["creator"] == "test@example.com"
+
+            # Invalid role id is rejected by Pydantic.
+            bad = {
+                "id": "",
+                "title": "Bad",
+                "description": "",
+                "variables": [],
+                "steps": [],
+                "role": "bogus",
+            }
+            r4 = await ac.post("/tasks/import", json=bad)
+            assert r4.status_code == 422
     finally:
         async with async_session() as s:
             await s.execute(delete(SavedTask))

@@ -250,15 +250,15 @@ async def stream_chat(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits w
                 if umd_any:
                     total_input_tokens += int(umd_any.get("input_tokens") or 0)
                     total_output_tokens += int(umd_any.get("output_tokens") or 0)
-            if isinstance(chunk, (AIMessage, AIMessageChunk)):
-                if (
-                    is_top_level
-                    and node == "model"
-                    and isinstance(chunk, AIMessageChunk)
-                    and not chunk.content
-                    and not (chunk.tool_call_chunks or [])
-                ):
-                    counters["empty_ai_chunks"] += 1
+            if (
+                isinstance(chunk, (AIMessage, AIMessageChunk))
+                and is_top_level
+                and node == "model"
+                and isinstance(chunk, AIMessageChunk)
+                and not chunk.content
+                and not (chunk.tool_call_chunks or [])
+            ):
+                counters["empty_ai_chunks"] += 1
 
             # First time we see events from a subgraph — lock in its parent.
             if namespace and namespace not in parent_by_namespace and current_dispatch_id:
@@ -471,7 +471,7 @@ async def stream_chat(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits w
         if langfuse_handler is not None:
             trace_id = getattr(langfuse_handler, "last_trace_id", None)
             if trace_id:
-                from langfuse import get_client
+                from langfuse import get_client  # noqa: PLC0415
 
                 trace_url = get_client().get_trace_url(trace_id=trace_id)
                 yield sse(

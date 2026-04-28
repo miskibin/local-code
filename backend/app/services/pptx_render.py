@@ -130,9 +130,7 @@ def _add_title_underline(slide, *, top, color_hex: str = ACCENT_HEX, width=None)
     )
 
 
-def _add_footer(
-    slide, *, slide_idx: int, total_slides: int, deck_title: str | None
-) -> None:
+def _add_footer(slide, *, slide_idx: int, total_slides: int, deck_title: str | None) -> None:
     """Hairline + page number bottom-right, optional deck title bottom-left."""
     _add_filled_rect(
         slide,
@@ -214,9 +212,7 @@ def _render_title(
     layout = _layout_by_name(prs, "title")
     slide = prs.slides.add_slide(layout)
     _add_full_bleed_bg(slide, NAVY_HEX)
-    _add_filled_rect(
-        slide, left=0, top=0, width=Inches(0.18), height=PAGE_H, fill_hex=ACCENT_HEX
-    )
+    _add_filled_rect(slide, left=0, top=0, width=Inches(0.18), height=PAGE_H, fill_hex=ACCENT_HEX)
     body_w = PAGE_W - MARGIN_X * 2 - Inches(0.18)
     left_x = MARGIN_X + Inches(0.18)
     _add_text(
@@ -332,9 +328,7 @@ def _content_chrome(
         color_hex=NAVY_HEX,
     )
     _add_title_underline(slide, top=MARGIN_TOP + Inches(0.85))
-    _add_footer(
-        slide, slide_idx=slide_idx, total_slides=total_slides, deck_title=deck_title
-    )
+    _add_footer(slide, slide_idx=slide_idx, total_slides=total_slides, deck_title=deck_title)
 
 
 def _render_bullets(

@@ -814,7 +814,7 @@ async def build_and_persist_tool_artifact(
     )
     summary = f"{row.id} · {result['summary']}"
     if result.get("kind") == "table":
-        from app.services.table_summary import build_compact_table_summary
+        from app.services.table_summary import build_compact_table_summary  # noqa: PLC0415
 
         preview = build_compact_table_summary(row)
         if preview:

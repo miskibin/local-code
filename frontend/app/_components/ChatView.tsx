@@ -8,6 +8,7 @@ import { toast } from "sonner"
 import { api, CHAT_URL } from "@/lib/api"
 import { authHeaders } from "@/lib/auth"
 import type { Artifact, SubagentStep, Todo, ToolStep } from "@/lib/types"
+import { cn } from "@/lib/utils"
 import { Composer } from "./Composer"
 import { EmptyState } from "./EmptyState"
 import {
@@ -500,6 +501,7 @@ export const __testing__ = {
 
 type Props = {
   sessionId: string
+  isTaskChat?: boolean
   onFirstUserMessage: (text: string) => void
   savedArtifacts: Record<string, boolean>
   onSaveArtifact: (a: Artifact) => Promise<void> | void
@@ -514,6 +516,7 @@ type Props = {
 
 export function ChatView({
   sessionId,
+  isTaskChat = false,
   onFirstUserMessage,
   savedArtifacts,
   onSaveArtifact,
@@ -982,8 +985,11 @@ export function ChatView({
   return (
     <ArtifactRefsProvider value={artifactRefs}>
       <div
-        className="flex min-w-0 flex-1 flex-col"
-        style={{ background: "var(--bg)" }}
+        className={cn(
+          "flex min-w-0 flex-1 flex-col",
+          isTaskChat && "lc-login-bg relative"
+        )}
+        style={isTaskChat ? undefined : { background: "var(--bg)" }}
       >
         <div ref={scrollRef} className="lc-scroll flex-1 overflow-y-auto">
           <div className="mx-auto w-full max-w-4xl px-6 pt-8 pb-12">
@@ -1062,7 +1068,9 @@ export function ChatView({
                         )
                       }
                       onSaveAsTask={
-                        streaming ? undefined : () => void handleSaveAsTask()
+                        streaming || isTaskChat
+                          ? undefined
+                          : () => void handleSaveAsTask()
                       }
                       saveAsTaskBusy={generatingTask}
                       onQuizAnswer={submitQuizAnswer}

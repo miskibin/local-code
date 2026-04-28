@@ -6,6 +6,12 @@ from pydantic import BaseModel, Field
 VariableType = Literal["string", "number", "boolean"]
 StepKind = Literal["tool", "code", "subagent", "prompt", "report"]
 OutputKind = Literal["rows", "text", "chart", "json", "file"]
+TaskRole = Literal[
+    "local_product_owner",
+    "fot_leader",
+    "area_product_owner",
+    "product_manager",
+]
 
 
 class TaskVariable(BaseModel):
@@ -39,7 +45,7 @@ class TaskDTO(BaseModel):
     variables: list[TaskVariable] = Field(default_factory=list)
     steps: list[TaskStep] = Field(default_factory=list)
     tags: list[str] = Field(default_factory=list)
-    role: str | None = None
+    role: TaskRole | None = None
     creator: str | None = None
     created_at: datetime | None = None
     updated_at: datetime | None = None
@@ -50,7 +56,7 @@ class TaskListItem(BaseModel):
     title: str
     description: str = ""
     tags: list[str] = Field(default_factory=list)
-    role: str | None = None
+    role: TaskRole | None = None
     creator: str | None = None
     updated_at: datetime | None = None
 

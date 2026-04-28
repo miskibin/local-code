@@ -1,8 +1,18 @@
 "use client"
 
+import { TASK_ROLES, type TaskRoleId } from "@/lib/roles"
 import type { SavedTask } from "@/lib/types"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+
+const UNASSIGNED = "__unassigned__"
 
 type Props = {
   task: SavedTask
@@ -32,12 +42,26 @@ export function MetadataPanel({ task, onChange }: Props) {
         <Label className="text-[11px]" style={{ color: "var(--ink-3)" }}>
           Role
         </Label>
-        <Input
-          value={task.role ?? ""}
-          onChange={(e) => onChange({ role: e.target.value || null })}
-          placeholder="analyst, ops, anyone…"
-          className="h-8 text-[13px]"
-        />
+        <Select
+          value={task.role ?? UNASSIGNED}
+          onValueChange={(value) =>
+            onChange({
+              role: value === UNASSIGNED ? null : (value as TaskRoleId),
+            })
+          }
+        >
+          <SelectTrigger className="h-8 w-full text-[13px]">
+            <SelectValue placeholder="Unassigned" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={UNASSIGNED}>Unassigned</SelectItem>
+            {TASK_ROLES.map((r) => (
+              <SelectItem key={r.id} value={r.id}>
+                {r.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="flex flex-col gap-1">

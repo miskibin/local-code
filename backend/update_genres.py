@@ -1,9 +1,9 @@
-
 import sqlite3
 import sys
 from datetime import datetime
 
 DB_PATH = "chinook.db"
+
 
 def run_job():
     try:
@@ -38,9 +38,10 @@ def run_job():
         conn.commit()
         print(f"[{now}] Successfully logged {len(results)} rows to daily_genres.")
         conn.close()
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print(f"[{datetime.now()}] Error: {e}", file=sys.stderr)
         sys.exit(1)
+
 
 if __name__ == "__main__":
     run_job()

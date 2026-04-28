@@ -15,6 +15,7 @@ import { toast } from "sonner"
 import { api, TaskValidationError } from "@/lib/api"
 import { navigateToTaskRunUrl } from "@/lib/tasks"
 import type { SavedTask, TaskRunVariables, ValidationIssue } from "@/lib/types"
+import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -143,7 +144,9 @@ export function Builder({ taskId }: { taskId: string }) {
   if (loading) {
     return (
       <div
-        className="flex h-dvh items-center justify-center"
+        className={cn(
+          "lc-login-bg relative flex h-dvh items-center justify-center"
+        )}
         style={{ color: "var(--ink-3)" }}
       >
         <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Loading task…
@@ -154,8 +157,9 @@ export function Builder({ taskId }: { taskId: string }) {
   if (!task) {
     return (
       <div
-        className="flex h-dvh flex-col items-center justify-center gap-3"
-        style={{ background: "var(--bg)" }}
+        className={cn(
+          "lc-login-bg relative flex h-dvh flex-col items-center justify-center gap-3"
+        )}
       >
         <div style={{ color: "var(--ink-3)" }}>Task not found.</div>
         <Link href="/tasks">
@@ -166,7 +170,7 @@ export function Builder({ taskId }: { taskId: string }) {
   }
 
   return (
-    <div className="flex h-dvh flex-col" style={{ background: "var(--bg)" }}>
+    <div className={cn("lc-login-bg relative flex h-dvh flex-col")}>
       <div
         className="flex items-center gap-3 px-6 py-3"
         style={{ borderBottom: "1px solid var(--border)", minHeight: 52 }}

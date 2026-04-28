@@ -166,7 +166,7 @@ async def get_messages(sid: str, request: Request):  # noqa: PLR0912, PLR0915 --
     feedback_by_trace: dict[str, int] = {}
     trace_url_by_id: dict[str, str] = {}
     if traces_by_msg_id and get_settings().langfuse_secret_key:
-        from langfuse import get_client
+        from langfuse import get_client  # noqa: PLC0415
 
         client = get_client()
         scores = client.api.scores.get_many(session_id=sid, name="user-feedback", limit=100)

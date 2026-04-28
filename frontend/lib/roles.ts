@@ -1,5 +1,11 @@
+export type TaskRoleId =
+  | "local_product_owner"
+  | "fot_leader"
+  | "area_product_owner"
+  | "product_manager"
+
 export type TaskRole = {
-  id: string
+  id: TaskRoleId
   label: string
   short: string
   color: string
@@ -7,17 +13,37 @@ export type TaskRole = {
 }
 
 export const TASK_ROLES: TaskRole[] = [
-  { id: "local-po", label: "Local Product Owner", short: "Local PO", color: "#1d4ed8", soft: "#eff4ff" },
-  { id: "apo", label: "Area Product Owner", short: "APO", color: "#7e22ce", soft: "#faf5ff" },
-  { id: "pm", label: "Product Manager", short: "PM", color: "#0e7490", soft: "#ecfeff" },
-  { id: "engineer", label: "Engineer", short: "Eng", color: "#047857", soft: "#ecfdf5" },
-  { id: "designer", label: "Designer", short: "Design", color: "#be185d", soft: "#fdf2f8" },
-  { id: "analyst", label: "Data Analyst", short: "Analyst", color: "#b45309", soft: "#fffbeb" },
-  { id: "researcher", label: "UX Researcher", short: "Research", color: "#4338ca", soft: "#eef2ff" },
-  { id: "ops", label: "Operations", short: "Ops", color: "#475569", soft: "#f1f5f9" },
+  {
+    id: "local_product_owner",
+    label: "Local Product Owner",
+    short: "Local Product Owner",
+    color: "#1d4ed8",
+    soft: "#eff4ff",
+  },
+  {
+    id: "fot_leader",
+    label: "FOT Leader",
+    short: "FOT Leader",
+    color: "#b45309",
+    soft: "#fffbeb",
+  },
+  {
+    id: "area_product_owner",
+    label: "Area Product Owner",
+    short: "Area Product Owner",
+    color: "#7e22ce",
+    soft: "#faf5ff",
+  },
+  {
+    id: "product_manager",
+    label: "Product Manager",
+    short: "Product Manager",
+    color: "#0e7490",
+    soft: "#ecfeff",
+  },
 ]
 
-const ROLE_BY_ID = new Map(TASK_ROLES.map((r) => [r.id, r]))
+const ROLE_BY_ID = new Map<string, TaskRole>(TASK_ROLES.map((r) => [r.id, r]))
 
 export function getRole(id: string | null | undefined): TaskRole | undefined {
   return id ? ROLE_BY_ID.get(id) : undefined
