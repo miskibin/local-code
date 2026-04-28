@@ -41,9 +41,9 @@ class MCPRegistry:
             for name in list(enabled):
                 try:
                     cm = client.session(name)
-                    session = await cm.__aenter__()
+                    session = await asyncio.wait_for(cm.__aenter__(), timeout=10)
                     self._session_cms.append(cm)
-                    tools = await load_mcp_tools(session)
+                    tools = await asyncio.wait_for(load_mcp_tools(session), timeout=10)
                     self._tools_by_server[name] = [t.name for t in tools]
                     new_tools.extend(tools)
                     logger.debug(f"mcp server {name!r}: loaded {len(tools)} tools")

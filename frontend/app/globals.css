@@ -253,6 +253,48 @@ html.dark body[data-app="local-chat"] {
     --red-soft: #2a0c0c;
 }
 
+/* Login — subtle graph grid, stronger mid-frame, fades toward edges (mock) */
+[data-app="local-chat"] .lc-login-bg {
+    background-color: var(--bg);
+    background-image:
+        radial-gradient(
+            ellipse 125% 105% at 50% 44%,
+            transparent 0%,
+            transparent 26%,
+            color-mix(in oklab, var(--bg) 35%, transparent) 48%,
+            color-mix(in oklab, var(--bg) 88%, transparent) 72%,
+            var(--bg) 100%
+        ),
+        repeating-linear-gradient(
+            0deg,
+            transparent 0,
+            transparent calc(28px - 1px),
+            color-mix(in oklab, var(--border) 38%, var(--bg)) calc(28px - 1px),
+            color-mix(in oklab, var(--border) 38%, var(--bg)) 28px
+        ),
+        repeating-linear-gradient(
+            90deg,
+            transparent 0,
+            transparent calc(28px - 1px),
+            color-mix(in oklab, var(--border) 38%, var(--bg)) calc(28px - 1px),
+            color-mix(in oklab, var(--border) 38%, var(--bg)) 28px
+        ),
+        repeating-linear-gradient(
+            0deg,
+            transparent 0,
+            transparent calc(140px - 1px),
+            color-mix(in oklab, var(--border-strong) 28%, var(--bg)) calc(140px - 1px),
+            color-mix(in oklab, var(--border-strong) 28%, var(--bg)) 140px
+        ),
+        repeating-linear-gradient(
+            90deg,
+            transparent 0,
+            transparent calc(140px - 1px),
+            color-mix(in oklab, var(--border-strong) 28%, var(--bg)) calc(140px - 1px),
+            color-mix(in oklab, var(--border-strong) 28%, var(--bg)) 140px
+        );
+}
+
 /* Scoped utility classes from design */
 [data-app="local-chat"] .lc-scroll::-webkit-scrollbar { width: 10px; height: 10px; }
 [data-app="local-chat"] .lc-scroll::-webkit-scrollbar-track { background: transparent; }

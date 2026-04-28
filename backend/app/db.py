@@ -31,7 +31,9 @@ def _alembic_config() -> Config:
     backend_root = Path(__file__).resolve().parent.parent
     cfg = Config(str(backend_root / "alembic.ini"))
     cfg.set_main_option("script_location", str(backend_root / "alembic"))
-    cfg.set_main_option("sqlalchemy.url", _db_url)
+    # Alembic is sync — strip async driver prefix so it doesn't deadlock in a thread
+    sync_url = _db_url.replace("sqlite+aiosqlite", "sqlite")
+    cfg.set_main_option("sqlalchemy.url", sync_url)
     return cfg
 
 

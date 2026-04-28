@@ -2,6 +2,7 @@
 
 import { usePathname, useRouter } from "next/navigation"
 import { useEffect } from "react"
+import { FirstLoginDialog } from "@/app/_components/FirstLoginDialog"
 import { useAuth } from "@/lib/auth"
 
 export function AuthGate({ children }: { children: React.ReactNode }) {
@@ -25,5 +26,10 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
   if (!ready) return null
   if (!user && !onLogin) return null
   if (user && onLogin) return null
-  return <>{children}</>
+  return (
+    <>
+      {children}
+      <FirstLoginDialog />
+    </>
+  )
 }

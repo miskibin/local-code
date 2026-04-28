@@ -9,19 +9,6 @@ import { useAuth } from "@/lib/auth"
 
 const ssoProviders = [
   { id: "okta", label: "Continue with Okta", subtitle: "WORK · SAML", icon: "○" },
-  {
-    id: "google",
-    label: "Continue with Google Workspace",
-    subtitle: "WORK · OIDC",
-    icon: "G",
-  },
-  {
-    id: "microsoft",
-    label: "Continue with Microsoft Entra",
-    subtitle: "WORK · OIDC",
-    icon: "▦",
-  },
-  { id: "github", label: "Continue with GitHub", subtitle: "OAUTH", icon: "" },
 ]
 
 export default function LoginPage() {
@@ -48,13 +35,7 @@ export default function LoginPage() {
   }
 
   return (
-    <main
-      className="relative flex min-h-dvh w-full flex-col"
-      style={{
-        background:
-          "var(--bg, oklch(0.985 0 0)) repeating-linear-gradient(0deg, transparent 0 39px, var(--border) 39px 40px), repeating-linear-gradient(90deg, transparent 0 39px, var(--border) 39px 40px)",
-      }}
-    >
+    <main className="lc-login-bg relative flex min-h-dvh w-full flex-col">
       <header className="flex w-full items-center justify-between px-8 py-6 text-xs tracking-wide">
         <div className="flex items-center gap-2 text-sm font-semibold">
           <span className="grid size-7 place-items-center rounded-md bg-emerald-100 text-emerald-700">
@@ -131,7 +112,7 @@ export default function LoginPage() {
           <div className="bg-card text-muted-foreground mt-6 flex items-start gap-3 rounded-xl border p-4 text-xs">
             <span className="text-emerald-600">⊙</span>
             <span>
-              Email-only sign-in for local development. SSO buttons are mocked
+              Email-only sign-in for local development. The SSO button is mocked
               — pick any email to identify your sessions, tasks, and artifacts.
             </span>
           </div>

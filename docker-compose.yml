@@ -187,7 +187,6 @@ services:
       UPLOADS_DIR: /app/data/uploads
       SKILLS_DIR: /app/data/skills
       PYTHON_SESSIONS_DIR: /app/data/python_sessions
-      OLLAMA_BASE_URL: http://host.docker.internal:11434
       CORS_ORIGINS: '["http://localhost:3000"]'
       LANGFUSE_SECRET_KEY: ${LANGFUSE_SDK_SECRET_KEY:-}
       LANGFUSE_PUBLIC_KEY: ${LANGFUSE_SDK_PUBLIC_KEY:-}
@@ -196,8 +195,6 @@ services:
       LOG_LEVEL: INFO
     volumes:
       - backend_data:/app/data
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
     healthcheck:
       test: curl -f http://localhost:8000/health
       interval: 10s
