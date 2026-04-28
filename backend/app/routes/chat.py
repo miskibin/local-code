@@ -78,7 +78,9 @@ _STREAM_HEADERS = {
 
 
 @router.post("/chat")
-async def chat(req: ChatRequest, request: Request, user: CurrentUser):
+async def chat(  # noqa: PLR0915 -- request handler; branches on task_run/resume/normal
+    req: ChatRequest, request: Request, user: CurrentUser
+):
     state = request.app.state
     llm = resolve_llm(state, req.model)
     logger.info(
@@ -108,10 +110,9 @@ async def chat(req: ChatRequest, request: Request, user: CurrentUser):
             # run_task is still using.
             try:
                 async with AsyncExitStack() as stack:
-                    if hasattr(state, "mcp_registry"):
-                        await stack.enter_async_context(
-                            state.mcp_registry.pin_for_stream()
-                        )
+                    registry = getattr(state, "mcp_registry", None)
+                    if registry is not None and hasattr(registry, "pin_for_stream"):
+                        await stack.enter_async_context(registry.pin_for_stream())
                     async for evt in run_task(
                         task,
                         req.task_run.variables,
@@ -155,11 +156,15 @@ async def chat(req: ChatRequest, request: Request, user: CurrentUser):
         # Pin MCP tools for the duration of the stream so a concurrent
         # `/mcp` hot-reload cannot close sessions the agent is mid-call on.
         async with AsyncExitStack() as stack:
-            if hasattr(state, "mcp_registry"):
+            registry = getattr(state, "mcp_registry", None)
+            if registry is not None and hasattr(registry, "pin_for_stream"):
                 mcp_pinned = await stack.enter_async_context(
-                    state.mcp_registry.pin_for_stream()
+                    registry.pin_for_stream()
                 )
-                tools_by_server = state.mcp_registry.tools_by_server
+                tools_by_server = registry.tools_by_server
+            elif registry is not None:
+                mcp_pinned = list(getattr(registry, "tools", []))
+                tools_by_server = getattr(registry, "tools_by_server", {})
             else:
                 mcp_pinned = []
                 tools_by_server = {}

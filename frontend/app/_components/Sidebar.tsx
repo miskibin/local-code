@@ -241,6 +241,11 @@ export function Sidebar({
           {chatsOpen &&
             sessions.map((s, i) => {
               const isTaskRun = !!s.task_id
+              const anyPinnedBefore = sessions
+                .slice(0, i)
+                .some((x) => x.is_pinned)
+              const unpinnedSectionDivider =
+                anyPinnedBefore && !s.is_pinned
               const listNumber =
                 s.is_pinned || isTaskRun
                   ? undefined
@@ -250,6 +255,7 @@ export function Sidebar({
               return (
                 <DraggableChatRow
                   key={s.id}
+                  unpinnedSectionDivider={unpinnedSectionDivider}
                   listNumber={listNumber}
                   session={s}
                   active={s.id === activeId}
@@ -529,6 +535,8 @@ type ChatRowProps = {
   dragListeners?: DraggableSyntheticListeners
   dragNodeRef?: (el: HTMLDivElement | null) => void
   isBeingDragged?: boolean
+  /** Top rule on the first unpinned row after at least one pinned row */
+  unpinnedSectionDivider?: boolean
 }
 
 function ChatRow({
@@ -546,6 +554,7 @@ function ChatRow({
   dragListeners,
   dragNodeRef,
   isBeingDragged,
+  unpinnedSectionDivider,
 }: ChatRowProps) {
   const [draft, setDraft] = useState(session.title || "")
   const inputRef = useRef<HTMLInputElement>(null)
@@ -583,6 +592,13 @@ function ChatRow({
       style={{
         opacity: isBeingDragged ? 0.4 : 1,
         touchAction: dragListeners ? "none" : undefined,
+        ...(unpinnedSectionDivider
+          ? {
+              marginTop: 6,
+              paddingTop: 6,
+              borderTop: "1px solid var(--border)",
+            }
+          : {}),
       }}
     >
       {editing ? (
