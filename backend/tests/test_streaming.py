@@ -3,6 +3,8 @@ import json
 import pytest
 from langchain_core.language_models.fake_chat_models import FakeListChatModel
 
+from tests.conftest import TEST_OWNER_ID
+
 
 class _FakeChatWithTools(FakeListChatModel):
     def bind_tools(self, tools, **kwargs):
@@ -22,7 +24,9 @@ async def test_sse_stream_emits_protocol_envelope_and_deltas():
         checkpointer=InMemorySaver(),
     )
     events = []
-    async for line in stream_chat(graph=graph, thread_id="t1", lc_messages=[("user", "go")]):
+    async for line in stream_chat(
+        graph=graph, thread_id="t1", lc_messages=[("user", "go")], owner_id=TEST_OWNER_ID
+    ):
         events.append(line)
 
     parsed = [
