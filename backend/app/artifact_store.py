@@ -424,6 +424,17 @@ _PY_PRELUDE = textwrap.dedent(
         _sys.stdout.write({ARTIFACT_END!r})
         _sys.stdout.write("\\n")
 
+    def out_sql_list(items, *, quote="'"):
+        # Format an iterable as a SQL fragment for IN(...) / column lists, e.g.
+        # ['GenreId','AlbumId'] -> "'GenreId', 'AlbumId'". Pass quote='"' for
+        # identifier lists, quote='' for already-safe tokens. Trusted-input
+        # only: not an injection-safe quoter.
+        _q = quote
+        if _q:
+            out(", ".join(f"{{_q}}{{str(x).replace(_q, _q*2)}}{{_q}}" for x in items))
+        else:
+            out(", ".join(str(x) for x in items))
+
     def out_image(fig=None, *, title=None, caption=None):
         import io as _io, base64 as _b64
         import matplotlib.pyplot as _plt
@@ -642,7 +653,14 @@ def _classify_python_output(blob: Any, free_stdout: str, stderr: str) -> dict[st
                 f"image png ({len(b64) * 3 // 4} bytes)" + (f" - {caption}" if caption else "")
             ),
         }
-    text = free_stdout if free_stdout else (json.dumps(blob)[:500] if blob is not None else "")
+    if free_stdout:
+        text = free_stdout
+    elif isinstance(blob, str):
+        text = blob
+    elif blob is not None:
+        text = json.dumps(blob)[:500]
+    else:
+        text = ""
     return {
         "kind": "text",
         "title": "Python output",

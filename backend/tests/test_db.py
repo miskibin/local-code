@@ -42,6 +42,32 @@ async def test_mcp_config_json_blob_roundtrip():
 
 
 @pytest.mark.asyncio
+async def test_chatsession_task_id_roundtrip():
+    from app.db import async_session, init_db
+    from app.models import ChatSession
+    from tests.conftest import TEST_OWNER_ID, ensure_test_user
+
+    await init_db()
+    await ensure_test_user()
+    async with async_session() as s:
+        s.add(
+            ChatSession(
+                id="sess_taskrun",
+                owner_id=TEST_OWNER_ID,
+                title="Task: run X",
+                task_id="t_abc",
+            )
+        )
+        await s.commit()
+
+    async with async_session() as s:
+        row = (
+            await s.execute(select(ChatSession).where(ChatSession.id == "sess_taskrun"))
+        ).scalar_one()
+        assert row.task_id == "t_abc"
+
+
+@pytest.mark.asyncio
 async def test_tool_flag_default_true():
     from app.db import async_session, init_db
     from app.models import ToolFlag

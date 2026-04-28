@@ -58,3 +58,10 @@ class TaskListItem(BaseModel):
 class GenerateTaskRequest(BaseModel):
     session_id: str
     model: str
+
+
+class ValidationIssue(BaseModel):
+    severity: Literal["error", "warning"]
+    step_id: str | None = None
+    field: str | None = None
+    message: str

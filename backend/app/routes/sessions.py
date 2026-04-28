@@ -23,6 +23,7 @@ class SessionDTO(BaseModel):
     id: str
     title: str = ""
     is_pinned: bool = False
+    task_id: str | None = None
 
 
 class SessionPatch(BaseModel):
@@ -88,14 +89,28 @@ async def list_sessions(user: CurrentUser):
             .scalars()
             .all()
         )
-    return [SessionDTO(id=r.id, title=r.title, is_pinned=bool(r.is_pinned)) for r in rows]
+    return [
+        SessionDTO(
+            id=r.id,
+            title=r.title,
+            is_pinned=bool(r.is_pinned),
+            task_id=r.task_id,
+        )
+        for r in rows
+    ]
 
 
 @router.post("/sessions", response_model=SessionDTO)
 async def create_session(dto: SessionDTO, user: CurrentUser):
     async with async_session() as s:
-        if await s.get(ChatSession, dto.id):
-            return dto
+        existing = await s.get(ChatSession, dto.id)
+        if existing:
+            return SessionDTO(
+                id=existing.id,
+                title=existing.title,
+                is_pinned=bool(existing.is_pinned),
+                task_id=existing.task_id,
+            )
         s.add(ChatSession(id=dto.id, owner_id=user.id, title=dto.title))
         await s.commit()
     return dto
@@ -115,7 +130,12 @@ async def patch_session(sid: str, patch: SessionPatch):
         s.add(row)
         await s.commit()
         await s.refresh(row)
-    return SessionDTO(id=row.id, title=row.title, is_pinned=bool(row.is_pinned))
+    return SessionDTO(
+        id=row.id,
+        title=row.title,
+        is_pinned=bool(row.is_pinned),
+        task_id=row.task_id,
+    )
 
 
 @router.get("/sessions/{sid}/messages", response_model=list[UIMessage])

@@ -2,6 +2,7 @@ export type Session = {
   id: string
   title: string
   is_pinned?: boolean
+  task_id?: string | null
 }
 
 export type SessionPatch = {
@@ -222,3 +223,10 @@ export type TaskListItem = {
 }
 
 export type TaskRunVariables = Record<string, string | number | boolean>
+
+export type ValidationIssue = {
+  severity: "error" | "warning"
+  step_id?: string | null
+  field?: string | null
+  message: string
+}

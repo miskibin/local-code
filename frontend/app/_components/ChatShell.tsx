@@ -16,6 +16,13 @@ import { ThemeToggle } from "./ThemeToggle"
 
 type PendingTaskRun = { task_id: string; variables: Record<string, unknown> }
 
+// Module-scope cache so sidebar doesn't flash empty if ChatShell remounts
+// across navigations between chat ids.
+const cache: { sessions: Session[]; artifacts: Artifact[] } = {
+  sessions: [],
+  artifacts: [],
+}
+
 export function ChatShell({ initialSessionId }: { initialSessionId: string }) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -42,15 +49,19 @@ export function ChatShell({ initialSessionId }: { initialSessionId: string }) {
   useEffect(() => {
     setActiveSessionId(initialSessionId)
   }, [initialSessionId])
-  const [sessions, setSessions] = useState<Session[]>([])
-  const [savedArtifacts, setSavedArtifacts] = useState<Artifact[]>([])
+  const [sessions, setSessions] = useState<Session[]>(cache.sessions)
+  const [savedArtifacts, setSavedArtifacts] = useState<Artifact[]>(
+    cache.artifacts
+  )
   const [searchOpen, setSearchOpen] = useState(false)
   const [openArtifact, setOpenArtifact] = useState<Artifact | null>(null)
   const [langfuseTraceUrl, setLangfuseTraceUrl] = useState<string | null>(null)
 
   const refreshArtifacts = useCallback(async () => {
     try {
-      setSavedArtifacts(await api.listArtifacts({ pinned: true }))
+      const next = await api.listArtifacts({ pinned: true })
+      cache.artifacts = next
+      setSavedArtifacts(next)
     } catch (e) {
       console.error("listArtifacts", e)
       toast.error("Failed to load artifacts", { description: String(e) })
@@ -59,7 +70,9 @@ export function ChatShell({ initialSessionId }: { initialSessionId: string }) {
 
   const refreshSessions = useCallback(async () => {
     try {
-      setSessions(await api.listSessions())
+      const next = await api.listSessions()
+      cache.sessions = next
+      setSessions(next)
     } catch (e) {
       console.error("listSessions", e)
       toast.error("Failed to load sessions", { description: String(e) })
@@ -70,6 +83,14 @@ export function ChatShell({ initialSessionId }: { initialSessionId: string }) {
     refreshSessions()
     refreshArtifacts()
   }, [refreshSessions, refreshArtifacts])
+
+  useEffect(() => {
+    cache.sessions = sessions
+  }, [sessions])
+
+  useEffect(() => {
+    cache.artifacts = savedArtifacts
+  }, [savedArtifacts])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

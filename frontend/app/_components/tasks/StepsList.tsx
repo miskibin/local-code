@@ -1,6 +1,6 @@
 "use client"
 
-import { Plus } from "lucide-react"
+import { Plus, X } from "lucide-react"
 import { nanoid } from "nanoid"
 import type { TaskStep, TaskStepKind } from "@/lib/types"
 import { Button } from "@/components/ui/button"
@@ -47,21 +47,83 @@ export function makeStep(kind: TaskStepKind, index: number): TaskStep {
   }
 }
 
-export function AddStepBar({ onAdd }: { onAdd: (kind: TaskStepKind) => void }) {
+/**
+ * Thin insertion zone shown between steps. Collapsed: a hover-only hairline
+ * with a centered + chip. Expanded: inline kind picker.
+ */
+export function InsertSlot({
+  open,
+  onOpen,
+  onClose,
+  onInsert,
+}: {
+  open: boolean
+  onOpen: () => void
+  onClose: () => void
+  onInsert: (k: TaskStepKind) => void
+}) {
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={onOpen}
+        aria-label="Insert step here"
+        className="group relative flex h-5 w-full cursor-pointer items-center justify-center"
+        style={{ background: "transparent", border: 0, padding: 0 }}
+      >
+        <span
+          className="h-px w-full transition-colors group-hover:bg-[var(--border-strong)]"
+          style={{ background: "transparent" }}
+        />
+        <span
+          className="absolute inline-flex items-center gap-1 rounded-full px-2 py-0.5 opacity-0 transition-opacity group-hover:opacity-100"
+          style={{
+            background: "var(--bg)",
+            border: "1px solid var(--border-strong)",
+            fontSize: 10.5,
+            color: "var(--ink-2)",
+            letterSpacing: ".04em",
+            textTransform: "uppercase",
+            fontWeight: 500,
+          }}
+        >
+          <Plus className="h-3 w-3" />
+          Insert
+        </span>
+      </button>
+    )
+  }
   return (
-    <div className="flex flex-wrap gap-1.5">
+    <div
+      className="flex flex-wrap items-center justify-center gap-1.5 py-1"
+      role="group"
+      aria-label="Insert step"
+    >
       {ADD_KINDS.map((k) => (
         <Button
           key={k}
           variant="outline"
           size="sm"
-          onClick={() => onAdd(k)}
+          onClick={() => onInsert(k)}
           className="h-7 text-[11px]"
         >
           <Plus className="h-3 w-3" />
           {KIND_LABEL[k]}
         </Button>
       ))}
+      <button
+        type="button"
+        onClick={onClose}
+        aria-label="Cancel insert"
+        className="ml-1 rounded p-1 transition-colors hover:bg-[var(--hover-strong)]"
+        style={{
+          background: "transparent",
+          border: 0,
+          color: "var(--ink-3)",
+        }}
+      >
+        <X className="h-3 w-3" />
+      </button>
     </div>
   )
 }

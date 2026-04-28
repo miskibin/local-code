@@ -50,3 +50,34 @@ def test_substitute_passthrough_for_non_template_strings():
     assert substitute("plain text", {}, {}) == "plain text"
     assert substitute(42, {}, {}) == 42
     assert substitute(None, {}, {}) is None
+
+
+def test_substitute_unwraps_text_artifact_for_inline_interpolation():
+    """A code step's output is the artifact dict; inline interpolation (used
+    e.g. for SQL fragments produced by `out_sql_list`) must unwrap to the
+    payload text instead of stringifying the dict wrapper."""
+    artifact = {
+        "id": "art_x",
+        "kind": "text",
+        "title": "Python output",
+        "payload": {"text": "'GenreId', 'AlbumId'", "stderr": None},
+        "summary": "...",
+    }
+    out = substitute(
+        {"sql": "SELECT * FROM t WHERE col IN ({{s1.filtered}})"},
+        variables={},
+        outputs={"s1": {"filtered": artifact, "artifact_id": "art_x"}},
+    )
+    assert out == {"sql": "SELECT * FROM t WHERE col IN ('GenreId', 'AlbumId')"}
+
+
+def test_substitute_full_ref_keeps_artifact_dict():
+    """Full {{...}} ref keeps the raw value — needed for tools that consume
+    the artifact dict directly."""
+    artifact = {"id": "art_x", "kind": "text", "payload": {"text": "hi"}}
+    out = substitute(
+        "{{s1.x}}",
+        variables={},
+        outputs={"s1": {"x": artifact}},
+    )
+    assert out is artifact

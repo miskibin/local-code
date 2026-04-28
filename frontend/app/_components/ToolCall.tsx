@@ -1,6 +1,28 @@
 "use client"
 
-import { Check, ChevronDown, Loader2, TriangleAlert } from "lucide-react"
+import {
+  Check,
+  ChevronDown,
+  Loader2,
+  Pencil,
+  Trash2,
+  TriangleAlert,
+  X,
+} from "lucide-react"
+import { useRouter } from "next/navigation"
+import { useState } from "react"
+import { toast } from "sonner"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { api } from "@/lib/api"
 import type { ToolStep } from "@/lib/types"
 import { DefaultArgs, DefaultResult } from "./tools/default"
 import { getToolRenderer } from "./tools"
@@ -26,6 +48,29 @@ export function ToolCall({
   const running = status === "running"
   const errored = status === "error"
   const warning = status === "warning"
+  const router = useRouter()
+  const [dismissed, setDismissed] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const showFailureActions = errored && !!step.taskId && !dismissed
+
+  async function onDelete() {
+    if (!step.taskId) return
+    setDeleting(true)
+    try {
+      await api.deleteTask(step.taskId)
+      toast.success("Task deleted")
+      setDismissed(true)
+    } catch (e) {
+      toast.error(
+        `Delete failed: ${e instanceof Error ? e.message : String(e)}`
+      )
+    } finally {
+      setDeleting(false)
+      setConfirmDelete(false)
+    }
+  }
+
   const ArgsView = renderer.Args ?? DefaultArgs
   const ResultView = renderer.Result ?? DefaultResult
   const refs = useArtifactRefs()
@@ -179,8 +224,86 @@ export function ToolCall({
           <Section label="Result">
             <ResultView result={step.result} status={status} step={step} />
           </Section>
+          {showFailureActions && (
+            <div
+              className="flex flex-wrap items-center gap-1.5 px-2.5 pt-1 pb-2.5"
+              style={{ borderTop: "1px dashed var(--border)" }}
+            >
+              <span
+                style={{
+                  fontSize: 11,
+                  color: "var(--ink-3)",
+                  textTransform: "uppercase",
+                  letterSpacing: ".04em",
+                  marginRight: 6,
+                }}
+              >
+                Task
+              </span>
+              <button
+                type="button"
+                onClick={() => router.push(`/tasks/${step.taskId}`)}
+                className="inline-flex cursor-pointer items-center gap-1.5 rounded-md px-2 py-1"
+                style={{
+                  fontSize: 12,
+                  color: "var(--ink)",
+                  background: "var(--bg-soft)",
+                  border: "1px solid var(--border)",
+                }}
+              >
+                <Pencil className="h-3.5 w-3.5" />
+                Edit task
+              </button>
+              <button
+                type="button"
+                onClick={() => setConfirmDelete(true)}
+                disabled={deleting}
+                className="inline-flex cursor-pointer items-center gap-1.5 rounded-md px-2 py-1"
+                style={{
+                  fontSize: 12,
+                  color: "var(--red)",
+                  background: "var(--bg-soft)",
+                  border: "1px solid var(--red)",
+                  opacity: deleting ? 0.6 : 1,
+                }}
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                Delete task
+              </button>
+              <button
+                type="button"
+                onClick={() => setDismissed(true)}
+                className="ml-auto inline-flex cursor-pointer items-center gap-1.5 rounded-md px-2 py-1"
+                style={{
+                  fontSize: 12,
+                  color: "var(--ink-3)",
+                  background: "transparent",
+                  border: "1px solid var(--border)",
+                }}
+              >
+                <X className="h-3.5 w-3.5" />
+                Dismiss
+              </button>
+            </div>
+          )}
         </div>
       )}
+      <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this task?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently removes the saved task. Past run history stays.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={onDelete} disabled={deleting}>
+              {deleting ? "Deleting…" : "Delete"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

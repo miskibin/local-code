@@ -33,7 +33,7 @@ export default function ErrorState({
   const secondaryLabel = is500 ? "Back to chat" : "New chat"
 
   return (
-    <div className="lc-error flex min-h-screen flex-col bg-background">
+    <div className="lc-error lc-login-bg relative flex min-h-dvh w-full flex-col">
       <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-8 py-12 text-center">
         <div
           className="mono-strip lc-reveal mb-7"

@@ -69,6 +69,7 @@ async def test_runner_executes_tool_step_with_substitution(monkeypatch, stub_sta
     assert input_evt["toolName"] == "echo_tool"
     assert input_evt["input"] == {"text": "hello world"}
     assert input_evt["providerMetadata"]["task"] == {
+        "taskId": "tsk_runtest1234",
         "stepId": "s1",
         "title": "Echo",
         "kind": "tool",
@@ -213,6 +214,8 @@ async def test_runner_halts_on_missing_variable(monkeypatch, stub_state):
     )
     errors = [e for e in events if e["type"] == "tool-output-error"]
     assert len(errors) == 1 and errors[0]["toolCallId"] == "s1"
+    # Failure event must carry taskId so frontend can render Edit/Delete actions.
+    assert errors[0]["providerMetadata"]["task"]["taskId"] == "tsk_runtest1234"
     started = [e for e in events if e["type"] == "tool-input-start"]
     assert all(e["toolCallId"] != "s2" for e in started)
 

@@ -10,10 +10,24 @@ import type {
   StoredMessage,
   TaskListItem,
   Tool,
+  ValidationIssue,
 } from "./types"
 
 const BACKEND =
   process.env.NEXT_PUBLIC_BACKEND_URL_BASE ?? "http://localhost:8000"
+
+export class TaskValidationError extends Error {
+  issues: ValidationIssue[]
+  constructor(issues: ValidationIssue[]) {
+    super(
+      issues.length > 0
+        ? `Task invalid: ${issues[0].message}`
+        : "Task invalid"
+    )
+    this.name = "TaskValidationError"
+    this.issues = issues
+  }
+}
 
 async function jsonFetch<T>(
   path: string,
@@ -29,7 +43,18 @@ async function jsonFetch<T>(
     },
     body: json !== undefined ? JSON.stringify(json) : rest.body,
   })
-  if (!r.ok) throw new Error(`${r.status} ${r.statusText} on ${path}`)
+  if (!r.ok) {
+    if (r.status === 422) {
+      const body = await r.json().catch(() => null)
+      const detail = (body as { detail?: unknown } | null)?.detail
+      const issues =
+        detail && typeof detail === "object" && "issues" in detail
+          ? ((detail as { issues?: unknown }).issues as ValidationIssue[])
+          : null
+      if (Array.isArray(issues)) throw new TaskValidationError(issues)
+    }
+    throw new Error(`${r.status} ${r.statusText} on ${path}`)
+  }
   if (r.status === 204) return undefined as T
   const ct = r.headers.get("content-type") ?? ""
   if (!ct.includes("application/json")) return undefined as T
@@ -149,6 +174,11 @@ export const api = {
         session_id: sessionId,
         model,
       },
+    }),
+  validateTask: (task: SavedTask) =>
+    jsonFetch<ValidationIssue[]>("/tasks/validate", {
+      method: "POST",
+      json: task,
     }),
 }
 

@@ -29,6 +29,7 @@ import {
   Search,
   Settings,
   Trash2,
+  Workflow,
 } from "lucide-react"
 import Link from "next/link"
 import { useEffect, useMemo, useRef, useState } from "react"
@@ -234,9 +235,13 @@ export function Sidebar({
               visible={activeDragId !== null}
             />
             {sessions.map((s, i) => {
-              const listNumber = s.is_pinned
-                ? undefined
-                : sessions.slice(0, i).filter((x) => !x.is_pinned).length + 1
+              const isTaskRun = !!s.task_id
+              const listNumber =
+                s.is_pinned || isTaskRun
+                  ? undefined
+                  : sessions
+                      .slice(0, i)
+                      .filter((x) => !x.is_pinned && !x.task_id).length + 1
               return (
                 <DraggableChatRow
                   key={s.id}
@@ -245,7 +250,7 @@ export function Sidebar({
                   active={s.id === activeId}
                   isBeingDragged={activeDragId === s.id}
                   langfuseTraceUrl={
-                    s.id === activeId ? langfuseTraceUrl ?? null : null
+                    s.id === activeId ? (langfuseTraceUrl ?? null) : null
                   }
                   onSelect={() => onSelect(s.id)}
                   onDelete={() => onDeleteSession(s.id)}
@@ -262,7 +267,9 @@ export function Sidebar({
               visible={activeDragId !== null}
             />
             <DragOverlay dropAnimation={null}>
-              {draggedSession ? <ChatRowGhost session={draggedSession} /> : null}
+              {draggedSession ? (
+                <ChatRowGhost session={draggedSession} />
+              ) : null}
             </DragOverlay>
           </DndContext>
         )}
@@ -334,14 +341,29 @@ function UserFooter() {
     <button
       type="button"
       onClick={logout}
-      className="hover:bg-accent flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left text-[13.5px]"
+      className="flex w-full items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left text-[13.5px]"
       title="Sign out"
+      style={{
+        background: "transparent",
+        border: 0,
+        color: "var(--ink)",
+        cursor: "pointer",
+      }}
+      onMouseEnter={(e) => {
+        e.currentTarget.style.background = "var(--hover)"
+      }}
+      onMouseLeave={(e) => {
+        e.currentTarget.style.background = "transparent"
+      }}
     >
       <span className="inline-flex" style={{ color: "var(--ink-2)" }}>
         <LogOut className="h-4 w-4" />
       </span>
       <span className="flex-1 truncate">{user.email}</span>
-      <span className="text-muted-foreground text-[11px] tracking-wide uppercase">
+      <span
+        className="text-[11px] tracking-wide uppercase"
+        style={{ color: "var(--ink-2)" }}
+      >
         Sign out
       </span>
     </button>
@@ -603,20 +625,32 @@ function ChatRow({
               style={{ color: "var(--accent)" }}
             />
           )}
-          {listNumber != null && (
-            <span
-              className="flex-shrink-0 tabular-nums"
+          {session.task_id ? (
+            <Workflow
+              className="h-3 w-3 flex-shrink-0"
               style={{
-                fontFamily: "var(--font-mono)",
-                fontSize: 11,
-                color: active ? "var(--accent)" : "var(--ink-4)",
+                color: active ? "var(--accent)" : "var(--muted-foreground)",
               }}
-            >
-              {String(listNumber).padStart(2, "0")}
-            </span>
+            />
+          ) : (
+            listNumber != null && (
+              <span
+                className="flex-shrink-0 tabular-nums"
+                style={{
+                  fontFamily: "var(--font-mono)",
+                  fontSize: 11,
+                  color: active ? "var(--accent)" : "var(--muted-foreground)",
+                }}
+              >
+                {String(listNumber).padStart(2, "0")}
+              </span>
+            )
           )}
           <span className="flex-1 truncate">
-            {session.title || "Untitled"}
+            {session.task_id
+              ? (session.title || "Untitled").replace(/^Task:\s*/, "") ||
+                "Untitled"
+              : session.title || "Untitled"}
           </span>
         </button>
       )}
@@ -658,11 +692,7 @@ function ChatRow({
             {langfuseTraceUrl ? (
               <DropdownMenuItem
                 onSelect={() => {
-                  window.open(
-                    langfuseTraceUrl,
-                    "_blank",
-                    "noopener,noreferrer"
-                  )
+                  window.open(langfuseTraceUrl, "_blank", "noopener,noreferrer")
                 }}
               >
                 <ExternalLink className="h-3.5 w-3.5" />
@@ -670,10 +700,7 @@ function ChatRow({
               </DropdownMenuItem>
             ) : null}
             <DropdownMenuSeparator />
-            <DropdownMenuItem
-              onSelect={() => onDelete()}
-              variant="destructive"
-            >
+            <DropdownMenuItem onSelect={() => onDelete()} variant="destructive">
               <Trash2 className="h-3.5 w-3.5" />
               <span>Delete</span>
             </DropdownMenuItem>
@@ -814,7 +841,7 @@ function SectionHead({
       <span>{children}</span>
       <span
         className="ml-auto"
-        style={{ color: "var(--ink-4)", fontWeight: 400 }}
+        style={{ color: "var(--muted-foreground)", fontWeight: 400 }}
       >
         {count}
       </span>

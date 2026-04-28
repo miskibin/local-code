@@ -1,13 +1,20 @@
 "use client"
 
-import { ArrowLeft, Braces, Loader2, Play } from "lucide-react"
+import {
+  AlertTriangle,
+  ArrowLeft,
+  Braces,
+  Loader2,
+  Play,
+  Undo2,
+} from "lucide-react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useCallback, useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
-import { api } from "@/lib/api"
+import { api, TaskValidationError } from "@/lib/api"
 import { navigateToTaskRunUrl } from "@/lib/tasks"
-import type { SavedTask, TaskRunVariables } from "@/lib/types"
+import type { SavedTask, TaskRunVariables, ValidationIssue } from "@/lib/types"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
@@ -25,18 +32,30 @@ export function Builder({ taskId }: { taskId: string }) {
   const [runOpen, setRunOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [issues, setIssues] = useState<ValidationIssue[]>([])
+  const [canUndo, setCanUndo] = useState(false)
   const dirtyRef = useRef(false)
   const savedSnapshotRef = useRef<string>("")
+  const historyRef = useRef<SavedTask[]>([])
+  const HISTORY_MAX = 50
+
+  const hasErrors = issues.some((i) => i.severity === "error")
 
   useEffect(() => {
     let cancelled = false
     setLoading(true)
     api
       .getTask(taskId)
-      .then((t) => {
+      .then(async (t) => {
         if (cancelled) return
         setTask(t)
         savedSnapshotRef.current = JSON.stringify(t)
+        try {
+          const found = await api.validateTask(t)
+          if (!cancelled) setIssues(found)
+        } catch {
+          // Validation lookup is advisory; ignore failures.
+        }
       })
       .catch((e) => {
         if (cancelled) return
@@ -55,10 +74,19 @@ export function Builder({ taskId }: { taskId: string }) {
     if (snap === savedSnapshotRef.current) return
     setSaving(true)
     try {
+      // Validate first; skip the write entirely when errors exist so we
+      // don't spam 422s while the user is mid-fix.
+      const found = await api.validateTask(next)
+      setIssues(found)
+      if (found.some((i) => i.severity === "error")) return
       const saved = await api.updateTask(next.id, next)
       savedSnapshotRef.current = JSON.stringify(saved)
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to save task")
+      if (e instanceof TaskValidationError) {
+        setIssues(e.issues)
+      } else {
+        toast.error(e instanceof Error ? e.message : "Failed to save task")
+      }
     } finally {
       setSaving(false)
     }
@@ -77,9 +105,23 @@ export function Builder({ taskId }: { taskId: string }) {
   const updateTask = (patch: Partial<SavedTask>) => {
     setTask((prev) => {
       if (!prev) return prev
-      const next = { ...prev, ...patch }
+      historyRef.current = [...historyRef.current, prev].slice(-HISTORY_MAX)
+      setCanUndo(true)
       dirtyRef.current = true
-      return next
+      return { ...prev, ...patch }
+    })
+  }
+
+  const onUndo = () => {
+    setTask((prev) => {
+      if (!prev) return prev
+      const stack = historyRef.current
+      if (stack.length === 0) return prev
+      const last = stack[stack.length - 1]
+      historyRef.current = stack.slice(0, -1)
+      setCanUndo(historyRef.current.length > 0)
+      dirtyRef.current = true
+      return last
     })
   }
 
@@ -185,6 +227,17 @@ export function Builder({ taskId }: { taskId: string }) {
               background: "var(--bg)",
             }}
           >
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onUndo}
+              disabled={!canUndo}
+              aria-label="Undo last change"
+              title="Undo last change"
+            >
+              <Undo2 className="h-3.5 w-3.5" />
+              Undo
+            </Button>
             <Input
               value={task.title}
               onChange={(e) => updateTask({ title: e.target.value })}
@@ -194,19 +247,80 @@ export function Builder({ taskId }: { taskId: string }) {
             <div className="flex-1" />
             <span
               className="hidden text-xs sm:inline"
-              style={{ color: "var(--ink-3)" }}
+              style={{ color: hasErrors ? "var(--red)" : "var(--ink-3)" }}
             >
-              {saving ? "Saving…" : "Saved"}
+              {saving
+                ? "Saving…"
+                : hasErrors
+                  ? `Save blocked: ${issues.filter((i) => i.severity === "error").length} issue(s)`
+                  : "Saved"}
             </span>
             <Button variant="outline" size="sm" onClick={copyTaskJson}>
               <Braces className="h-3.5 w-3.5" />
               Copy as JSON
             </Button>
-            <Button onClick={() => setRunOpen(true)}>
+            <Button onClick={() => setRunOpen(true)} disabled={hasErrors}>
               <Play className="h-3.5 w-3.5" /> Run task
             </Button>
           </header>
           <div className="min-h-0 flex-1 overflow-y-auto p-6">
+            {issues.length > 0 && (
+              <div
+                className="mb-4 rounded-lg p-3"
+                style={{
+                  background: issues.some((i) => i.severity === "error")
+                    ? "var(--red-soft)"
+                    : "var(--bg-soft)",
+                  border: `1px solid ${
+                    issues.some((i) => i.severity === "error")
+                      ? "var(--red)"
+                      : "var(--amber)"
+                  }`,
+                  color: "var(--ink)",
+                }}
+              >
+                <div
+                  className="mb-1.5 inline-flex items-center gap-1.5"
+                  style={{ fontWeight: 500, fontSize: 13 }}
+                >
+                  <AlertTriangle className="h-3.5 w-3.5" />
+                  {(() => {
+                    const errs = issues.filter(
+                      (i) => i.severity === "error"
+                    ).length
+                    const warns = issues.filter(
+                      (i) => i.severity === "warning"
+                    ).length
+                    const parts: string[] = []
+                    if (errs > 0) parts.push(`${errs} error(s)`)
+                    if (warns > 0) parts.push(`${warns} warning(s)`)
+                    return parts.join(", ")
+                  })()}
+                </div>
+                <ul
+                  className="m-0 list-disc pl-5"
+                  style={{ fontSize: 12.5, color: "var(--ink-2)" }}
+                >
+                  {issues.map((iss, idx) => (
+                    <li key={idx}>
+                      {iss.step_id && (
+                        <code
+                          style={{
+                            fontFamily: "var(--font-mono)",
+                            color: "var(--ink-3)",
+                            marginRight: 6,
+                          }}
+                        >
+                          [{iss.step_id}
+                          {iss.field ? `.${iss.field}` : ""}]
+                        </code>
+                      )}
+                      {iss.message}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             <TaskStepsSection
               steps={task.steps}
               onChange={(steps) => updateTask({ steps })}

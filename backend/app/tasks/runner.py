@@ -501,13 +501,27 @@ def format_run_summary(task: SavedTask, variables: dict[str, Any]) -> str:
 async def persist_run_messages(
     *,
     session_id: str,
+    owner_id: str,
     task: SavedTask,
     variables: dict[str, Any],
 ) -> None:
     """Insert synthetic user/assistant rows so /sessions list shows the run."""
     async with async_session() as s:
-        if not await s.get(ChatSession, session_id):
-            s.add(ChatSession(id=session_id, title=f"Task: {task.title}"))
+        existing = await s.get(ChatSession, session_id)
+        if existing is None:
+            s.add(
+                ChatSession(
+                    id=session_id,
+                    owner_id=owner_id,
+                    title=f"Task: {task.title}",
+                    task_id=task.id,
+                )
+            )
+        else:
+            existing.task_id = task.id
+            if not existing.title:
+                existing.title = f"Task: {task.title}"
+            s.add(existing)
         s.add(
             ChatMessage(
                 session_id=session_id,

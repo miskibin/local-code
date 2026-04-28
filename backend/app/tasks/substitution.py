@@ -50,6 +50,24 @@ def _lookup(
     return step_outputs[tail]
 
 
+def _stringify(value: Any) -> str:
+    """Convert a looked-up value to its string form for inline interpolation.
+
+    Code steps store their full artifact dict under output_name so that the
+    runner's artifact-emit loop can pick it up. When that dict is interpolated
+    into a string template (e.g. SQL inside args_template), the useful payload
+    is the text/rows, not the wrapper. Unwrap text artifacts to their `text`
+    field — that's what `out_sql_list` and friends are designed to feed.
+    """
+    if (
+        isinstance(value, dict)
+        and value.get("kind") == "text"
+        and isinstance(value.get("payload"), dict)
+    ):
+        return str(value["payload"].get("text", ""))
+    return str(value)
+
+
 def substitute(
     value: Any,
     variables: dict[str, Any],
@@ -61,7 +79,7 @@ def substitute(
             return _lookup(full.group(1), variables, outputs)
 
         def repl(m: re.Match[str]) -> str:
-            return str(_lookup(m.group(1), variables, outputs))
+            return _stringify(_lookup(m.group(1), variables, outputs))
 
         return _REF_RE.sub(repl, value)
     if isinstance(value, list):

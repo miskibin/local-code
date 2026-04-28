@@ -20,6 +20,7 @@ class ChatSession(SQLModel, table=True):
     created_at: datetime = Field(default_factory=now_utc)
     is_pinned: bool = Field(default=False, index=True)
     pinned_at: datetime | None = None
+    task_id: str | None = Field(default=None, index=True)
 
 
 class ChatMessage(SQLModel, table=True):

@@ -160,6 +160,14 @@ function getTaskTitle(p: AnyPart): string | undefined {
   return typeof title === "string" ? title : undefined
 }
 
+function getTaskId(p: AnyPart): string | undefined {
+  const task =
+    (p.callProviderMetadata?.task as Record<string, unknown> | undefined) ??
+    (p.resultProviderMetadata?.task as Record<string, unknown> | undefined)
+  const id = task?.taskId
+  return typeof id === "string" ? id : undefined
+}
+
 function partToToolStep(p: AnyPart): ToolStep | null {
   let toolName: string | null = null
   if (p.type === "dynamic-tool") toolName = p.toolName ?? null
@@ -192,6 +200,7 @@ function partToToolStep(p: AnyPart): ToolStep | null {
     status,
     toolCallId: p.toolCallId,
     taskTitle: getTaskTitle(p),
+    taskId: getTaskId(p),
   }
 }
 
@@ -645,12 +654,14 @@ export function ChatView({
   )
   const scrollRef = useRef<HTMLDivElement>(null)
   const sentFirstRef = useRef(false)
+  const [loadingHistory, setLoadingHistory] = useState(true)
 
   const streaming = status === "streaming" || status === "submitted"
 
   useEffect(() => {
     setExpanded({})
     sentFirstRef.current = false
+    setLoadingHistory(true)
     let cancelled = false
     api
       .getMessages(sessionId)
@@ -662,6 +673,9 @@ export function ChatView({
       })
       .catch(() => {
         if (!cancelled) setMessages([])
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingHistory(false)
       })
     return () => {
       cancelled = true
@@ -973,7 +987,14 @@ export function ChatView({
       >
         <div ref={scrollRef} className="lc-scroll flex-1 overflow-y-auto">
           <div className="mx-auto w-full max-w-4xl px-6 pt-8 pb-12">
-            {isEmpty ? (
+            {isEmpty && loadingHistory ? (
+              <div className="flex h-full min-h-[60vh] items-center justify-center">
+                <div
+                  className="h-5 w-5 animate-spin rounded-full border-2 border-current border-t-transparent opacity-40"
+                  style={{ color: "var(--fg)" }}
+                />
+              </div>
+            ) : isEmpty ? (
               <EmptyState onPick={send} />
             ) : (
               <div>

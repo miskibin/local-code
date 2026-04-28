@@ -10,6 +10,7 @@ from app.tasks.schemas import (
     GenerateTaskRequest,
     TaskDTO,
     TaskListItem,
+    ValidationIssue,
 )
 from app.tasks.storage import (
     create_task,
@@ -19,6 +20,7 @@ from app.tasks.storage import (
     to_dto,
     upsert_task,
 )
+from app.tasks.validator import has_blocking_issues, validate_task
 
 router = APIRouter()
 
@@ -54,8 +56,17 @@ async def update_task_route(tid: str, dto: TaskDTO):
     if existing is None:
         raise HTTPException(404)
     payload = dto.model_copy(update={"id": tid})
+    issues = validate_task(payload)
+    if has_blocking_issues(issues):
+        raise HTTPException(422, detail={"issues": [i.model_dump() for i in issues]})
     row = await upsert_task(payload, existing.owner_id)
     return to_dto(row)
+
+
+@router.post("/tasks/validate", response_model=list[ValidationIssue])
+async def validate_task_route(dto: TaskDTO):
+    """Return all issues without saving. Used by the builder for live feedback."""
+    return validate_task(dto)
 
 
 @router.delete("/tasks/{tid}")
@@ -86,6 +97,9 @@ async def export_task_route(tid: str):
 @router.post("/tasks/import", response_model=TaskDTO)
 async def import_task_route(dto: TaskDTO, user: CurrentUser):
     payload = dto.model_copy(update={"created_at": None, "updated_at": None})
+    issues = validate_task(payload)
+    if has_blocking_issues(issues):
+        raise HTTPException(422, detail={"issues": [i.model_dump() for i in issues]})
     row = await create_task(payload, user.id)
     return to_dto(row)
 

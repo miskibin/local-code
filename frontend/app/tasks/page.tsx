@@ -26,7 +26,7 @@ import {
 } from "react";
 import { toast } from "sonner";
 import { useClickOutside } from "@/hooks/use-click-outside";
-import { api } from "@/lib/api";
+import { api, TaskValidationError } from "@/lib/api";
 import { getRole, hexAlpha, type TaskRole, TASK_ROLES } from "@/lib/roles";
 import { navigateToTaskRunUrl } from "@/lib/tasks";
 import type { SavedTask, TaskListItem, TaskRunVariables } from "@/lib/types";
@@ -102,7 +102,19 @@ export default function TasksPage() {
       await refresh();
       toast.success(`Imported "${created.title}"`);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Failed to import task");
+      if (e instanceof TaskValidationError) {
+        const lines = e.issues
+          .slice(0, 3)
+          .map(
+            (i) =>
+              `${i.step_id ? `[${i.step_id}${i.field ? "." + i.field : ""}] ` : ""}${i.message}`
+          );
+        const more =
+          e.issues.length > 3 ? `\n…and ${e.issues.length - 3} more` : "";
+        toast.error(`Task invalid (${e.issues.length}):\n${lines.join("\n")}${more}`);
+      } else {
+        toast.error(e instanceof Error ? e.message : "Failed to import task");
+      }
     }
   };
 

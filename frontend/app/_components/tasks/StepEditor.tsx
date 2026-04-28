@@ -66,16 +66,6 @@ export function StepEditor({ step, onChange }: Props) {
 
   return (
     <div className="flex flex-col gap-4">
-      <Input
-        value={step.title}
-        onChange={(e) => update({ title: e.target.value })}
-        placeholder="Step title"
-        className={cn(
-          fieldChrome,
-          "border-transparent bg-transparent px-0 text-lg font-semibold text-[var(--ink)] shadow-none transition-colors placeholder:text-[var(--ink-3)] hover:bg-[var(--hover)]/50 focus-visible:border-[var(--border-strong)] focus-visible:bg-[var(--surface)] focus-visible:px-2 focus-visible:shadow-[inset_0_1px_0_color-mix(in_oklab,var(--ink)_4%,transparent)]"
-        )}
-      />
-
       {step.kind === "tool" && (
         <div className="flex flex-col gap-3">
           <div className="flex flex-col gap-1">

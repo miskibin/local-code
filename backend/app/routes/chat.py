@@ -90,7 +90,12 @@ async def chat(req: ChatRequest, request: Request, user: CurrentUser):
         task = await get_task(req.task_run.task_id)
         if task is None:
             raise HTTPException(404, f"task {req.task_run.task_id} not found")
-        await persist_run_messages(session_id=req.id, task=task, variables=req.task_run.variables)
+        await persist_run_messages(
+            session_id=req.id,
+            owner_id=user.id,
+            task=task,
+            variables=req.task_run.variables,
+        )
         lc: list = []
 
         async def _stream_then_persist():

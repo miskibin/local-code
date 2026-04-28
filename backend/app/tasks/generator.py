@@ -36,9 +36,19 @@ one kind:
   - prompt    → single free-form LLM call. Required: prompt (string).
 
 PYTHON CODE CONTRACT (kind=code):
-  The code runs inside a sandboxed `python_exec`. Three helpers are pre-injected:
+  The code runs inside a sandboxed `python_exec`. Helpers are pre-injected:
     - out(obj)             → surface obj as the step artifact.
                               list[dict] becomes a TABLE; dict/str/number becomes TEXT/JSON.
+    - out_sql_list(items, *, quote="'")
+                            → surface a SQL fragment built from a list, e.g.
+                              ["GenreId","AlbumId"] -> "'GenreId', 'AlbumId'".
+                              USE THIS (not out(list)) when a downstream tool step
+                              needs the list interpolated into SQL via
+                              {{<thisStepId>.<output_name>}}. Pass quote='"' for
+                              identifier lists. The step that COMPUTES the list
+                              must be the same step that calls out_sql_list — do
+                              NOT add a separate "format for SQL" step that reads
+                              the prior list and re-emits it.
     - out_image(fig=None, *, title=None, caption=None)
                             → emit a matplotlib figure as a PNG IMAGE artifact.
                               MUST be used for any plot. Calling out(fig) on a Figure
@@ -78,6 +88,38 @@ OUTPUT NAMES:
 
 HARD RULES:
   - Drop failed steps and steps that produced nothing useful.
+  - Every non-report step must be CONSUMED by a later step. If step A produces
+    a list/value that step B uses, step B's args_template / code / prompt MUST
+    reference {{<A.id>.<A.output_name>}} (or {{<A.id>.artifact_id}} for code
+    steps that read_artifact). Do NOT hardcode the value from the run trace —
+    hardcoded downstream values silently go stale on re-run with new inputs.
+  - When the consumer is a SQL `tool` step:
+      1. Have the producing `code` step end with `out_sql_list(items)` (or
+         out_sql_list(items, quote='"') for identifier lists, quote='' for
+         numeric IDs). Its output_name then carries a ready-to-paste SQL
+         fragment.
+      2. Inside the consumer's args_template SQL string, paste the fragment
+         literally with `{{<producerId>.<output_name>}}`.
+    Do NOT introduce a separate "Prepare SQL list" code step in between — the
+    producer formats and the consumer interpolates. One step each.
+
+WORKED PATTERN (different domain, illustrative — invent your own steps for
+the actual run):
+    Goal: total invoice value for VIP customers (segment = top spenders).
+    Steps:
+      s1 (subagent, sql-agent): query top-N CustomerId by lifetime spend.
+                                 → output_name="vip_rows"
+      s2 (code): df = read_artifact("{{s1.artifact_id}}")
+                 ids = df["CustomerId"].tolist()
+                 out_sql_list(ids, quote="")     # numeric IDs → no quotes
+                 → output_name="vip_id_list"
+      s3 (tool sql_query): args_template = {
+           "sql": "SELECT SUM(Total) FROM Invoice WHERE CustomerId IN ({{s2.vip_id_list}})"
+         }
+    Note: s2 derives `ids` from s1 at run time (NOT a Python literal copied
+    from the run trace), and s3's SQL contains zero hardcoded IDs — every
+    value that varies between runs flows through a {{...}} reference. Apply
+    the same shape to whatever domain the actual run uses.
   - Hoist literal values that look like inputs (project names, paths, prefixes,
     thresholds) into variables. Mechanical IDs and tool-internal artefact ids
     are NOT variables.
