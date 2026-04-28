@@ -321,8 +321,10 @@ _PY_PRELUDE = textwrap.dedent(
                 from matplotlib import font_manager as _fm
                 for _ttf in _glob.glob(_os.path.join(_font_dir, "*.ttf")):
                     _fm.fontManager.addfont(_ttf)
-            except Exception:
-                pass
+            except Exception as _e:
+                _sys.stderr.write(
+                    f"warning: mpl font load failed: {{type(_e).__name__}}: {{_e}}\\n"
+                )
         from cycler import cycler as _cycler
         # Split ink: body text reads on white; spines/grid stay softer so bars stay the focus.
         _ink_text = "#1f1f1f"

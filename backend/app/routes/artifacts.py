@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+import pandas as pd
 from fastapi import APIRouter, Form, HTTPException, UploadFile
 from loguru import logger
 from pydantic import BaseModel, Field
@@ -176,7 +177,13 @@ async def upload_artifact(
     if kind == "table":
         try:
             meta = summarize_csv(path, artifact_id=aid, title=name)
-        except Exception as e:
+        except (
+            pd.errors.ParserError,
+            pd.errors.EmptyDataError,
+            UnicodeDecodeError,
+            ValueError,
+            OSError,
+        ) as e:
             logger.exception("csv summary failed")
             raise HTTPException(400, f"failed to parse table: {e}") from e
         payload.update(meta)
@@ -186,7 +193,8 @@ async def upload_artifact(
     else:  # text
         try:
             preview = body.decode("utf-8", errors="replace")[:500]
-        except Exception:
+        except Exception as e:  # noqa: BLE001
+            logger.warning(f"text preview decode failed: {type(e).__name__}: {e}")
             preview = ""
         payload["text_preview"] = preview
         summary = f"text {size} bytes"
