@@ -1,18 +1,16 @@
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Any
 
 from sqlalchemy import JSON, Column
 from sqlmodel import Field, SQLModel
 
-
-def _now_utc() -> datetime:
-    return datetime.now(UTC)
+from app.utils import now_utc
 
 
 class ChatSession(SQLModel, table=True):
     id: str = Field(primary_key=True)
     title: str = ""
-    created_at: datetime = Field(default_factory=_now_utc)
+    created_at: datetime = Field(default_factory=now_utc)
     is_pinned: bool = Field(default=False, index=True)
     pinned_at: datetime | None = None
 
@@ -22,14 +20,14 @@ class ChatMessage(SQLModel, table=True):
     session_id: str = Field(foreign_key="chatsession.id", index=True)
     role: str
     content: str
-    created_at: datetime = Field(default_factory=_now_utc)
+    created_at: datetime = Field(default_factory=now_utc)
 
 
 class MessageTrace(SQLModel, table=True):
     ai_message_id: str = Field(primary_key=True)
     session_id: str = Field(foreign_key="chatsession.id", index=True)
     trace_id: str
-    created_at: datetime = Field(default_factory=_now_utc)
+    created_at: datetime = Field(default_factory=now_utc)
 
 
 class MCPServerConfig(SQLModel, table=True):
@@ -60,8 +58,8 @@ class SavedArtifact(SQLModel, table=True):
     parent_artifact_ids: list[str] = Field(sa_column=Column(JSON), default_factory=list)
     payload_size: int = 0
     pinned: bool = Field(default=False, index=True)
-    created_at: datetime = Field(default_factory=_now_utc)
-    updated_at: datetime = Field(default_factory=_now_utc)
+    created_at: datetime = Field(default_factory=now_utc)
+    updated_at: datetime = Field(default_factory=now_utc)
 
 
 class SavedTask(SQLModel, table=True):
@@ -74,5 +72,5 @@ class SavedTask(SQLModel, table=True):
     tags: list[str] = Field(sa_column=Column(JSON), default_factory=list)
     role: str | None = None
     creator: str | None = None
-    created_at: datetime = Field(default_factory=_now_utc)
-    updated_at: datetime = Field(default_factory=_now_utc)
+    created_at: datetime = Field(default_factory=now_utc)
+    updated_at: datetime = Field(default_factory=now_utc)

@@ -12,6 +12,7 @@ from app.artifact_store import get_artifact, persist_tool_artifact
 from app.db import async_session
 from app.models import MessageTrace
 from app.tasks import coerce_lc_content
+from app.utils import coerce_output
 
 
 def sse(obj: dict) -> str:
@@ -22,20 +23,6 @@ def sse(obj: dict) -> str:
 # events emitted from within the resulting subgraph get tagged with the
 # dispatcher's tool_call_id so the UI can nest them.
 DISPATCHER_TOOLS = {"task"}
-
-
-def _coerce_output(content) -> object:
-    if isinstance(content, (str, int, float, bool)) or content is None:
-        return content
-    if isinstance(content, list):
-        parts = []
-        for c in content:
-            if isinstance(c, dict) and c.get("type") == "text":
-                parts.append(str(c.get("text", "")))
-            else:
-                parts.append(str(c))
-        return "".join(parts)
-    return str(content)
 
 
 async def _read_summary_cutoff(checkpointer, thread_id: str) -> int | None:
@@ -386,7 +373,7 @@ async def stream_chat(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits w
                     yield _input_available(cid, name, parsed, namespace)
                     announced_input.add(cid)
                 if cid:
-                    output = _coerce_output(chunk.content)
+                    output = coerce_output(chunk.content)
                     name = tool_names.get(cid) or getattr(chunk, "name", None) or "tool"
                     if is_top_level:
                         closed = _close_text()

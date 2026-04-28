@@ -14,7 +14,6 @@ from __future__ import annotations
 import json
 import re
 from collections.abc import AsyncIterator
-from datetime import UTC, datetime
 from types import SimpleNamespace
 from typing import Any
 from uuid import uuid4
@@ -40,6 +39,7 @@ from app.tasks import coerce_lc_content
 from app.tasks.schemas import TaskDTO, TaskStep
 from app.tasks.storage import to_dto
 from app.tasks.substitution import SubstitutionError, substitute
+from app.utils import now_utc
 
 _CONTENT_AND_ARTIFACT_LEN = 2  # langchain (summary, artifact) tuple shape
 
@@ -412,7 +412,7 @@ async def run_task(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits woul
                             kind=value.get("kind", "text"),
                             title=value.get("title", "Artifact"),
                             summary=value.get("summary", ""),
-                            updated_at=datetime.now(UTC),
+                            updated_at=now_utc(),
                         ),
                     )
 

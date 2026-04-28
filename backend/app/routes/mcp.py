@@ -28,24 +28,31 @@ async def _resync(request: Request) -> None:
     await request.app.state.mcp_registry.sync_from_db(cfgs)
 
 
+def _build_mcp_dto(
+    *, name: str, enabled: bool, connection: dict[str, Any], by_server: dict[str, list[str]]
+) -> MCPDTO:
+    resolved = [] if not enabled else list(by_server.get(name, []))
+    return MCPDTO(
+        name=name,
+        enabled=enabled,
+        connection=connection,
+        resolved_tools=resolved,
+    )
+
+
 @router.get("/mcp", response_model=list[MCPDTO])
 async def list_mcp(request: Request):
     rows = await _load_all()
     by_server = request.app.state.mcp_registry.tools_by_server
-    out: list[MCPDTO] = []
-    for row in rows:
-        resolved = (
-            [] if not row.enabled else list(by_server.get(row.name, []))
+    return [
+        _build_mcp_dto(
+            name=row.name,
+            enabled=row.enabled,
+            connection=row.connection,
+            by_server=by_server,
         )
-        out.append(
-            MCPDTO(
-                name=row.name,
-                enabled=row.enabled,
-                connection=row.connection,
-                resolved_tools=resolved,
-            )
-        )
-    return out
+        for row in rows
+    ]
 
 
 @router.post("/mcp", response_model=MCPDTO)
@@ -60,13 +67,11 @@ async def upsert_mcp(dto: MCPDTO, request: Request):
         await s.commit()
     logger.info(f"mcp upsert {dto.name!r} enabled={dto.enabled} -> resync")
     await _resync(request)
-    by_server = request.app.state.mcp_registry.tools_by_server
-    resolved = [] if not dto.enabled else list(by_server.get(dto.name, []))
-    return MCPDTO(
+    return _build_mcp_dto(
         name=dto.name,
         enabled=dto.enabled,
         connection=dto.connection,
-        resolved_tools=resolved,
+        by_server=request.app.state.mcp_registry.tools_by_server,
     )
 
 
