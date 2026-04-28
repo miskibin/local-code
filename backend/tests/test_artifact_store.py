@@ -79,6 +79,9 @@ async def test_refresh_python_image_artifact_round_trip(chinook_path):
     from app.db import init_db
 
     await init_db()
+    from tests.conftest import TEST_OWNER_ID, ensure_test_user
+
+    await ensure_test_user()
     code = (
         "import matplotlib\n"
         "matplotlib.use('Agg')\n"
@@ -87,6 +90,7 @@ async def test_refresh_python_image_artifact_round_trip(chinook_path):
         "out_image(title='t')\n"
     )
     art = await create_artifact(
+        owner_id=TEST_OWNER_ID,
         kind="image",
         title="seed",
         payload={"format": "png", "data_b64": "", "caption": None},

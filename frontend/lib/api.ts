@@ -20,9 +20,7 @@ export class TaskValidationError extends Error {
   issues: ValidationIssue[]
   constructor(issues: ValidationIssue[]) {
     super(
-      issues.length > 0
-        ? `Task invalid: ${issues[0].message}`
-        : "Task invalid"
+      issues.length > 0 ? `Task invalid: ${issues[0].message}` : "Task invalid"
     )
     this.name = "TaskValidationError"
     this.issues = issues
@@ -101,9 +99,7 @@ export const api = {
       json: { enabled },
     }),
   getSkillContent: (name: string) =>
-    jsonFetch<SkillContent>(
-      `/skills/${encodeURIComponent(name)}/content`
-    ),
+    jsonFetch<SkillContent>(`/skills/${encodeURIComponent(name)}/content`),
 
   // MCP
   listMCP: () => jsonFetch<MCPServer[]>("/mcp"),
@@ -179,6 +175,15 @@ export const api = {
     jsonFetch<ValidationIssue[]>("/tasks/validate", {
       method: "POST",
       json: task,
+    }),
+
+  // Custom instructions
+  getInstructions: () =>
+    jsonFetch<{ content: string; updated_at: string }>("/user/instructions"),
+  setInstructions: (content: string) =>
+    jsonFetch<{ content: string; updated_at: string }>("/user/instructions", {
+      method: "PUT",
+      json: { content },
     }),
 }
 

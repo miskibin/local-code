@@ -62,6 +62,12 @@ class SkillFlag(SQLModel, table=True):
     enabled: bool = True
 
 
+class UserInstructions(SQLModel, table=True):
+    user_id: str = Field(primary_key=True, foreign_key="user.id")
+    content: str = ""
+    updated_at: datetime = Field(default_factory=now_utc)
+
+
 class SavedArtifact(SQLModel, table=True):
     id: str = Field(primary_key=True)
     owner_id: str = Field(foreign_key="user.id", index=True)

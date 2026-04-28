@@ -3,6 +3,8 @@ import json
 import pytest
 from langchain_core.messages import AIMessage, ToolMessage
 
+from tests.conftest import TEST_OWNER_ID, ensure_test_user
+
 
 class _FakeGraph:
     def __init__(self, items):
@@ -19,6 +21,7 @@ async def test_tool_artifact_available_emitted_when_tool_message_carries_artifac
     from app.streaming import stream_chat
 
     await init_db()
+    await ensure_test_user()
 
     tm = ToolMessage(
         content="table 1 rows x 1 cols (n)",
@@ -59,6 +62,7 @@ async def test_tool_artifact_available_emitted_when_tool_message_carries_artifac
         thread_id="t1",
         lc_messages=[("user", "go")],
         session_id="t1",
+        owner_id=TEST_OWNER_ID,
     ):
         events.append(line)
 
@@ -101,7 +105,12 @@ async def test_no_artifact_event_when_tool_message_has_no_artifact():
         ),
     ]
     events = []
-    async for line in stream_chat(graph=_FakeGraph(items), thread_id="t", lc_messages=[("u", "g")]):
+    async for line in stream_chat(
+        graph=_FakeGraph(items),
+        thread_id="t",
+        lc_messages=[("u", "g")],
+        owner_id=TEST_OWNER_ID,
+    ):
         events.append(line)
     parsed = [
         json.loads(e.removeprefix("data: ").strip()) for e in events if e.startswith("data: {")

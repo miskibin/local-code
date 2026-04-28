@@ -28,6 +28,7 @@ from app.routes.sessions import router as sessions_router  # noqa: E402
 from app.routes.skills import router as skills_router  # noqa: E402
 from app.routes.tasks import router as tasks_router  # noqa: E402
 from app.routes.tools import router as tools_router  # noqa: E402
+from app.routes.user_instructions import router as user_instructions_router  # noqa: E402
 from app.tools.sql_subagent_query import schema_blob  # noqa: E402
 
 
@@ -102,6 +103,7 @@ def create_app() -> FastAPI:
     app.include_router(tasks_router)
     app.include_router(skills_router)
     app.include_router(feedback_router)
+    app.include_router(user_instructions_router)
     return app
 
 

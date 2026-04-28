@@ -208,11 +208,17 @@ async def test_saved_artifact_persists():
 
     from app.db import async_session, init_db
     from app.models import SavedArtifact
+    from tests.conftest import TEST_OWNER_ID, ensure_test_user
 
     await init_db()
+    await ensure_test_user()
     async with async_session() as s:
         await s.execute(delete(SavedArtifact))
-        s.add(SavedArtifact(id="x1", kind="image", title="t", payload={"k": 1}))
+        s.add(
+            SavedArtifact(
+                id="x1", owner_id=TEST_OWNER_ID, kind="image", title="t", payload={"k": 1}
+            )
+        )
         await s.commit()
     async with async_session() as s:
         rows = (await s.execute(select(SavedArtifact))).scalars().all()

@@ -3,6 +3,8 @@ import json
 import pytest
 from langchain_core.messages import AIMessage, AIMessageChunk, ToolMessage
 
+from tests.conftest import TEST_OWNER_ID
+
 
 class _FakeGraph:
     def __init__(self, items):
@@ -42,7 +44,10 @@ async def test_stream_emits_tool_events_for_consolidated_aimessage():
     ]
     events = []
     async for line in stream_chat(
-        graph=_FakeGraph(items), thread_id="t1", lc_messages=[("user", "go")]
+        graph=_FakeGraph(items),
+        thread_id="t1",
+        lc_messages=[("user", "go")],
+        owner_id=TEST_OWNER_ID,
     ):
         events.append(line)
     parsed = [
@@ -103,7 +108,10 @@ async def test_subagent_inner_tool_events_pass_through_namespace():
     ]
     events = []
     async for line in stream_chat(
-        graph=_FakeGraph(items), thread_id="t1", lc_messages=[("user", "go")]
+        graph=_FakeGraph(items),
+        thread_id="t1",
+        lc_messages=[("user", "go")],
+        owner_id=TEST_OWNER_ID,
     ):
         events.append(line)
     parsed = [
@@ -187,7 +195,10 @@ async def test_dispatcher_links_subagent_inner_tools_via_provider_metadata():
     ]
     events = []
     async for line in stream_chat(
-        graph=_FakeGraph(items), thread_id="t1", lc_messages=[("user", "go")]
+        graph=_FakeGraph(items),
+        thread_id="t1",
+        lc_messages=[("user", "go")],
+        owner_id=TEST_OWNER_ID,
     ):
         events.append(line)
     parsed = [
@@ -238,7 +249,10 @@ async def test_stream_emits_output_error_for_failed_tool_message():
     ]
     events = []
     async for line in stream_chat(
-        graph=_FakeGraph(items), thread_id="t1", lc_messages=[("user", "go")]
+        graph=_FakeGraph(items),
+        thread_id="t1",
+        lc_messages=[("user", "go")],
+        owner_id=TEST_OWNER_ID,
     ):
         events.append(line)
     parsed = [
@@ -297,7 +311,10 @@ async def test_finish_reason_capture_ignores_subagent_terminal_chunks():
         ]
         events = []
         async for line in streaming_mod.stream_chat(
-            graph=_FakeGraph(items), thread_id="t-fr", lc_messages=[("user", "go")]
+            graph=_FakeGraph(items),
+            thread_id="t-fr",
+            lc_messages=[("user", "go")],
+            owner_id=TEST_OWNER_ID,
         ):
             events.append(line)
     finally:
@@ -334,7 +351,10 @@ async def test_text_delta_flattens_list_dict_content_from_gemini():
     ]
     events = []
     async for line in stream_chat(
-        graph=_FakeGraph(items), thread_id="t1", lc_messages=[("user", "go")]
+        graph=_FakeGraph(items),
+        thread_id="t1",
+        lc_messages=[("user", "go")],
+        owner_id=TEST_OWNER_ID,
     ):
         events.append(line)
     parsed = [
@@ -358,7 +378,10 @@ async def test_text_delta_passes_string_content_through_unchanged():
     ]
     events = []
     async for line in stream_chat(
-        graph=_FakeGraph(items), thread_id="t1", lc_messages=[("user", "go")]
+        graph=_FakeGraph(items),
+        thread_id="t1",
+        lc_messages=[("user", "go")],
+        owner_id=TEST_OWNER_ID,
     ):
         events.append(line)
     parsed = [
@@ -386,7 +409,10 @@ async def test_text_delta_skips_chunk_when_coercion_yields_empty_string():
     ]
     events = []
     async for line in stream_chat(
-        graph=_FakeGraph(items), thread_id="t1", lc_messages=[("user", "go")]
+        graph=_FakeGraph(items),
+        thread_id="t1",
+        lc_messages=[("user", "go")],
+        owner_id=TEST_OWNER_ID,
     ):
         events.append(line)
     parsed = [
@@ -408,7 +434,10 @@ async def test_stream_emits_tool_events_when_only_tool_message():
     ]
     events = []
     async for line in stream_chat(
-        graph=_FakeGraph(items), thread_id="t1", lc_messages=[("user", "go")]
+        graph=_FakeGraph(items),
+        thread_id="t1",
+        lc_messages=[("user", "go")],
+        owner_id=TEST_OWNER_ID,
     ):
         events.append(line)
     parsed = [

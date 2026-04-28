@@ -14,6 +14,7 @@ class _FakeCheckpointer:
 
 class _FakeMCPRegistry:
     tools: ClassVar[list] = []
+    tools_by_server: ClassVar[dict] = {}
 
 
 def _empty_stream_chat(**_kwargs):

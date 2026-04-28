@@ -6,10 +6,12 @@ from sqlmodel import select
 async def test_create_all_then_persist_session():
     from app.db import async_session, init_db
     from app.models import ChatSession
+    from tests.conftest import TEST_OWNER_ID, ensure_test_user
 
     await init_db()
+    await ensure_test_user()
     async with async_session() as s:
-        s.add(ChatSession(id="abc", title="hello"))
+        s.add(ChatSession(id="abc", owner_id=TEST_OWNER_ID, title="hello"))
         await s.commit()
 
     async with async_session() as s:
@@ -71,10 +73,12 @@ async def test_chatsession_task_id_roundtrip():
 async def test_tool_flag_default_true():
     from app.db import async_session, init_db
     from app.models import ToolFlag
+    from tests.conftest import TEST_OWNER_ID, ensure_test_user
 
     await init_db()
+    await ensure_test_user()
     async with async_session() as s:
-        s.add(ToolFlag(name="python_exec"))
+        s.add(ToolFlag(user_id=TEST_OWNER_ID, name="python_exec"))
         await s.commit()
 
     async with async_session() as s:

@@ -24,7 +24,7 @@ import re
 import pytest
 from langchain_core.messages import AIMessage, AIMessageChunk, ToolMessage
 
-from tests.conftest import parse_sse_events
+from tests.conftest import TEST_OWNER_ID, parse_sse_events
 
 _REF_RE = re.compile(r"artifact:(art_[A-Za-z0-9]+)")
 
@@ -43,7 +43,10 @@ async def _drive_stream(items) -> list[dict]:
 
     sse_lines: list[str] = []
     async for line in stream_chat(
-        graph=_Graph(items), thread_id="t-aref", lc_messages=[("user", "go")]
+        graph=_Graph(items),
+        thread_id="t-aref",
+        lc_messages=[("user", "go")],
+        owner_id=TEST_OWNER_ID,
     ):
         sse_lines.append(line)
     return parse_sse_events(sse_lines)

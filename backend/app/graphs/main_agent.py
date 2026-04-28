@@ -70,6 +70,7 @@ def build_agent(
     checkpointer,
     subagents: list[dict] | None = None,
     enabled_skills: list[SkillInfo] | None = None,
+    custom_instructions: str = "",
 ):
     # The `middleware` arg below only wraps the top-level agent. Subagents
     # dispatched through `task` build their own model-call stack and would
@@ -119,11 +120,21 @@ def build_agent(
     summ_config = create_summarization_middleware(llm, StateBackend())
     parent_middleware.append(SummarizationToolMiddleware(summ_config))
 
+    prompt = SYSTEM_PROMPT
+    if custom_instructions.strip():
+        prompt = (
+            SYSTEM_PROMPT
+            + "\n\n## User-provided custom instructions\n"
+            + "(From the user's Settings → Instructions tab. Treat as additional "
+            + "standing rules unless they conflict with the rules above.)\n\n"
+            + custom_instructions.strip()
+        )
+
     agent = create_deep_agent(
         model=llm,
         tools=tools,
         subagents=prepared_subagents,
-        system_prompt=SYSTEM_PROMPT,
+        system_prompt=prompt,
         checkpointer=checkpointer,
         middleware=parent_middleware,
     )

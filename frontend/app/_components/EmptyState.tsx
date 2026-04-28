@@ -1,6 +1,7 @@
 "use client"
 
 import { Fragment } from "react"
+import { chatUiTipForKey } from "@/lib/chat-ui-tips"
 
 type Prompt = {
   tag: string
@@ -101,8 +102,10 @@ const MONO = "var(--font-mono)"
 
 export function EmptyState({
   onPick,
+  sessionId,
 }: {
   onPick: (suggestion: string) => void
+  sessionId: string
 }) {
   return (
     <div
@@ -130,7 +133,7 @@ export function EmptyState({
 
       <PromptGrid onPick={onPick} />
 
-      <Tip />
+      <Tip sessionId={sessionId} />
     </div>
   )
 }
@@ -287,51 +290,43 @@ function PromptCell({
   )
 }
 
-function Tip() {
+function Tip({ sessionId }: { sessionId: string }) {
+  const productTip = chatUiTipForKey(sessionId)
   return (
     <div
       style={{
-        fontFamily: MONO,
-        fontSize: 11,
-        letterSpacing: ".04em",
-        color: "var(--ink-3)",
         display: "flex",
-        alignItems: "center",
-        gap: 8,
-        flexWrap: "wrap",
+        flexDirection: "column",
+        gap: 10,
       }}
     >
-      <span
+      <div
         style={{
-          textTransform: "uppercase",
-          letterSpacing: ".1em",
-          color: "var(--ink-4)",
+          fontFamily: MONO,
+          fontSize: 11,
+          letterSpacing: ".04em",
+          color: "var(--ink-3)",
+          display: "flex",
+          alignItems: "flex-start",
+          gap: 8,
+          flexWrap: "wrap",
         }}
       >
-        Tip
-      </span>
-      <span style={{ color: "var(--ink-4)" }}>·</span>
-      <span>
-        Click any prompt to load it into the composer, or attach a file with{" "}
         <span
-          aria-hidden
           style={{
-            display: "inline-flex",
-            width: 16,
-            height: 16,
-            alignItems: "center",
-            justifyContent: "center",
-            border: "1px solid var(--border-strong)",
-            color: "var(--ink-2)",
-            fontSize: 11,
-            lineHeight: 1,
-            verticalAlign: "middle",
+            textTransform: "uppercase",
+            letterSpacing: ".1em",
+            color: "var(--ink-4)",
+            flexShrink: 0,
           }}
         >
-          +
-        </span>{" "}
-        to start from your own data.
-      </span>
+          Tip
+        </span>
+        <span style={{ color: "var(--ink-4)" }}>·</span>
+        <span style={{ color: "var(--ink-2)", lineHeight: 1.45 }}>
+          {productTip}
+        </span>
+      </div>
     </div>
   )
 }

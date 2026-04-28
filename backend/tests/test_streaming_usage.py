@@ -16,6 +16,8 @@ import json
 import pytest
 from langchain_core.messages import AIMessage, AIMessageChunk, ToolMessage
 
+from tests.conftest import TEST_OWNER_ID
+
 
 class _FakeGraph:
     def __init__(self, items):
@@ -34,6 +36,7 @@ async def _collect(items) -> list[dict]:
         graph=_FakeGraph(items),
         thread_id="t-usage",
         lc_messages=[("user", "go")],
+        owner_id=TEST_OWNER_ID,
     ):
         if line.startswith("data: {"):
             out.append(json.loads(line.removeprefix("data: ").strip()))

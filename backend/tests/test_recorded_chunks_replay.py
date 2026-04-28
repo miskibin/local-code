@@ -22,6 +22,7 @@ from pathlib import Path
 import pytest
 from langchain_core.messages import AIMessage, AIMessageChunk
 
+from tests.conftest import TEST_OWNER_ID
 from tests.fixtures.schema import FixtureFile, RecordedChunk
 
 FIXTURE_ROOT = Path(__file__).resolve().parent / "fixtures" / "recorded"
@@ -182,6 +183,7 @@ async def test_fixture_replays_through_streamer_without_drops(fixture_path):
             graph=_ReplayGraph(items),
             thread_id=f"fx-{fixture_path.stem}",
             lc_messages=[("user", "go")],
+            owner_id=TEST_OWNER_ID,
         ):
             if line.startswith("data: {"):
                 events.append(json.loads(line.removeprefix("data: ").strip()))

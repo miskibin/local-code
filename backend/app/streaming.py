@@ -211,6 +211,13 @@ async def stream_chat(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits w
                 and len(event[1]) == 2  # noqa: PLR2004 -- (chunk, meta)
             ):
                 namespace, (chunk, meta) = event
+            elif (
+                isinstance(event, tuple)
+                and len(event) == 2  # noqa: PLR2004 -- legacy (chunk, meta) when subgraphs=False
+                and isinstance(event[1], dict)
+            ):
+                namespace = ()
+                chunk, meta = event
             else:
                 # Bumped from DEBUG: an unrecognised payload shape means we are
                 # silently dropping something langgraph emitted. Visible by

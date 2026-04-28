@@ -26,6 +26,7 @@ atexit.register(lambda: shutil.rmtree(_TEST_DB_DIR, ignore_errors=True))
 os.environ.setdefault("CHECKPOINT_DB_PATH", ":memory:")
 os.environ.setdefault("OLLAMA_BASE_URL", "http://localhost:11434")
 os.environ.setdefault("OLLAMA_MODEL", "gemma4:e4b")
+os.environ.setdefault("ADMIN_EMAILS", '["test@example.com"]')
 
 
 @pytest.fixture

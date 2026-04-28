@@ -15,7 +15,7 @@ from app.graphs.main_agent import (
     default_subagents,
 )
 from app.llm import context_max_tokens, resolve_llm
-from app.models import MCPServerUserFlag, SkillFlag, ToolFlag
+from app.models import MCPServerUserFlag, SkillFlag, ToolFlag, UserInstructions
 from app.schemas.chat import ChatRequest
 from app.skills_registry import discover_skills, filter_enabled
 from app.streaming import stream_chat
@@ -137,12 +137,16 @@ async def chat(req: ChatRequest, request: Request, user: CurrentUser):
             resolved["tools"] = [tools_by_name[n] for n in resolved["tools"] if n in tools_by_name]
         subagents.append(resolved)
     enabled_skills = await _enabled_skills(user.id)
+    async with async_session() as s:
+        ui = await s.get(UserInstructions, user.id)
+    custom_instructions = ui.content if ui else ""
     graph = build_agent_for_turn(
         llm=llm,
         tools=tools,
         checkpointer=state.checkpointer,
         subagents=subagents,
         enabled_skills=enabled_skills,
+        custom_instructions=custom_instructions,
     )
     logger.debug(f"agent built thread={req.id} subagents={[s.get('name') for s in subagents]}")
     ctx_max = context_max_tokens(llm)

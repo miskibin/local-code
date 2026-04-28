@@ -6,6 +6,7 @@ import {
   ArrowLeft,
   Check,
   Database,
+  FileText,
   Folder,
   Globe,
   Palette,
@@ -20,6 +21,7 @@ import {
 } from "lucide-react"
 import { Markdown } from "@/app/_components/Markdown"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Textarea } from "@/components/ui/textarea"
 import {
   Dialog,
   DialogContent,
@@ -98,6 +100,12 @@ export default function SettingsPage() {
               <Sparkles className="h-3.5 w-3.5" /> Skills
             </TabsTrigger>
             <TabsTrigger
+              value="instructions"
+              className="justify-start gap-2.5 px-2.5 py-2"
+            >
+              <FileText className="h-3.5 w-3.5" /> Instructions
+            </TabsTrigger>
+            <TabsTrigger
               value="mcp"
               className="justify-start gap-2.5 px-2.5 py-2"
             >
@@ -118,6 +126,9 @@ export default function SettingsPage() {
             </TabsContent>
             <TabsContent value="skills">
               <SkillsTab />
+            </TabsContent>
+            <TabsContent value="instructions">
+              <InstructionsTab />
             </TabsContent>
             <TabsContent value="mcp">
               <McpTab />
@@ -520,9 +531,7 @@ function capToolSectionsAtMax(sections: ToolSection[]): ToolSection[] {
   }
 
   if (mcpSecs.length <= budget) {
-    out.push(
-      ...[...mcpSecs].sort((a, b) => a.title.localeCompare(b.title))
-    )
+    out.push(...[...mcpSecs].sort((a, b) => a.title.localeCompare(b.title)))
     return out
   }
 
@@ -750,7 +759,10 @@ function AppearanceTab() {
           Accent
         </div>
         <div className="p-4 sm:p-5">
-          <p className="mb-3 text-[12px] leading-snug" style={{ color: "var(--ink-2)" }}>
+          <p
+            className="mb-3 text-[12px] leading-snug"
+            style={{ color: "var(--ink-2)" }}
+          >
             Links, buttons, and focus rings use the selected hue.
           </p>
           <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
@@ -764,7 +776,7 @@ function AppearanceTab() {
                   onClick={() => onPickAccent(name)}
                   aria-pressed={active}
                   aria-label={`Accent: ${label}`}
-                  className="group relative flex flex-col gap-2.5 rounded-lg border p-3 text-left outline-none transition-[border-color,background-color,box-shadow] duration-150 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface)]"
+                  className="group relative flex flex-col gap-2.5 rounded-lg border p-3 text-left transition-[border-color,background-color,box-shadow] duration-150 outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface)]"
                   style={{
                     cursor: "pointer",
                     borderColor: active ? color : "var(--border)",
@@ -817,7 +829,10 @@ function AppearanceTab() {
           Body font
         </div>
         <div className="p-4 sm:p-5">
-          <p className="mb-3 text-[12px] leading-snug" style={{ color: "var(--ink-2)" }}>
+          <p
+            className="mb-3 text-[12px] leading-snug"
+            style={{ color: "var(--ink-2)" }}
+          >
             Sample line uses each preset so you can compare. Sans uses Inter.
           </p>
           <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
@@ -831,11 +846,13 @@ function AppearanceTab() {
                   onClick={() => onPickFont(name)}
                   aria-pressed={active}
                   aria-label={`Font: ${label}`}
-                  className="rounded-lg border p-3 text-left outline-none transition-[border-color,background-color,box-shadow] duration-150 focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface)]"
+                  className="rounded-lg border p-3 text-left transition-[border-color,background-color,box-shadow] duration-150 outline-none focus-visible:ring-2 focus-visible:ring-[var(--accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--surface)]"
                   style={{
                     cursor: "pointer",
                     borderColor: active ? "var(--accent)" : "var(--border)",
-                    background: active ? "var(--accent-soft)" : "var(--bg-soft)",
+                    background: active
+                      ? "var(--accent-soft)"
+                      : "var(--bg-soft)",
                     boxShadow: active
                       ? "0 1px 0 color-mix(in oklab, var(--accent) 22%, transparent)"
                       : undefined,
@@ -845,7 +862,7 @@ function AppearanceTab() {
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
                         <span
-                          className="text-[11px] font-medium uppercase tracking-[0.06em]"
+                          className="text-[11px] font-medium tracking-[0.06em] uppercase"
                           style={{
                             fontFamily: "var(--font-mono)",
                             color: "var(--ink-3)",
@@ -972,7 +989,7 @@ function SkillsTab() {
         {skills.map((s, i) => (
           <div
             key={s.name}
-            className="flex items-start gap-2 px-4 py-3 transition-colors hover:bg-[var(--accent-soft)] focus-within:bg-[var(--accent-soft)]"
+            className="flex items-start gap-2 px-4 py-3 transition-colors focus-within:bg-[var(--accent-soft)] hover:bg-[var(--accent-soft)]"
             style={{ borderTop: i === 0 ? 0 : "1px solid var(--border)" }}
           >
             <button
@@ -1091,6 +1108,169 @@ function SkillsTab() {
           </div>
         </DialogContent>
       </Dialog>
+    </>
+  )
+}
+
+function InstructionsTab() {
+  const [content, setContent] = useState("")
+  const [saved, setSaved] = useState("")
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [mode, setMode] = useState<"edit" | "preview">("edit")
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    void (async () => {
+      try {
+        const r = await api.getInstructions()
+        if (cancelled) return
+        setContent(r.content)
+        setSaved(r.content)
+      } catch (e) {
+        if (!cancelled) setError(String(e))
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const dirty = content !== saved
+  const charCount = content.length
+  const tokenEstimate = Math.ceil(charCount / 4)
+
+  const onSave = async () => {
+    setSaving(true)
+    setError(null)
+    try {
+      const r = await api.setInstructions(content)
+      setSaved(r.content)
+    } catch (e) {
+      setError(String(e))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <>
+      <SectionHeader
+        title="Custom instructions"
+        desc="Always-on system prompt addendum applied to every chat. Markdown supported."
+        right={
+          <div
+            className="inline-flex overflow-hidden rounded-md"
+            style={{ border: "1px solid var(--border)" }}
+          >
+            <button
+              type="button"
+              onClick={() => setMode("edit")}
+              aria-pressed={mode === "edit"}
+              className="px-3 py-1.5 text-[12px] font-medium transition-colors"
+              style={{
+                cursor: "pointer",
+                background:
+                  mode === "edit" ? "var(--accent-soft)" : "transparent",
+                color: mode === "edit" ? "var(--accent-ink)" : "var(--ink-2)",
+              }}
+            >
+              Edit
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode("preview")}
+              aria-pressed={mode === "preview"}
+              className="px-3 py-1.5 text-[12px] font-medium transition-colors"
+              style={{
+                cursor: "pointer",
+                background:
+                  mode === "preview" ? "var(--accent-soft)" : "transparent",
+                color:
+                  mode === "preview" ? "var(--accent-ink)" : "var(--ink-2)",
+                borderLeft: "1px solid var(--border)",
+              }}
+            >
+              Preview
+            </button>
+          </div>
+        }
+      />
+
+      <div
+        className="overflow-hidden rounded-xl"
+        style={{
+          border: "1px solid var(--border)",
+          background: "var(--surface)",
+        }}
+      >
+        {loading ? (
+          <div
+            className="flex items-center gap-2 px-4 py-6 text-[13px]"
+            style={{ color: "var(--ink-3)" }}
+          >
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> Loading…
+          </div>
+        ) : mode === "edit" ? (
+          <Textarea
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            placeholder="e.g. Always answer concisely. Prefer code examples in Python. Never include disclaimers."
+            rows={20}
+            className="resize-y border-0 focus-visible:ring-0"
+            style={{
+              fontFamily: "var(--font-mono)",
+              fontSize: 13,
+              minHeight: 380,
+              background: "var(--surface)",
+            }}
+          />
+        ) : content.trim().length === 0 ? (
+          <div
+            className="px-4 py-6 text-[13px]"
+            style={{ color: "var(--ink-3)" }}
+          >
+            Nothing to preview yet.
+          </div>
+        ) : (
+          <div className="px-4 py-3">
+            <Markdown text={content} />
+          </div>
+        )}
+      </div>
+
+      <div className="mt-3 flex items-center justify-between gap-3">
+        <div className="text-[12px]" style={{ color: "var(--ink-3)" }}>
+          {charCount.toLocaleString()} characters · ~
+          {tokenEstimate.toLocaleString()} tokens
+        </div>
+        <div className="flex items-center gap-3">
+          {error && (
+            <span className="text-[12px] text-destructive">{error}</span>
+          )}
+          {dirty && !saving && (
+            <span className="text-[12px]" style={{ color: "var(--ink-3)" }}>
+              Unsaved changes
+            </span>
+          )}
+          <Button
+            onClick={onSave}
+            disabled={!dirty || saving || loading}
+            className="gap-1.5"
+          >
+            {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+            Save
+          </Button>
+        </div>
+      </div>
+
+      <p className="mt-3 text-xs" style={{ color: "var(--ink-3)" }}>
+        Appended to the agent&rsquo;s system prompt on every chat turn. Token
+        count is a rough estimate (~4 chars per token).
+      </p>
     </>
   )
 }

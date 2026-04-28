@@ -18,6 +18,8 @@ import json
 import pytest
 from langchain_core.messages import AIMessage, AIMessageChunk, ToolMessage
 
+from tests.conftest import TEST_OWNER_ID
+
 
 class _FakeGraph:
     """Same shape as `_FakeGraph` in test_streaming_tools.py: yields prebuilt
@@ -37,7 +39,10 @@ async def _collect(items) -> list[dict]:
 
     out: list[dict] = []
     async for line in stream_chat(
-        graph=_FakeGraph(items), thread_id="t-inv", lc_messages=[("user", "go")]
+        graph=_FakeGraph(items),
+        thread_id="t-inv",
+        lc_messages=[("user", "go")],
+        owner_id=TEST_OWNER_ID,
     ):
         if line.startswith("data: {"):
             out.append(json.loads(line.removeprefix("data: ").strip()))

@@ -7,6 +7,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { toast } from "sonner"
 import { api, CHAT_URL } from "@/lib/api"
 import { authHeaders } from "@/lib/auth"
+import { chatUiTipForKey } from "@/lib/chat-ui-tips"
 import type { Artifact, SubagentStep, Todo, ToolStep } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import { Composer } from "./Composer"
@@ -659,6 +660,11 @@ export function ChatView({
   const sentFirstRef = useRef(false)
   const [loadingHistory, setLoadingHistory] = useState(true)
 
+  const historyLoadTip = useMemo(
+    () => chatUiTipForKey(sessionId),
+    [sessionId]
+  )
+
   const streaming = status === "streaming" || status === "submitted"
 
   useEffect(() => {
@@ -994,14 +1000,20 @@ export function ChatView({
         <div ref={scrollRef} className="lc-scroll flex-1 overflow-y-auto">
           <div className="mx-auto w-full max-w-4xl px-6 pt-8 pb-12">
             {isEmpty && loadingHistory ? (
-              <div className="flex h-full min-h-[60vh] items-center justify-center">
+              <div className="flex h-full min-h-[60vh] flex-col items-center justify-center gap-5 px-4">
                 <div
                   className="h-5 w-5 animate-spin rounded-full border-2 border-current border-t-transparent opacity-40"
                   style={{ color: "var(--fg)" }}
                 />
+                <p
+                  className="max-w-md text-center text-sm leading-relaxed"
+                  style={{ color: "var(--ink-2)" }}
+                >
+                  {historyLoadTip}
+                </p>
               </div>
             ) : isEmpty ? (
-              <EmptyState onPick={send} />
+              <EmptyState onPick={send} sessionId={sessionId} />
             ) : (
               <div>
                 {messages.map((m) => {

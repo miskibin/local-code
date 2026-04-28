@@ -21,7 +21,15 @@ async def test_chat_skips_disabled_tool(monkeypatch):
 
     captured: list[list] = []
 
-    def fake_build_agent(*, llm, tools, checkpointer, subagents=None, enabled_skills=None):
+    def fake_build_agent(
+        *,
+        llm,
+        tools,
+        checkpointer,
+        subagents=None,
+        enabled_skills=None,
+        custom_instructions="",
+    ):
         captured.append([t.name for t in tools])
         from app.graphs.main_agent import build_agent as real
 
@@ -31,14 +39,18 @@ async def test_chat_skips_disabled_tool(monkeypatch):
             checkpointer=checkpointer,
             subagents=subagents,
             enabled_skills=enabled_skills,
+            custom_instructions=custom_instructions,
         )
 
     monkeypatch.setattr("app.routes.chat.build_agent_for_turn", fake_build_agent)
 
+    from tests.conftest import TEST_OWNER_ID, ensure_test_user
+
     app = create_app()
     await init_db()
+    await ensure_test_user()
     async with async_session() as s:
-        s.add(ToolFlag(name="chat_stub_tool", enabled=False))
+        s.add(ToolFlag(user_id=TEST_OWNER_ID, name="chat_stub_tool", enabled=False))
         await s.commit()
 
     # Pre-attach a fake LLM + checkpointer via app.state
