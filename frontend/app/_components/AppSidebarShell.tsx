@@ -82,12 +82,13 @@ export function AppSidebarShell({
     /* eslint-enable react-hooks/set-state-in-effect */
   }, [refreshSessions, refreshArtifacts])
 
-  // The module-level `cache` is a render-skeleton hint for the next mount of
-  // this shell — only the refresh callbacks above write to it (after the
-  // network resolves with authoritative data). We deliberately do NOT mirror
-  // every `setSessions` / `setSavedArtifacts` change here: optimistic local
-  // edits would otherwise race the refresh writes between two shells alive
-  // during route transition.
+  useEffect(() => {
+    cache.sessions = sessions
+  }, [sessions])
+
+  useEffect(() => {
+    cache.artifacts = savedArtifacts
+  }, [savedArtifacts])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

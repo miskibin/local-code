@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 from typing import Any
 
+from deepagents.middleware._utils import append_to_system_message
 from langchain.agents.middleware.types import (
     AgentMiddleware,
     ModelRequest,
@@ -10,7 +11,6 @@ from langchain.agents.middleware.types import (
 )
 from langgraph.runtime import Runtime
 
-from app.middleware.system_message import append_to_system_message
 from app.skills_registry import SkillInfo
 
 _PROMPT_TEMPLATE = """\

@@ -16,13 +16,12 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
+from deepagents.middleware._tool_exclusion import _ToolExclusionMiddleware
 from langchain_core.language_models.fake_chat_models import FakeListChatModel
 from langchain_core.messages import AIMessage, BaseMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
 from langchain_core.tools import BaseTool, tool
 from pydantic import Field
-
-from app.middleware.tool_exclusion import ToolExclusionMiddleware
 
 
 @tool("safe_tool")
@@ -59,7 +58,7 @@ def _make_request_stub(tools: list[BaseTool]):
 
 def test_middleware_strips_excluded_tools_from_handler_view_sync():
     excluded = frozenset({"ls", "grep"})
-    mw = ToolExclusionMiddleware(excluded=excluded)
+    mw = _ToolExclusionMiddleware(excluded=excluded)
 
     req = _make_request_stub([_ls, _safe_tool])
     seen: list[list[str]] = []
@@ -80,7 +79,7 @@ def test_middleware_strips_excluded_tools_from_handler_view_sync():
 @pytest.mark.asyncio
 async def test_middleware_strips_excluded_tools_from_handler_view_async():
     excluded = frozenset({"ls", "grep"})
-    mw = ToolExclusionMiddleware(excluded=excluded)
+    mw = _ToolExclusionMiddleware(excluded=excluded)
 
     req = _make_request_stub([_ls, _safe_tool])
     seen: list[list[str]] = []
@@ -99,7 +98,7 @@ def test_middleware_passthrough_when_excluded_set_empty():
     """Empty exclusion set is a no-op — the original request must reach the
     handler with tools intact (covers the `if self._excluded` short-circuit
     so an accidental empty frozenset doesn't silently drop a real tool)."""
-    mw = ToolExclusionMiddleware(excluded=frozenset())
+    mw = _ToolExclusionMiddleware(excluded=frozenset())
     req = _make_request_stub([_ls, _safe_tool])
     seen: list[list[str]] = []
 
@@ -150,7 +149,7 @@ class _ScriptedToolCaller(FakeListChatModel):
 async def test_subagent_model_never_sees_excluded_builtins_at_runtime(monkeypatch):
     """Drive a real `build_agent` graph through a top-level dispatch into a
     subagent and assert: every model invocation that the per-subagent
-    `ToolExclusionMiddleware` wraps presents the handler with a tools list
+    `_ToolExclusionMiddleware` wraps presents the handler with a tools list
     that contains NONE of `_EXCLUDED_BUILTIN_TOOLS`.
 
     We observe the middleware's effect by subclassing it and recording the
@@ -168,7 +167,7 @@ async def test_subagent_model_never_sees_excluded_builtins_at_runtime(monkeypatc
     captured: list[tuple[int, list[str]]] = []
     instances: list[Any] = []
 
-    class _RecordingExclusion(ToolExclusionMiddleware):
+    class _RecordingExclusion(_ToolExclusionMiddleware):
         def __init__(self, *, excluded):
             super().__init__(excluded=excluded)
             instances.append(self)
@@ -191,7 +190,7 @@ async def test_subagent_model_never_sees_excluded_builtins_at_runtime(monkeypatc
 
             return await super().awrap_model_call(request, _record)
 
-    monkeypatch.setattr(main_agent_mod, "ToolExclusionMiddleware", _RecordingExclusion)
+    monkeypatch.setattr(main_agent_mod, "_ToolExclusionMiddleware", _RecordingExclusion)
 
     llm = _ScriptedToolCaller(responses=["unused"])
     llm.bound_tool_names = []
@@ -236,7 +235,7 @@ async def test_subagent_model_never_sees_excluded_builtins_at_runtime(monkeypatc
     )
 
     assert len(instances) >= 2, (
-        "expected at least 2 ToolExclusionMiddleware instances "
+        "expected at least 2 _ToolExclusionMiddleware instances "
         f"(one for parent, one per subagent); got {len(instances)}"
     )
     assert captured, (

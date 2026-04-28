@@ -1,7 +1,6 @@
 import pytest
+from deepagents.middleware._tool_exclusion import _ToolExclusionMiddleware
 from langchain_core.language_models.fake_chat_models import FakeListChatModel
-
-from app.middleware.tool_exclusion import ToolExclusionMiddleware
 
 
 class _FakeChatWithTools(FakeListChatModel):
@@ -41,7 +40,7 @@ async def test_build_agent_streams_text_from_model_node():
 
 
 def test_build_agent_extends_tool_exclusion_to_each_subagent(monkeypatch):
-    """deepagents wraps the top-level agent with our `ToolExclusionMiddleware`,
+    """deepagents wraps the top-level agent with our `_ToolExclusionMiddleware`,
     but subagents dispatched through `task` build their own model call stack and
     inherit the parent tool roster — including built-ins like `ls`/`grep` that
     we excluded. Without the exclusion the subagent loops thousands of `ls`
@@ -88,8 +87,8 @@ def test_build_agent_extends_tool_exclusion_to_each_subagent(monkeypatch):
     assert len(user_subs) == 2
     for s in user_subs:
         mws = s.get("middleware") or []
-        excl = [m for m in mws if isinstance(m, ToolExclusionMiddleware)]
-        assert excl, f"subagent {s['name']!r} missing ToolExclusionMiddleware"
+        excl = [m for m in mws if isinstance(m, _ToolExclusionMiddleware)]
+        assert excl, f"subagent {s['name']!r} missing _ToolExclusionMiddleware"
         assert excl[0]._excluded == main_agent._EXCLUDED_BUILTIN_TOOLS | {"write_todos"}
     # Caller-supplied middleware list is preserved (not clobbered).
     sql = next(s for s in user_subs if s["name"] == "sql-agent")

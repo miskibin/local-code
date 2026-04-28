@@ -1,7 +1,7 @@
 *.pkl
 session.json
 # Python
-
+.claude/worktrees/
 __pycache__/
 *.py[cod]
 *$py.class
