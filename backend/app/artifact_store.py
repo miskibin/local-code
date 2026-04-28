@@ -8,14 +8,15 @@ from __future__ import annotations
 
 import asyncio
 import json
+import subprocess
+import sys
 import textwrap
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 from uuid import uuid4
 
 from langchain_core.runnables import RunnableConfig
-from loguru import logger
 from sqlalchemy import create_engine, text
 from sqlmodel import select
 
@@ -23,13 +24,10 @@ from app.config import get_settings
 from app.db import async_session
 from app.models import SavedArtifact
 
-if TYPE_CHECKING:
-    from langchain_sandbox import PyodideSandbox
-
 SOURCE_CODE_MAX = 64 * 1024
 PAYLOAD_MAX_BYTES = 1 * 1024 * 1024
 SQL_ROW_CAP = 200
-STDOUT_CAP_BYTES = 1 * 1024 * 1024
+PY_TIMEOUT_SECONDS = 20
 ARTIFACT_START = "<<ARTIFACT::start>>"
 ARTIFACT_END = "<<ARTIFACT::end>>"
 
@@ -107,11 +105,7 @@ async def get_artifact(artifact_id: str) -> SavedArtifact | None:
         return await s.get(SavedArtifact, artifact_id)
 
 
-async def refresh_artifact(
-    artifact_id: str,
-    *,
-    sandbox: PyodideSandbox | None = None,
-) -> SavedArtifact:
+async def refresh_artifact(artifact_id: str) -> SavedArtifact:
     async with async_session() as s:
         row = await s.get(SavedArtifact, artifact_id)
         if row is None:
@@ -121,17 +115,8 @@ async def refresh_artifact(
         source_kind = row.source_kind
         source_code = row.source_code
         parent_ids = list(row.parent_artifact_ids or [])
-        # Refresh runs without an attached chat thread — use a stable per-artifact
-        # session so re-running a refresh keeps the same Python globals.
-        refresh_session_id = f"refresh_{artifact_id}"
 
-    result = await _run_executor(
-        source_kind,
-        source_code,
-        parent_artifact_ids=parent_ids,
-        sandbox=sandbox,
-        session_id=refresh_session_id,
-    )
+    result = await _run_executor(source_kind, source_code, parent_artifact_ids=parent_ids)
 
     async with async_session() as s:
         row = await s.get(SavedArtifact, artifact_id)
@@ -151,17 +136,10 @@ async def refresh_artifact(
 
 
 async def _run_executor(
-    source_kind: str,
-    source_code: str,
-    parent_artifact_ids: list[str],
-    *,
-    sandbox: PyodideSandbox | None = None,
-    session_id: str | None = None,
+    source_kind: str, source_code: str, parent_artifact_ids: list[str]
 ) -> dict[str, Any]:
     if source_kind == "python":
-        if sandbox is None:
-            raise RuntimeError("python executor requires sandbox")
-        return await run_python_artifact(source_code, sandbox=sandbox, session_id=session_id)
+        return await run_python_artifact(source_code)
     if source_kind == "sql":
         return await run_sql_artifact(source_code)
     if source_kind == "text":
@@ -176,40 +154,19 @@ async def _run_executor(
 
 # ---------- Python executor ----------
 
+import os  # noqa: E402
 import re  # noqa: E402
+import shutil  # noqa: E402
+import tempfile  # noqa: E402
 
 _ART_ID_PATTERN = re.compile(r"art_[0-9a-f]{8,}")
+_ART_PATHS_ENV = "LC_ARTIFACT_PATHS"
+_FONT_DIR_ENV = "LC_MPL_FONT_DIR"
+_FONT_DIR = Path(__file__).resolve().parent / "assets" / "fonts"
 
-_PY_PRELUDE_TEMPLATE = textwrap.dedent(
+_PY_PRELUDE = textwrap.dedent(
     f"""
     import json as _json, sys as _sys
-    _STAGED = _json.loads({{staged_literal}})
-
-    # Pre-import the scientific stack at the TOP LEVEL so the wrapper's
-    # find_imports picks them up and install_imports() resolves them via
-    # micropip ONCE per session. Without these imports, user code like
-    # `import matplotlib.pyplot as plt` would surface as
-    # `matplotlib.pyplot` to install_imports — which then tries to fetch
-    # a non-existent `matplotlib-pyplot` package from PyPI and fails.
-    # Top-level `import matplotlib` instead loads the real package; the
-    # submodule import in user code becomes a no-op resolution against
-    # already-loaded matplotlib.
-    try:
-        import matplotlib as _bootstrap_mpl  # noqa: F401
-        # Pin Agg backend BEFORE any user pyplot usage so plt.plot()
-        # doesn't try to load a GUI backend (Pyodide has none, raises).
-        _bootstrap_mpl.use("Agg")
-    except ImportError:
-        pass
-    try:
-        import numpy as _bootstrap_np  # noqa: F401
-    except ImportError:
-        pass
-    try:
-        import pandas as _bootstrap_pd  # noqa: F401
-    except ImportError:
-        pass
-
     def out(_obj):
         _sys.stdout.write({ARTIFACT_START!r})
         _sys.stdout.write(_json.dumps(_obj, default=str))
@@ -217,18 +174,26 @@ _PY_PRELUDE_TEMPLATE = textwrap.dedent(
         _sys.stdout.write("\\n")
 
     def _apply_app_mpl_style():
-        # Imports go through importlib.import_module rather than top-level
-        # `import matplotlib` so that the sandbox wrapper's `find_imports` AST
-        # scan doesn't try to micropip-install matplotlib on every call.
-        # matplotlib loads lazily when the agent first calls out_image().
-        import importlib as _imp
-        _mpl = _imp.import_module("matplotlib")
-        _mpl.use("Agg")
-        _cycler = _imp.import_module("cycler").cycler
+        import os as _os, glob as _glob
+        try:
+            import matplotlib as _mpl
+            _mpl.use("Agg")
+        except ImportError:
+            return
+        _font_dir = _os.environ.get({_FONT_DIR_ENV!r})
+        if _font_dir:
+            try:
+                from matplotlib import font_manager as _fm
+                for _ttf in _glob.glob(_os.path.join(_font_dir, "*.ttf")):
+                    _fm.fontManager.addfont(_ttf)
+            except Exception:
+                pass
+        from cycler import cycler as _cycler
+        # Split ink: body text reads on white; spines/grid stay softer so bars stay the focus.
         _ink_text = "#1f1f1f"
         _ink_spine = "#6b6b6b"
         _grid = "#c8c8c8"
-        _mpl.rcParams.update({{{{
+        _mpl.rcParams.update({{
             "figure.facecolor": "none",
             "figure.edgecolor": "none",
             "figure.dpi": 120,
@@ -257,44 +222,49 @@ _PY_PRELUDE_TEMPLATE = textwrap.dedent(
             "ytick.labelsize": 10,
             "font.size": 11,
             "font.weight": "medium",
+            "font.family": ["Geist Mono", "DejaVu Sans Mono", "monospace"],
             "legend.frameon": False,
             "legend.fontsize": 10,
             "legend.labelcolor": _ink_text,
             "savefig.facecolor": "none",
             "savefig.edgecolor": "none",
             "savefig.transparent": True,
-        }}}})
+        }})
+
+    _apply_app_mpl_style()
 
     def out_image(fig=None, *, title=None, caption=None):
-        import io as _io, base64 as _b64, importlib as _imp
-        if "_app_mpl_style_applied" not in globals():
-            _apply_app_mpl_style()
-            globals()["_app_mpl_style_applied"] = True
-        _plt = _imp.import_module("matplotlib.pyplot")
+        import io as _io, base64 as _b64
+        import matplotlib.pyplot as _plt
         f = fig if fig is not None else _plt.gcf()
         buf = _io.BytesIO()
         f.savefig(buf, format="png", bbox_inches="tight", dpi=120)
-        out({{{{
+        out({{
             "_image_png_b64": _b64.b64encode(buf.getvalue()).decode("ascii"),
             "title": title,
             "caption": caption,
-        }}}})
+        }})
 
     def read_artifact(_id):
-        '''Load a prior artifact by id (literal in script source). Tables ->
-        pandas DataFrame; images -> raw PNG bytes; text -> str.'''
-        _meta = _STAGED.get(_id)
-        if _meta is None:
+        '''Load a prior artifact by id. Tables -> pandas DataFrame (or
+        list-of-dict if pandas missing); images -> raw PNG bytes; text -> str.
+        Only ids that appear literally in the script source are staged.'''
+        import json as _json
+        import os as _os
+        _paths = _json.loads(_os.environ.get({_ART_PATHS_ENV!r}, "{{}}"))
+        _path = _paths.get(_id)
+        if _path is None:
             raise LookupError(
-                f"artifact {{{{_id!r}}}} not staged; the runner only stages ids "
+                f"artifact {{_id!r}} not staged; the runner only stages ids "
                 f"that appear literally in the script source."
             )
+        with open(_path, "r", encoding="utf-8") as _f:
+            _meta = _json.load(_f)
         _kind = _meta.get("kind")
-        _payload = _meta.get("payload") or {{{{}}}}
+        _payload = _meta.get("payload") or {{}}
         if _kind == "table":
             try:
-                import importlib as _imp
-                _pd = _imp.import_module("pandas")
+                import pandas as _pd
                 return _pd.DataFrame(_payload.get("rows", []))
             except ImportError:
                 return _payload.get("rows", [])
@@ -308,161 +278,86 @@ _PY_PRELUDE_TEMPLATE = textwrap.dedent(
 ).strip()
 
 
-async def _stage_artifacts_for_code(code: str) -> dict[str, dict[str, Any]]:
-    """Resolve `art_<hex>` literals in the script and return id -> metadata.
-
-    Pyodide has no host filesystem, so artifacts are inlined as a JSON literal
-    in the prelude (see _PY_PRELUDE_TEMPLATE) instead of being written to a
-    tempdir + read via env var as we did under the old subprocess executor.
-    """
+async def _stage_artifacts_for_code(
+    code: str,
+) -> tuple[dict[str, str], Path | None]:
     ids = sorted(set(_ART_ID_PATTERN.findall(code)))
     if not ids:
-        return {}
-    staged: dict[str, dict[str, Any]] = {}
+        return {}, None
+    tmp = Path(tempfile.mkdtemp(prefix="lc_art_"))
+    paths: dict[str, str] = {}
     for aid in ids:
         row = await get_artifact(aid)
         if row is None:
             continue
-        staged[aid] = {
-            "id": row.id,
-            "kind": row.kind,
-            "title": row.title,
-            "payload": row.payload,
-        }
-    return staged
-
-
-_PY_POSTLUDE = textwrap.dedent("""
-    # Make the wrapper's session-save tolerant. dill.session.dump_session
-    # chokes on un-picklable globals (matplotlib internal caches in particular),
-    # which would otherwise crash the entire run AFTER user code succeeded —
-    # losing the artifact stdout. We don't actually need stateful persistence
-    # of those objects: the agent re-imports/re-creates as needed, and the
-    # *data* lives in artifacts already. Patch dill.session.dump_session
-    # itself (the wrapper invokes it via prepare_env) to use byref=True and
-    # swallow remaining errors.
-    try:
-        import dill as _dill_post
-        _orig_session_dump = _dill_post.session.dump_session
-        def _safe_session_dump(filename, **_kw):
-            try:
-                return _orig_session_dump(filename=filename, byref=True)
-            except Exception:
-                return None
-        _dill_post.session.dump_session = _safe_session_dump
-    except Exception:
-        pass
-""").strip()
-
-
-_SUBMODULE_IMPORT_AS = re.compile(r"^(\s*)import\s+([\w]+\.[\w.]+)\s+as\s+(\w+)\s*$", re.MULTILINE)
-
-
-# Pyodide loadPackage / wrapper install_imports chatter that runs together
-# without newlines on stdout. Each alternative matches one full noise message;
-# `re.sub("")` then collapses whitespace. The "Loading"/"Loaded" arm uses
-# lowercase-leading tokens for package names so it stops cleanly at the first
-# user-output character (typically uppercase from `print` of a result).
-# Pyodide package names that show up in loadPackage chatter. The wrapper's
-# `print` calls run together without separators, so we use this allowlist to
-# delimit Loading/Loaded messages instead of trying to AST-parse package names
-# out of arbitrary tokens. Add new packages here when they start appearing in
-# stdout — over-stripping is worse than leaving noise.
-_KNOWN_PKGS = (
-    r"(?:Pillow|contourpy|cycler|fonttools|kiwisolver|matplotlib|matplotlib-pyodide"
-    r"|numpy|pyparsing|python-dateutil|pytz|six|pandas|scipy|sympy|seaborn"
-    r"|statsmodels|tabulate|micropip|packaging|dill|requests|urllib3|setuptools"
-    r"|certifi|charset-normalizer|idna|msgpack)"
-)
-_PYODIDE_NOISE_PREFIX = re.compile(
-    r"^(?:"
-    rf"(?:Loading|Loaded) {_KNOWN_PKGS}(?:, {_KNOWN_PKGS})*"
-    rf"|{_KNOWN_PKGS} already loaded from default channel"
-    rf"|Didn't find package {_KNOWN_PKGS}-[\w\-.]+\.whl locally, attempting to load from https?://[^\s,]+/?"
-    rf"|Package {_KNOWN_PKGS}-[\w\-.]+\.whl loaded from https?://[^,]+, caching the wheel in node_modules for future use\."
-    r"|Matplotlib is building the font cache; this may take a moment\."
-    r")"
-)
-
-
-def _strip_pyodide_noise(stdout: str) -> str:
-    """Strip Pyodide loadPackage / install_imports chatter from each line.
-
-    Pyodide messages run together without newlines, then the user's `print()`
-    output appends `\\n`. So per line: peel known noise prefixes off the front
-    until none match, treat the rest as user output. The Loading/Loaded arm
-    can over-consume into user content (last package alphabet may also start
-    a real word), so we conservatively re-stick the last token if what comes
-    next looks like a sentence (whitespace within remaining buffer).
-    """
-    out_lines: list[str] = []
-    for line in stdout.splitlines():
-        rest = line
-        while True:
-            m = _PYODIDE_NOISE_PREFIX.match(rest)
-            if not m:
-                break
-            rest = rest[m.end() :]
-        if rest.strip():
-            out_lines.append(rest)
-    return "\n".join(out_lines).strip()
-
-
-def _rewrite_submodule_imports(code: str) -> str:
-    """Rewrite `import X.Y as alias` to a form that hides the dotted name from
-    the sandbox wrapper's AST-based `find_imports` scan.
-
-    The wrapper feeds every dotted import to micropip via the bare module
-    string, so `import matplotlib.pyplot as plt` becomes a request for a
-    PyPI package called `matplotlib.pyplot` (which doesn't exist) and the
-    whole script aborts before user code runs. Rewriting to
-    `import matplotlib; plt = __import__("matplotlib.pyplot", fromlist=["pyplot"])`
-    keeps only the root package on the install path while still binding
-    the same alias.
-    """
-
-    def _sub(m: re.Match[str]) -> str:
-        indent, dotted, alias = m.group(1), m.group(2), m.group(3)
-        root, leaf = dotted.split(".", 1)[0], dotted.rsplit(".", 1)[-1]
-        return f'{indent}import {root}; {alias} = __import__("{dotted}", fromlist=["{leaf}"])'
-
-    return _SUBMODULE_IMPORT_AS.sub(_sub, code)
-
-
-async def run_python_artifact(
-    code: str,
-    *,
-    sandbox: PyodideSandbox,
-    session_id: str | None = None,
-) -> dict[str, Any]:
-    staged = await _stage_artifacts_for_code(code)
-    # JSON-encode the staged dict to a Python literal expression. We embed it
-    # via `json.loads(<literal>)` in the prelude rather than building a Python
-    # dict at the source level so we don't have to think about escaping.
-    staged_literal = repr(json.dumps(staged))
-    prelude = _PY_PRELUDE_TEMPLATE.format(staged_literal=staged_literal)
-    user_code = _rewrite_submodule_imports(textwrap.dedent(code))
-    wrapped = prelude + "\n" + user_code
-
-    from app.python_sandbox import execute_code
-
-    timeout = get_settings().python_sandbox_timeout
-    try:
-        result = await asyncio.wait_for(
-            execute_code(sandbox, wrapped, session_id=session_id, timeout_seconds=timeout),
-            timeout=timeout + 5,
+        path = tmp / f"{aid}.json"
+        path.write_text(
+            json.dumps(
+                {
+                    "id": row.id,
+                    "kind": row.kind,
+                    "title": row.title,
+                    "payload": row.payload,
+                }
+            ),
+            encoding="utf-8",
         )
-    except TimeoutError as err:
-        raise TimeoutError(f"python_exec timed out after {timeout}s") from err
+        paths[aid] = str(path)
+    if not paths:
+        shutil.rmtree(tmp, ignore_errors=True)
+        return {}, None
+    return paths, tmp
 
-    stdout = (result.stdout or "")[:STDOUT_CAP_BYTES]
-    stderr = (result.stderr or "")[:STDOUT_CAP_BYTES]
-    if result.status != "success":
-        # When status=="error" stdout/stderr may be empty (Pyodide failed
-        # before user code ran); surface whichever non-empty channel we have.
-        msg = stderr or stdout or "python_exec failed (no output)"
-        logger.warning(f"python_exec failed: {msg[:200]}")
-        raise RuntimeError(msg)
+
+async def run_python_artifact(code: str) -> dict[str, Any]:
+    paths, tmp = await _stage_artifacts_for_code(code)
+    try:
+        return await asyncio.to_thread(_run_python_sync, code, paths)
+    finally:
+        if tmp is not None:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+
+_SAFE_ENV_KEYS = (
+    "PATH",
+    "SystemRoot",
+    "SYSTEMROOT",
+    "TEMP",
+    "TMP",
+    "TMPDIR",
+    "HOME",
+    "USERPROFILE",
+    "APPDATA",
+    "LOCALAPPDATA",
+    "LANG",
+    "LC_ALL",
+    "LC_CTYPE",
+)
+
+
+def _run_python_sync(code: str, staged: dict[str, str]) -> dict[str, Any]:
+    wrapped = _PY_PRELUDE + "\n" + textwrap.dedent(code)
+    # Minimal env: subprocess inherits only what's needed to start Python.
+    # Avoids leaking secrets (API keys, DB URLs, .env) to LLM-controlled code.
+    env = {k: os.environ[k] for k in _SAFE_ENV_KEYS if k in os.environ}
+    env[_ART_PATHS_ENV] = json.dumps(staged)
+    if _FONT_DIR.is_dir():
+        env[_FONT_DIR_ENV] = str(_FONT_DIR)
+    try:
+        proc = subprocess.run(
+            [sys.executable, "-I", "-c", wrapped],
+            capture_output=True,
+            timeout=PY_TIMEOUT_SECONDS,
+            check=False,
+            env=env,
+        )
+    except subprocess.TimeoutExpired as err:
+        raise TimeoutError(f"python_exec timed out after {PY_TIMEOUT_SECONDS}s") from err
+
+    stdout = proc.stdout.decode("utf-8", errors="replace") if proc.stdout else ""
+    stderr = proc.stderr.decode("utf-8", errors="replace") if proc.stderr else ""
+    if proc.returncode != 0:
+        raise RuntimeError(f"python failed (exit {proc.returncode}):\n{stderr or stdout}")
 
     artifact_blob: Any | None = None
     free_stdout = stdout
@@ -473,7 +368,7 @@ async def run_python_artifact(
         artifact_blob = json.loads(body)
         free_stdout = free_stdout[:a] + free_stdout[b + len(ARTIFACT_END) :]
 
-    free_stdout = _strip_pyodide_noise(free_stdout)
+    free_stdout = free_stdout.strip()
 
     return _classify_python_output(artifact_blob, free_stdout, stderr)
 

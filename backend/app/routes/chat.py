@@ -15,7 +15,6 @@ from app.graphs.main_agent import (
 )
 from app.llm import context_max_tokens, resolve_llm
 from app.models import SkillFlag, ToolFlag
-from app.python_sandbox import reset_session as reset_python_session
 from app.schemas.chat import ChatRequest
 from app.skills_registry import discover_skills, filter_enabled
 from app.streaming import stream_chat
@@ -59,10 +58,6 @@ async def chat(req: ChatRequest, request: Request):
     )
     if req.reset:
         await state.checkpointer.adelete_thread(req.id)
-        # Drop the python sandbox session dir alongside conversation memory so
-        # a thread reset wipes BOTH chat history and python globals atomically.
-        # Otherwise the agent would see "fresh chat, stale df" — confusing.
-        reset_python_session(req.id)
 
     if req.task_run is not None:
         task = await get_task(req.task_run.task_id)

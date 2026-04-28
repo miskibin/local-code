@@ -44,12 +44,6 @@ SYSTEM_PROMPT = (
     "When you need a table artifact from a DataFrame, call "
     '`out(df.reset_index().to_dict("records"))` — `out(df)` falls through to '
     "a text artifact (its repr), which is NOT a table.\n"
-    "`python_exec` STATE PERSISTS across calls within this conversation: "
-    "imports, variables, and DataFrames stay alive between calls, so build "
-    "incrementally (load → inspect → plot) without re-staging. The sandbox "
-    "is Pyodide (WASM) — no host filesystem, no env vars, no arbitrary "
-    "network; only Pyodide-bundled / pure-Python packages work. To clear "
-    "state, ask the user to reset the thread.\n"
     "`read_table_summary` only accepts table artifacts. Before calling it, "
     "confirm the id you have is a table (the prior tool summary starts with "
     "`table …`); never call it on a `text` or `image` artifact.\n"
