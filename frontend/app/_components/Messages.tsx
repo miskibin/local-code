@@ -16,6 +16,7 @@ import { useEffect, useRef, useState } from "react"
 import { toast } from "sonner"
 import type { Artifact, AssistantStep, Todo } from "@/lib/types"
 import { Markdown } from "./Markdown"
+import { EmailDraftCard } from "./EmailDraftCard"
 import { PlanCard } from "./PlanCard"
 import { QuizCard } from "./QuizCard"
 import { Subagent } from "./Subagent"
@@ -319,6 +320,17 @@ export type ContentBlock =
       status: "running" | "done" | "error"
       answer?: string
     }
+  | {
+      type: "email_draft"
+      toolCallId: string
+      to: string
+      subject: string
+      body: string
+      from: string
+      cc: string[]
+      bcc: string[]
+      status: "running" | "done" | "error"
+    }
 
 export function contentBlocksToPlainText(blocks: ContentBlock[]): string {
   return blocks
@@ -464,6 +476,18 @@ export function AssistantMessage({
               status={b.status}
               answer={b.answer}
               onSubmit={onQuizAnswer}
+            />
+          ) : b.type === "email_draft" ? (
+            <EmailDraftCard
+              key={`email-${b.toolCallId}`}
+              toolCallId={b.toolCallId}
+              to={b.to}
+              subject={b.subject}
+              body={b.body}
+              from={b.from}
+              cc={b.cc}
+              bcc={b.bcc}
+              status={b.status}
             />
           ) : b.step.kind === "subagent" ? (
             <Subagent

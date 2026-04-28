@@ -207,6 +207,41 @@ function partToToolStep(p: AnyPart): ToolStep | null {
  * Order matches the stream — children always appear inside their parent's
  * SubagentStep regardless of where they fell in the part array.
  */
+function extractEmailDraftBlock(
+  p: AnyPart
+): Extract<ContentBlock, { type: "email_draft" }> | null {
+  if (getToolName(p) !== "email_draft" || !p.toolCallId) return null
+  const input = (p.input ?? {}) as {
+    to?: unknown
+    subject?: unknown
+    body?: unknown
+    from_address?: unknown
+    cc?: unknown
+    bcc?: unknown
+  }
+  const asStr = (v: unknown) => (typeof v === "string" ? v : "")
+  const asStrList = (v: unknown) =>
+    Array.isArray(v) ? v.filter((s): s is string => typeof s === "string") : []
+  const state = p.state ?? "input-available"
+  const status: "running" | "done" | "error" =
+    state === "output-available"
+      ? "done"
+      : state === "output-error"
+        ? "error"
+        : "running"
+  return {
+    type: "email_draft",
+    toolCallId: p.toolCallId,
+    to: asStr(input.to),
+    subject: asStr(input.subject),
+    body: asStr(input.body),
+    from: asStr(input.from_address),
+    cc: asStrList(input.cc),
+    bcc: asStrList(input.bcc),
+    status,
+  }
+}
+
 function extractQuizBlock(
   p: AnyPart
 ): Extract<ContentBlock, { type: "quiz" }> | null {
@@ -365,6 +400,17 @@ function partsToContentBlocks(parts: AnyPart[]): ContentBlock[] {
         if (quiz.question) {
           flush()
           out.push(quiz)
+        }
+        continue
+      }
+    }
+
+    if (getToolName(p) === "email_draft") {
+      const draft = extractEmailDraftBlock(p)
+      if (draft) {
+        if (draft.to || draft.subject || draft.body) {
+          flush()
+          out.push(draft)
         }
         continue
       }
