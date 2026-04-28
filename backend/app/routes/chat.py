@@ -24,14 +24,14 @@ from app.tasks.storage import get_task
 router = APIRouter()
 
 
-async def _load_flags(model_cls):
+async def _load_enabled_flags(model_cls: type) -> dict[str, bool]:
     async with async_session() as s:
         rows = (await s.execute(select(model_cls))).scalars().all()
-        return {r.name: r for r in rows}
+        return {r.name: r.enabled for r in rows}
 
 
 async def _enabled_skills():
-    flags = {n: r.enabled for n, r in (await _load_flags(SkillFlag)).items()}
+    flags = await _load_enabled_flags(SkillFlag)
     return filter_enabled(discover_skills(get_settings().skills_dir), flags)
 
 
@@ -77,7 +77,7 @@ async def chat(req: ChatRequest, request: Request):
             media_type="text/event-stream",
             headers=_STREAM_HEADERS,
         )
-    flags = {n: r.enabled for n, r in (await _load_flags(ToolFlag)).items()}
+    flags = await _load_enabled_flags(ToolFlag)
     mcp_tools = state.mcp_registry.tools if hasattr(state, "mcp_registry") else []
     tools = tool_registry.active_tools(
         tool_registry.discover_tools(),

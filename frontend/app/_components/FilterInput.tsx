@@ -51,6 +51,7 @@ export function FilterInput({
       />
       {value ? (
         <button
+          type="button"
           onClick={() => onChange("")}
           title="Clear"
           aria-label="Clear filter"

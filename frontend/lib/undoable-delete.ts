@@ -53,15 +53,18 @@ export function showUndoableDelete<T>(opts: UndoableDeleteOpts<T>): void {
         })
       },
     },
-    onAutoClose: () => {
-      const entry = pending.get(id)
-      if (!entry || entry.undone) return
-      pending.delete(id)
-      confirm(id).catch((e) => {
-        console.error(errorLogTag, e)
-        toast.error(errorTitle, { description: String(e) })
-        refresh()
-      })
-    },
+    onAutoClose: finalize,
+    onDismiss: finalize,
   })
+
+  function finalize() {
+    const entry = pending.get(id)
+    if (!entry || entry.undone) return
+    pending.delete(id)
+    confirm(id).catch((e) => {
+      console.error(errorLogTag, e)
+      toast.error(errorTitle, { description: String(e) })
+      refresh()
+    })
+  }
 }
