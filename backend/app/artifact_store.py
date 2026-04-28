@@ -11,7 +11,6 @@ import json
 import subprocess
 import sys
 import textwrap
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
@@ -23,6 +22,7 @@ from sqlmodel import select
 from app.config import get_settings
 from app.db import async_session
 from app.models import SavedArtifact
+from app.utils import ARTIFACT_ID_RE, now_utc
 
 SOURCE_CODE_MAX = 64 * 1024
 PAYLOAD_MAX_BYTES = 1 * 1024 * 1024
@@ -30,10 +30,6 @@ SQL_ROW_CAP = 200
 PY_TIMEOUT_SECONDS = 20
 ARTIFACT_START = "<<ARTIFACT::start>>"
 ARTIFACT_END = "<<ARTIFACT::end>>"
-
-
-def _now() -> datetime:
-    return datetime.now(UTC)
 
 
 def _truncate_source(code: str | None) -> tuple[str | None, bool]:
@@ -78,7 +74,7 @@ async def create_artifact(
     capped_payload, size, _ = _cap_payload(payload)
     code, _ = _truncate_source(source_code)
     aid = artifact_id or f"art_{uuid4().hex[:12]}"
-    now = _now()
+    now = now_utc()
     row = SavedArtifact(
         id=aid,
         session_id=session_id,
@@ -128,7 +124,7 @@ async def refresh_artifact(artifact_id: str) -> SavedArtifact:
         row.payload = capped_payload
         row.summary = result.get("summary", row.summary)[:500]
         row.payload_size = size
-        row.updated_at = _now()
+        row.updated_at = now_utc()
         s.add(row)
         await s.commit()
         await s.refresh(row)
@@ -156,11 +152,9 @@ async def _run_executor(
 
 import ast  # noqa: E402
 import os  # noqa: E402
-import re  # noqa: E402
 import shutil  # noqa: E402
 import tempfile  # noqa: E402
 
-_ART_ID_PATTERN = re.compile(r"art_[0-9a-f]{8,}")
 _ART_PATHS_ENV = "LC_ARTIFACT_PATHS"
 _FONT_DIR_ENV = "LC_MPL_FONT_DIR"
 _FONT_DIR = Path(__file__).resolve().parent / "assets" / "fonts"
@@ -327,8 +321,10 @@ _PY_PRELUDE = textwrap.dedent(
                 from matplotlib import font_manager as _fm
                 for _ttf in _glob.glob(_os.path.join(_font_dir, "*.ttf")):
                     _fm.fontManager.addfont(_ttf)
-            except Exception:
-                pass
+            except Exception as _e:
+                _sys.stderr.write(
+                    f"warning: mpl font load failed: {{type(_e).__name__}}: {{_e}}\\n"
+                )
         from cycler import cycler as _cycler
         # Split ink: body text reads on white; spines/grid stay softer so bars stay the focus.
         _ink_text = "#1f1f1f"
@@ -422,7 +418,7 @@ _PY_PRELUDE = textwrap.dedent(
 async def _stage_artifacts_for_code(
     code: str,
 ) -> tuple[dict[str, str], Path | None]:
-    ids = sorted(set(_ART_ID_PATTERN.findall(code)))
+    ids = sorted(set(ARTIFACT_ID_RE.findall(code)))
     if not ids:
         return {}, None
     tmp = Path(tempfile.mkdtemp(prefix="lc_art_"))

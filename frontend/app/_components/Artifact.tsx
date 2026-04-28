@@ -9,8 +9,6 @@ import {
   MoreHorizontal,
   Plus,
   RotateCw,
-  Search,
-  X,
 } from "lucide-react"
 import { useState } from "react"
 import { toast } from "sonner"
@@ -18,6 +16,7 @@ import { toast } from "sonner"
 import type { Artifact as ArtifactT, ArtifactTablePayload } from "@/lib/types"
 import { ArtifactTable, downloadTableCsv } from "./ArtifactTable"
 import { ArtifactImage } from "./ArtifactImage"
+import { FilterInput } from "./FilterInput"
 
 export function ArtifactCard({
   artifact,
@@ -91,58 +90,11 @@ export function ArtifactCard({
           </div>
         </div>
         {showTableFilter ? (
-          <div
-            className="mx-auto flex items-center gap-2"
-            style={{
-              width: "100%",
-              maxWidth: 320,
-              padding: "5px 10px",
-              border: "1px solid var(--border)",
-              borderRadius: 8,
-              background: "var(--surface)",
-            }}
-          >
-            <span
-              className="inline-flex"
-              style={{ color: "var(--ink-3)", flexShrink: 0 }}
-            >
-              <Search className="h-3.5 w-3.5" />
-            </span>
-            <input
-              value={tableQuery}
-              onChange={(e) => setTableQuery(e.target.value)}
-              placeholder="Filter rows…"
-              aria-label="Filter rows"
-              style={{
-                flex: 1,
-                border: 0,
-                outline: 0,
-                background: "transparent",
-                fontFamily: "var(--font-sans)",
-                fontSize: 12.5,
-                color: "var(--ink)",
-                minWidth: 0,
-              }}
-            />
-            {tableQuery ? (
-              <button
-                onClick={() => setTableQuery("")}
-                title="Clear"
-                aria-label="Clear filter"
-                style={{
-                  background: "transparent",
-                  border: 0,
-                  padding: 0,
-                  color: "var(--ink-3)",
-                  cursor: "pointer",
-                  display: "inline-flex",
-                  flexShrink: 0,
-                }}
-              >
-                <X className="h-3 w-3" />
-              </button>
-            ) : null}
-          </div>
+          <FilterInput
+            value={tableQuery}
+            onChange={setTableQuery}
+            maxWidth={320}
+          />
         ) : (
           <div className="flex-1" />
         )}

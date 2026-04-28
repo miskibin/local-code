@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from uuid import uuid4
 
 from sqlmodel import select
@@ -10,10 +9,7 @@ from sqlmodel import select
 from app.db import async_session
 from app.models import SavedTask
 from app.tasks.schemas import TaskDTO
-
-
-def _now() -> datetime:
-    return datetime.now(UTC)
+from app.utils import now_utc
 
 
 def _new_id() -> str:
@@ -39,7 +35,7 @@ def to_dto(row: SavedTask) -> TaskDTO:
 
 
 def to_row(dto: TaskDTO) -> SavedTask:
-    now = _now()
+    now = now_utc()
     return SavedTask(
         id=dto.id or _new_id(),
         title=dto.title,
@@ -87,7 +83,7 @@ async def upsert_task(dto: TaskDTO) -> SavedTask:
         existing.tags = list(dto.tags or [])
         existing.role = dto.role
         existing.creator = dto.creator
-        existing.updated_at = _now()
+        existing.updated_at = now_utc()
         s.add(existing)
         await s.commit()
         await s.refresh(existing)

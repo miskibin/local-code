@@ -1,7 +1,9 @@
 "use client"
 
 import { Check, ChevronDown, Cpu } from "lucide-react"
-import { useEffect, useRef, useState } from "react"
+import { useCallback, useRef, useState } from "react"
+
+import { useClickOutside } from "@/hooks/use-click-outside"
 
 const DEFAULT_MODEL =
   process.env.NEXT_PUBLIC_OLLAMA_MODEL ?? "gemini-3.1-flash-lite-preview"
@@ -52,14 +54,11 @@ export function ModelPicker({ value, onChange }: ModelPickerProps = {}) {
     setOpen(false)
   }
 
-  useEffect(() => {
-    if (!open) return
-    const onClick = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener("mousedown", onClick)
-    return () => document.removeEventListener("mousedown", onClick)
-  }, [open])
+  useClickOutside(
+    ref,
+    useCallback(() => setOpen(false), []),
+    open,
+  )
 
   return (
     <div ref={ref} className="relative">

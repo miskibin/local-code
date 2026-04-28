@@ -13,8 +13,7 @@ from app.artifact_store import get_artifact
 from app.config import get_settings
 from app.db import async_session
 from app.models import ChatSession, MessageTrace
-
-_ART_DOT_PREFIX = re.compile(r"^\s*(art_[A-Za-z0-9]+)\s*·")
+from app.utils import ARTIFACT_DOT_PREFIX_RE, coerce_output, extract_text
 
 router = APIRouter()
 
@@ -36,34 +35,6 @@ class UIMessage(BaseModel):
     parts: list[dict[str, Any]]
 
 
-def _extract_text(content) -> str:
-    if isinstance(content, str):
-        return content
-    if isinstance(content, list):
-        out = []
-        for c in content:
-            if isinstance(c, dict) and c.get("type") == "text":
-                out.append(str(c.get("text", "")))
-            elif isinstance(c, str):
-                out.append(c)
-        return "".join(out)
-    return ""
-
-
-def _coerce_output(content) -> object:
-    if isinstance(content, (str, int, float, bool)) or content is None:
-        return content
-    if isinstance(content, list):
-        parts = []
-        for c in content:
-            if isinstance(c, dict) and c.get("type") == "text":
-                parts.append(str(c.get("text", "")))
-            else:
-                parts.append(str(c))
-        return "".join(parts)
-    return str(content)
-
-
 def _artifact_id_from_tool_message(tm: Any) -> str | None:
     """Recover artifact id from checkpoint ToolMessage (live SSE adds data-artifact separately)."""
     raw = getattr(tm, "content", None)
@@ -77,10 +48,10 @@ def _artifact_id_from_tool_message(tm: Any) -> str | None:
             vid = art.get("id")
             if isinstance(vid, str):
                 return vid
-    coerced = _coerce_output(raw)
+    coerced = coerce_output(raw)
     if isinstance(coerced, str):
         text = coerced.strip()
-        m = _ART_DOT_PREFIX.match(text)
+        m = ARTIFACT_DOT_PREFIX_RE.match(text)
         if m:
             return m.group(1)
         if text.startswith("{"):
@@ -187,7 +158,7 @@ async def get_messages(sid: str, request: Request):  # noqa: PLR0912, PLR0915 --
     out: list[UIMessage] = []
     for m in msgs:
         if m.type == "human":
-            text_content = _extract_text(m.content)
+            text_content = extract_text(m.content)
             if not text_content:
                 continue
             out.append(
@@ -203,7 +174,7 @@ async def get_messages(sid: str, request: Request):  # noqa: PLR0912, PLR0915 --
             continue
 
         parts: list[dict[str, Any]] = []
-        text_content = _extract_text(m.content)
+        text_content = extract_text(m.content)
         if text_content:
             parts.append({"type": "text", "text": text_content})
 
@@ -223,7 +194,7 @@ async def get_messages(sid: str, request: Request):  # noqa: PLR0912, PLR0915 --
             if tm is None:
                 part["state"] = "input-available"
             else:
-                output = _coerce_output(tm.content)
+                output = coerce_output(tm.content)
                 if getattr(tm, "status", None) == "error":
                     part["state"] = "output-error"
                     part["errorText"] = str(output)

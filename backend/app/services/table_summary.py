@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
+from loguru import logger
 
 from app.models import SavedArtifact
 
@@ -125,7 +126,8 @@ def _df_from_artifact(artifact: SavedArtifact) -> pd.DataFrame | None:
     if path:
         try:
             return _read_csv(Path(path), sample_only=True)
-        except Exception:
+        except Exception as e:  # noqa: BLE001
+            logger.debug(f"_df_from_artifact: failed to read {path} for {artifact.id}: {e}")
             return None
     return None
 

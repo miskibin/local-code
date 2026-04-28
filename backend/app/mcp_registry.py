@@ -26,10 +26,10 @@ class MCPRegistry:
     async def sync_from_db(self, configs: list) -> None:
         async with self._lock:
             for cm in self._session_cms:
-                try:  # noqa: SIM105
+                try:
                     await cm.__aexit__(None, None, None)
-                except Exception:  # noqa: BLE001
-                    pass
+                except Exception as e:  # noqa: BLE001
+                    logger.warning(f"mcp session teardown failed: {e}")
             self._session_cms = []
             self._tools_by_server = {}
 

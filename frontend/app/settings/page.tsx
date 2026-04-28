@@ -214,7 +214,7 @@ function McpTab() {
           <McpRow
             key={s.name}
             server={s}
-            first={i === 0}
+            index={i}
             onToggle={(v) => onToggle(s, v)}
             onDelete={() => onDelete(s.name)}
           />
@@ -231,12 +231,12 @@ function McpTab() {
 
 function McpRow({
   server,
-  first,
+  index,
   onToggle,
   onDelete,
 }: {
   server: MCPServer
-  first: boolean
+  index: number
   onToggle: (v: boolean) => void
   onDelete: () => void
 }) {
@@ -251,7 +251,7 @@ function McpRow({
   return (
     <div
       className="flex items-start gap-3.5 px-4 py-3.5"
-      style={{ borderTop: first ? 0 : "1px solid var(--border)" }}
+      style={{ borderTop: index === 0 ? 0 : "1px solid var(--border)" }}
     >
       <div
         className="grid h-8 w-8 flex-shrink-0 place-items-center rounded-lg"

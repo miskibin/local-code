@@ -63,8 +63,3 @@ async def init_db() -> None:
     async with engine.begin() as conn:
         await conn.run_sync(SQLModel.metadata.create_all)
         await _backfill_columns(conn)
-
-
-async def get_session() -> AsyncIterator[AsyncSession]:
-    async with _sessionmaker() as session:
-        yield session
