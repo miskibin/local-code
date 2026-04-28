@@ -154,6 +154,7 @@ async def _run_executor(
 
 # ---------- Python executor ----------
 
+import ast  # noqa: E402
 import os  # noqa: E402
 import re  # noqa: E402
 import shutil  # noqa: E402
@@ -163,10 +164,150 @@ _ART_ID_PATTERN = re.compile(r"art_[0-9a-f]{8,}")
 _ART_PATHS_ENV = "LC_ARTIFACT_PATHS"
 _FONT_DIR_ENV = "LC_MPL_FONT_DIR"
 _FONT_DIR = Path(__file__).resolve().parent / "assets" / "fonts"
+_PROJECT_ROOT_ENV = "LC_PROJECT_ROOT"
+_PROJECT_ROOT = str(Path(__file__).resolve().parents[2])
+
+# Modules that give the agent SQL/network/process power we don't want it to have.
+# Caught at AST level before the subprocess starts. Runtime escapes (importlib,
+# getattr tricks) are backstopped by the audit hook in the preamble.
+_BLOCKED_USER_IMPORTS = frozenset(
+    {
+        # SQL / DB drivers (use sql_query / sql-agent instead)
+        "sqlite3", "aiosqlite", "sqlalchemy", "asyncpg",
+        "psycopg", "psycopg2", "pymongo", "redis",
+        "pymysql", "mysql", "oracledb", "pyodbc", "duckdb",
+        # Network
+        "socket", "ssl", "urllib", "urllib3", "http",
+        "httpx", "requests", "aiohttp", "websockets",
+        "ftplib", "smtplib", "telnetlib", "paramiko",
+        # Process escape
+        "subprocess", "multiprocessing",
+        # Loader / FFI escapes
+        "ctypes", "_ctypes", "importlib", "builtins",
+    }
+)
+
+# Names that, if called as bare functions, give code-injection or import bypass.
+_BLOCKED_USER_CALLABLES = frozenset({"__import__", "exec", "eval", "compile"})
+
+# `os.X` attribute accesses we reject. Path/env helpers (os.path, os.getcwd,
+# os.environ) stay available — they're inert.
+_BLOCKED_OS_ATTRS = frozenset(
+    {
+        "system", "popen",
+        "exec", "execv", "execve", "execvp", "execvpe",
+        "execl", "execle", "execlp", "execlpe",
+        "spawn", "spawnv", "spawnve", "spawnvp", "spawnvpe",
+        "spawnl", "spawnle", "spawnlp", "spawnlpe",
+        "fork", "forkpty", "kill",
+    }
+)
+
+
+def _validate_user_code(code: str) -> None:
+    """AST-level denylist for python_exec input.
+
+    Raises ValueError on any disallowed import / call. Runtime escapes are
+    backstopped by the audit hook in the subprocess preamble.
+    """
+    try:
+        tree = ast.parse(code)
+    except SyntaxError as e:
+        raise ValueError(f"python_exec: syntax error: {e}") from e
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                top = alias.name.split(".", 1)[0]
+                if top in _BLOCKED_USER_IMPORTS:
+                    raise ValueError(
+                        f"python_exec: import of {alias.name!r} is blocked "
+                        f"(no DB / network / subprocess from python_exec)"
+                    )
+        elif isinstance(node, ast.ImportFrom):
+            top = (node.module or "").split(".", 1)[0]
+            if top in _BLOCKED_USER_IMPORTS:
+                raise ValueError(
+                    f"python_exec: import from {node.module!r} is blocked"
+                )
+        elif isinstance(node, ast.Call):
+            f = node.func
+            if isinstance(f, ast.Name) and f.id in _BLOCKED_USER_CALLABLES:
+                raise ValueError(f"python_exec: call to {f.id!r} is blocked")
+            if (
+                isinstance(f, ast.Attribute)
+                and isinstance(f.value, ast.Name)
+                and f.value.id == "os"
+                and f.attr in _BLOCKED_OS_ATTRS
+            ):
+                raise ValueError(f"python_exec: os.{f.attr} is blocked")
 
 _PY_PRELUDE = textwrap.dedent(
     f"""
-    import json as _json, sys as _sys
+    import json as _json, sys as _sys, os as _os
+
+    # Resource limits + audit hook BEFORE anything else runs. Audit hooks
+    # can't be removed once installed (CPython enforces this at C level),
+    # so user code can't disable these from the script body.
+    try:
+        import resource as _resource
+        _resource.setrlimit(_resource.RLIMIT_CPU, (30, 30))
+        _resource.setrlimit(_resource.RLIMIT_AS, (2 * 1024 ** 3, 2 * 1024 ** 3))
+        _resource.setrlimit(_resource.RLIMIT_FSIZE, (50 * 1024 ** 2, 50 * 1024 ** 2))
+    except (ImportError, ValueError, OSError):
+        pass  # non-POSIX (Windows) or already lower
+
+    _SANDBOX_CWD = _os.path.abspath(_os.getcwd())
+    _PROJECT_ROOT = _os.environ.get({_PROJECT_ROOT_ENV!r}, "")
+    # Anything under sys.prefix (venv root or system Python install) is the
+    # interpreter's own files — must stay readable so imports work.
+    _PY_PREFIX = _os.path.abspath(_sys.prefix) + _os.sep
+    _PY_BASE_PREFIX = _os.path.abspath(_sys.base_prefix) + _os.sep
+
+    def _sb_writable(p):
+        if isinstance(p, int):
+            return True
+        try:
+            ap = _os.path.abspath(_os.fspath(p))
+        except TypeError:
+            return True
+        return ap == _SANDBOX_CWD or ap.startswith(_SANDBOX_CWD + _os.sep) or ap.startswith("/tmp/")
+
+    def _sb_dangerous_read(p):
+        if isinstance(p, int):
+            return False
+        try:
+            ap = _os.path.abspath(_os.fspath(p))
+        except TypeError:
+            return False
+        # Allow Python stdlib + site-packages reads (covers venv and system).
+        if ap.startswith(_PY_PREFIX) or ap.startswith(_PY_BASE_PREFIX):
+            return False
+        base = _os.path.basename(ap)
+        if base.endswith(".db") or base.startswith(".env"):
+            return True
+        if _PROJECT_ROOT and ap.startswith(_PROJECT_ROOT + _os.sep):
+            return True
+        return False
+
+    def _sb_audit(event, args):
+        if event == "open":
+            file = args[0] if args else None
+            mode = args[1] if len(args) > 1 else "r"
+            if file is None:
+                return
+            if mode and any(c in mode for c in "wax+") and not _sb_writable(file):
+                raise PermissionError("sandbox: write outside sandbox blocked: " + repr(file))
+            if _sb_dangerous_read(file):
+                raise PermissionError("sandbox: read of project file / db blocked: " + repr(file))
+        elif event in ("socket.connect", "socket.bind", "socket.getaddrinfo"):
+            raise PermissionError("sandbox: network access blocked")
+        elif event in ("subprocess.Popen", "os.system", "os.exec"):
+            raise PermissionError("sandbox: subprocess / os.system blocked")
+        elif event == "ctypes.dlopen":
+            raise PermissionError("sandbox: ctypes.dlopen blocked")
+
+    _sys.addaudithook(_sb_audit)
+
     def out(_obj):
         _sys.stdout.write({ARTIFACT_START!r})
         _sys.stdout.write(_json.dumps(_obj, default=str))
@@ -310,6 +451,7 @@ async def _stage_artifacts_for_code(
 
 
 async def run_python_artifact(code: str) -> dict[str, Any]:
+    _validate_user_code(code)
     paths, tmp = await _stage_artifacts_for_code(code)
     try:
         return await asyncio.to_thread(_run_python_sync, code, paths)
@@ -341,8 +483,15 @@ def _run_python_sync(code: str, staged: dict[str, str]) -> dict[str, Any]:
     # Avoids leaking secrets (API keys, DB URLs, .env) to LLM-controlled code.
     env = {k: os.environ[k] for k in _SAFE_ENV_KEYS if k in os.environ}
     env[_ART_PATHS_ENV] = json.dumps(staged)
+    env[_PROJECT_ROOT_ENV] = _PROJECT_ROOT
     if _FONT_DIR.is_dir():
         env[_FONT_DIR_ENV] = str(_FONT_DIR)
+    # Per-run sandbox dir = subprocess cwd. Relative paths and matplotlib's
+    # config cache (HOME/MPLCONFIGDIR) all resolve here, so unauthorized
+    # writes land inside an ephemeral dir we wipe in the finally branch.
+    sandbox_dir = tempfile.mkdtemp(prefix="lc_pyexec_")
+    env["HOME"] = sandbox_dir
+    env["MPLCONFIGDIR"] = sandbox_dir
     try:
         proc = subprocess.run(
             [sys.executable, "-I", "-c", wrapped],
@@ -350,9 +499,12 @@ def _run_python_sync(code: str, staged: dict[str, str]) -> dict[str, Any]:
             timeout=PY_TIMEOUT_SECONDS,
             check=False,
             env=env,
+            cwd=sandbox_dir,
         )
     except subprocess.TimeoutExpired as err:
         raise TimeoutError(f"python_exec timed out after {PY_TIMEOUT_SECONDS}s") from err
+    finally:
+        shutil.rmtree(sandbox_dir, ignore_errors=True)
 
     stdout = proc.stdout.decode("utf-8", errors="replace") if proc.stdout else ""
     stderr = proc.stderr.decode("utf-8", errors="replace") if proc.stderr else ""

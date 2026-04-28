@@ -44,6 +44,10 @@ SYSTEM_PROMPT = (
     "When you need a table artifact from a DataFrame, call "
     '`out(df.reset_index().to_dict("records"))` — `out(df)` falls through to '
     "a text artifact (its repr), which is NOT a table.\n"
+    "`python_exec` is sandboxed: NO DB drivers (`sqlite3`, `sqlalchemy`, "
+    "etc.), NO network (`requests`, `urllib`, `socket`), NO subprocess, NO "
+    "project file access. For any SQL/DB question delegate to the "
+    "`sql-agent` subagent — never try to query a DB from `python_exec`.\n"
     "`read_table_summary` only accepts table artifacts. Before calling it, "
     "confirm the id you have is a table (the prior tool summary starts with "
     "`table …`); never call it on a `text` or `image` artifact.\n"

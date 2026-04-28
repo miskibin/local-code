@@ -31,10 +31,24 @@ async def python_exec(code: str, config: RunnableConfig) -> tuple[str, dict]:
     `matplotlib.rcParams`; override in your code if you need custom styling.
     Subprocess, 20-second timeout, no state between calls. The summary you see
     starts with the artifact id (looks like `art_abc123def456`).
+
+    Sandbox — DO NOT attempt these (they will be rejected before run):
+    - NO database access: do NOT `import sqlite3 / sqlalchemy / aiosqlite /
+      asyncpg / pymongo / redis`. For any SQL question delegate to the
+      `sql-agent` subagent (or call `sql_query` directly).
+    - NO network: do NOT `import socket / urllib / requests / httpx /
+      aiohttp`. Don't try to download data.
+    - NO subprocess / shell: do NOT `import subprocess`, do NOT call
+      `os.system` / `os.popen` / `os.exec*`.
+    - NO project filesystem: do NOT open files in the project tree, do NOT
+      open `*.db` or `.env*` files. To read prior data use
+      `read_artifact("art_…")` only.
+    - NO `__import__`, `eval`, `exec`, `compile`, `ctypes`.
+    Compute, transform DataFrames, and plot with matplotlib — that's it.
     """
     try:
         result = await run_python_artifact(code)
-    except (RuntimeError, TimeoutError) as e:
+    except (RuntimeError, TimeoutError, ValueError) as e:
         raise ToolException(f"error: {e}") from e
     return await build_and_persist_tool_artifact(
         result=result,
