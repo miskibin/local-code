@@ -1148,10 +1148,19 @@ export function ChatView({
                       : "var(--red)",
                 }}
               >
-                <span>
+                <span
+                  className="min-w-0 flex-1 truncate"
+                  title={streamFaultMessage || undefined}
+                >
                   {streamFault === "incomplete"
-                    ? "Response may be incomplete."
-                    : "Can't reach backend."}
+                    ? streamFaultMessage
+                      ? `Response may be incomplete — ${streamFaultMessage}`
+                      : "Response may be incomplete."
+                    : streamFault === "unreachable"
+                      ? streamFaultMessage
+                        ? `Can't reach backend — ${streamFaultMessage}`
+                        : "Can't reach backend."
+                      : streamFaultMessage || "Stream error."}
                 </span>
                 <button
                   type="button"
