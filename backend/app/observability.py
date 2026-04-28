@@ -52,8 +52,3 @@ def setup_logging(level: str = "INFO") -> None:
         logging.getLogger(name).handlers = [InterceptHandler()]
     for name in NOISY_LOGGERS:
         logging.getLogger(name).setLevel(logging.WARNING)
-
-
-def get_callbacks() -> list:
-    # Langfuse stays disabled per spec. Hook here if/when re-enabled.
-    return []

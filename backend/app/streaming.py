@@ -213,9 +213,8 @@ async def stream_chat(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits w
             subgraphs=True,
             config=astream_config,
         ):
-            # subgraphs=True for stream_mode="messages" yields
+            # stream_mode="messages" with subgraphs=True yields
             #   (namespace_tuple, (chunk, meta)).
-            # Legacy (no subgraphs) yields (chunk, meta).
             if (
                 isinstance(event, tuple)
                 and len(event) == 2  # noqa: PLR2004 -- (namespace, (chunk, meta))
@@ -224,9 +223,6 @@ async def stream_chat(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits w
                 and len(event[1]) == 2  # noqa: PLR2004 -- (chunk, meta)
             ):
                 namespace, (chunk, meta) = event
-            elif isinstance(event, tuple) and len(event) == 2:  # noqa: PLR2004 -- legacy (chunk, meta)
-                chunk, meta = event
-                namespace = ()
             else:
                 # Bumped from DEBUG: an unrecognised payload shape means we are
                 # silently dropping something langgraph emitted. Visible by

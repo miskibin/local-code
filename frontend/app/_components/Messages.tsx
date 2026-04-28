@@ -49,6 +49,96 @@ function previewUserMessageText(
   return { preview: text, remainder: null }
 }
 
+function EditingForm({
+  initialText,
+  onCancel,
+  onSave,
+}: {
+  initialText: string
+  onCancel: () => void
+  onSave: (text: string) => void
+}) {
+  const [draft, setDraft] = useState(initialText)
+  const taRef = useRef<HTMLTextAreaElement>(null)
+
+  useEffect(() => {
+    const ta = taRef.current
+    if (!ta) return
+    ta.style.height = "auto"
+    ta.style.height = ta.scrollHeight + "px"
+    ta.focus()
+    ta.setSelectionRange(ta.value.length, ta.value.length)
+  }, [draft])
+
+  const save = () => {
+    const t = draft.trim()
+    if (!t) {
+      onCancel()
+      return
+    }
+    onSave(t)
+  }
+
+  return (
+    <div
+      className="flex justify-end"
+      style={{ marginBottom: "var(--density-msg-gap)" }}
+    >
+      <div className="flex w-full max-w-[70%] min-w-0 flex-col gap-2">
+        <textarea
+          ref={taRef}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+              e.preventDefault()
+              save()
+            } else if (e.key === "Escape") {
+              e.preventDefault()
+              onCancel()
+            }
+          }}
+          className="min-h-0 w-full min-w-0 resize-none rounded-[18px] px-4 py-2.5 text-[15px] break-words whitespace-pre-wrap outline-none"
+          style={{
+            background: "var(--user-bubble)",
+            color: "var(--ink)",
+            lineHeight: "var(--density-line)",
+            border: "1px solid var(--accent)",
+            boxShadow: "0 0 0 3px var(--accent-soft)",
+          }}
+        />
+        <div className="flex justify-end gap-2">
+          <button
+            onClick={onCancel}
+            className="rounded-md px-3 py-1 text-[13px]"
+            style={{
+              background: "transparent",
+              color: "var(--ink-2)",
+              border: "1px solid var(--border)",
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={save}
+            disabled={!draft.trim()}
+            className="rounded-md px-3 py-1 text-[13px] text-accent-foreground"
+            style={{
+              background: draft.trim()
+                ? "var(--accent)"
+                : "var(--hover-strong)",
+              border: 0,
+              cursor: draft.trim() ? "pointer" : "not-allowed",
+            }}
+          >
+            Send
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function UserMessage({
   text,
   attachments,
@@ -61,99 +151,26 @@ export function UserMessage({
   onEdit?: (text: string) => void
 }) {
   const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState(text)
   const [longPromptExpanded, setLongPromptExpanded] = useState(false)
-  const taRef = useRef<HTMLTextAreaElement>(null)
   const { preview: textPreview, remainder: textRemainder } = previewUserMessageText(
     text,
     USER_MESSAGE_PREVIEW_MAX_WORDS
   )
 
-  useEffect(() => {
-    if (!editing) return
-    const ta = taRef.current
-    if (!ta) return
-    ta.style.height = "auto"
-    ta.style.height = ta.scrollHeight + "px"
-    ta.focus()
-    ta.setSelectionRange(ta.value.length, ta.value.length)
-  }, [editing, draft])
-
-  const startEdit = () => {
-    setDraft(text)
-    setEditing(true)
-  }
-  const cancel = () => setEditing(false)
-  const save = () => {
-    const t = draft.trim()
-    if (!t || !onEdit) {
-      cancel()
-      return
-    }
-    setEditing(false)
-    onEdit(t)
-  }
-
   if (editing) {
     return (
-      <div
-        className="flex justify-end"
-        style={{ marginBottom: "var(--density-msg-gap)" }}
-      >
-        <div className="flex w-full max-w-[70%] min-w-0 flex-col gap-2">
-          <textarea
-            ref={taRef}
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-                e.preventDefault()
-                save()
-              } else if (e.key === "Escape") {
-                e.preventDefault()
-                cancel()
-              }
-            }}
-            className="min-h-0 w-full min-w-0 resize-none rounded-[18px] px-4 py-2.5 text-[15px] break-words whitespace-pre-wrap outline-none"
-            style={{
-              background: "var(--user-bubble)",
-              color: "var(--ink)",
-              lineHeight: "var(--density-line)",
-              border: "1px solid var(--accent)",
-              boxShadow: "0 0 0 3px var(--accent-soft)",
-            }}
-          />
-          <div className="flex justify-end gap-2">
-            <button
-              onClick={cancel}
-              className="rounded-md px-3 py-1 text-[13px]"
-              style={{
-                background: "transparent",
-                color: "var(--ink-2)",
-                border: "1px solid var(--border)",
-              }}
-            >
-              Cancel
-            </button>
-            <button
-              onClick={save}
-              disabled={!draft.trim()}
-              className="rounded-md px-3 py-1 text-[13px] text-accent-foreground"
-              style={{
-                background: draft.trim()
-                  ? "var(--accent)"
-                  : "var(--hover-strong)",
-                border: 0,
-                cursor: draft.trim() ? "pointer" : "not-allowed",
-              }}
-            >
-              Send
-            </button>
-          </div>
-        </div>
-      </div>
+      <EditingForm
+        initialText={text}
+        onCancel={() => setEditing(false)}
+        onSave={(t) => {
+          setEditing(false)
+          onEdit?.(t)
+        }}
+      />
     )
   }
+
+  const startEdit = () => setEditing(true)
 
   return (
     <div

@@ -23,7 +23,6 @@ type Props = {
   model?: string
   onModelChange?: (m: string) => void
   sessionId: string
-  onAttachmentUploaded?: (a: Artifact) => void
   usage?: UsageDataPart
 }
 
@@ -34,7 +33,6 @@ export function Composer({
   model,
   onModelChange,
   sessionId,
-  onAttachmentUploaded,
   usage,
 }: Props) {
   const [text, setText] = useState("")
@@ -71,7 +69,6 @@ export function Composer({
       )
       const ok = uploaded.filter((a): a is Artifact => !!a)
       setPending((p) => [...p, ...ok])
-      for (const a of ok) onAttachmentUploaded?.(a)
     } finally {
       setUploading((n) => n - list.length)
     }
