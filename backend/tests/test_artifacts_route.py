@@ -50,7 +50,7 @@ async def test_artifacts_crud():
 
 
 @pytest.mark.asyncio
-async def test_refresh_route_re_executes_python_source(python_sandbox):
+async def test_refresh_route_re_executes_python_source():
     from sqlmodel import delete
 
     from app.db import async_session, init_db
@@ -96,7 +96,7 @@ async def test_refresh_route_re_executes_python_source(python_sandbox):
 
 
 @pytest.mark.asyncio
-async def test_refresh_route_re_renders_matplotlib_image(python_sandbox):
+async def test_refresh_route_re_renders_matplotlib_image():
     import base64
 
     from sqlmodel import delete

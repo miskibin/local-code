@@ -19,9 +19,7 @@ from app.db import async_session, init_db
 from app.mcp_registry import MCPRegistry
 from app.models import MCPServerConfig
 from app.observability import setup_logging
-from app.python_sandbox import build_sandbox, ensure_deno
 from app.routes.artifacts import router as artifacts_router
-from app.runtime import set_sandbox
 from app.routes.chat import router as chat_router
 from app.routes.feedback import router as feedback_router
 from app.routes.mcp import router as mcp_router
@@ -56,12 +54,6 @@ async def lifespan(app: FastAPI):
     # Warm the cached Chinook schema off the request path; default_subagents()
     # bakes it into the sql-agent system prompt and is called per /chat turn.
     schema_blob()
-
-    # Python sandbox is shared across requests; per-thread isolation is
-    # enforced by passing session_id (= ChatSession.id) to execute().
-    ensure_deno()
-    app.state.pysandbox = build_sandbox()
-    set_sandbox(app.state.pysandbox)
 
     async with AsyncSqliteSaver.from_conn_string(settings.checkpoint_db_path) as saver:
         app.state.llm_cache = {}

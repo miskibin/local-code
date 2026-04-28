@@ -4,7 +4,7 @@ import pytest
 
 
 @pytest.fixture(autouse=True)
-async def _init_db(python_sandbox):
+async def _init_db():
     from app.db import init_db
 
     await init_db()
@@ -84,7 +84,11 @@ async def test_python_exec_image_transparent_bg_app_theme():
 
     from app.tools.python_exec import python_exec
 
-    code = "import matplotlib.pyplot as plt\nplt.plot([1, 2, 3], [4, 5, 6])\nout_image()\n"
+    code = (
+        "import matplotlib.pyplot as plt\n"
+        "plt.plot([1, 2, 3], [4, 5, 6])\n"
+        "out_image()\n"
+    )
     msg = await python_exec.ainvoke(
         dict(type="tool_call", id="theme1", name="python_exec", args={"code": code})
     )

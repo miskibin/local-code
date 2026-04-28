@@ -2,7 +2,7 @@ import pytest
 
 
 @pytest.mark.asyncio
-async def test_refresh_python_artifact_updates_payload_and_timestamp(chinook_path, python_sandbox):
+async def test_refresh_python_artifact_updates_payload_and_timestamp(chinook_path):
     from app.artifact_store import create_artifact, refresh_artifact
     from app.db import init_db
 
@@ -16,7 +16,7 @@ async def test_refresh_python_artifact_updates_payload_and_timestamp(chinook_pat
         source_code="out([{'n': 42}])",
     )
     pre = art.updated_at
-    fresh = await refresh_artifact(art.id, sandbox=python_sandbox)
+    fresh = await refresh_artifact(art.id)
     assert fresh.payload["rows"] == [{"n": 42}]
     assert fresh.updated_at >= pre
 
@@ -60,7 +60,7 @@ async def test_refresh_rejects_artifact_with_no_source(chinook_path):
 
 
 @pytest.mark.asyncio
-async def test_refresh_python_image_artifact_round_trip(chinook_path, python_sandbox):
+async def test_refresh_python_image_artifact_round_trip(chinook_path):
     import base64
 
     from app.artifact_store import create_artifact, refresh_artifact
@@ -83,7 +83,7 @@ async def test_refresh_python_image_artifact_round_trip(chinook_path, python_san
         source_code=code,
     )
     pre = art.updated_at
-    fresh = await refresh_artifact(art.id, sandbox=python_sandbox)
+    fresh = await refresh_artifact(art.id)
     assert fresh.kind == "image"
     assert fresh.payload["format"] == "png"
     raw = base64.b64decode(fresh.payload["data_b64"])

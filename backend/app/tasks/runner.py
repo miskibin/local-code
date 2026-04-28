@@ -35,7 +35,6 @@ from app.artifact_store import (
 from app.db import async_session
 from app.graphs.main_agent import default_subagents
 from app.models import ChatMessage, ChatSession, SavedTask
-from app.runtime import get_sandbox
 from app.streaming import sse
 from app.tasks import coerce_lc_content
 from app.tasks.schemas import TaskDTO, TaskStep
@@ -202,7 +201,7 @@ async def _run_code_step(
 ) -> tuple[Any, dict[str, Any]]:
     if not code:
         raise ValueError(f"step {step.id}: code required for kind=code")
-    result = await run_python_artifact(code, sandbox=get_sandbox(), session_id=session_id)
+    result = await run_python_artifact(code)
     config = {"configurable": {"thread_id": session_id}}
     summary, artifact = await build_and_persist_tool_artifact(
         result=result, source_kind="python", source_code=code, config=config

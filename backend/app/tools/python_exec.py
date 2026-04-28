@@ -2,11 +2,6 @@ from langchain_core.runnables import RunnableConfig
 from langchain_core.tools import ToolException, tool
 
 from app.artifact_store import build_and_persist_tool_artifact, run_python_artifact
-from app.runtime import get_sandbox
-
-
-def _thread_id_from_config(config: RunnableConfig | None) -> str | None:
-    return ((config or {}).get("configurable") or {}).get("thread_id")
 
 
 @tool(response_format="content_and_artifact")
@@ -32,21 +27,29 @@ async def python_exec(code: str, config: RunnableConfig) -> tuple[str, dict]:
       doesn't exist.
 
     matplotlib and pandas are available; the Agg backend is set automatically.
-    App theme (transparent bg, blue-led color cycle) is preset on
+    App theme (transparent bg, Geist Mono, blue-led color cycle) is preset on
     `matplotlib.rcParams`; override in your code if you need custom styling.
+    Subprocess, 20-second timeout, no state between calls. The summary you see
+    starts with the artifact id (looks like `art_abc123def456`).
 
-    State PERSISTS across calls within one chat thread: variables, imports
-    and DataFrames stay alive between runs. Reset the thread to clear.
-    Sandboxed in Pyodide (Deno+WASM); no host filesystem access, no env
-    vars, no arbitrary network.
+    Sandbox — DO NOT attempt these (they will be blocked):
+    - NO database access: do NOT `import sqlite3 / sqlalchemy / aiosqlite /
+      asyncpg / pymongo / redis` (rejected at submit time). For any SQL
+      question delegate to the `sql-agent` subagent (or call `sql_query`).
+    - NO network: do NOT `import socket / urllib / requests / httpx /
+      aiohttp` (rejected at submit time). Don't try to download data.
+    - NO subprocess / shell: do NOT `import subprocess`, do NOT call
+      `os.system` / `os.popen` / `os.exec*` (rejected at submit time).
+    - NO project filesystem: any `open(...)` against project files, `*.db`,
+      or `.env*` is blocked at runtime by the in-process audit hook (so it
+      raises mid-execution). To read prior data use `read_artifact("art_…")`.
+    - NO `__import__`, `eval`, `exec`, `compile`, `ctypes` (rejected at
+      submit time).
+    Compute, transform DataFrames, and plot with matplotlib — that's it.
     """
     try:
-        result = await run_python_artifact(
-            code,
-            sandbox=get_sandbox(),
-            session_id=_thread_id_from_config(config),
-        )
-    except (RuntimeError, TimeoutError) as e:
+        result = await run_python_artifact(code)
+    except (RuntimeError, TimeoutError, ValueError) as e:
         raise ToolException(f"error: {e}") from e
     return await build_and_persist_tool_artifact(
         result=result,
