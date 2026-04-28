@@ -36,7 +36,11 @@ async def test_post_mcp_persists_and_triggers_sync():
     }
     transport = ASGITransport(app=app)
     try:
-        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        async with AsyncClient(
+            transport=transport,
+            base_url="http://test",
+            headers={"X-User-Email": "test@example.com"},
+        ) as ac:
             r = await ac.post("/mcp", json=payload)
             assert r.status_code == 200
 

@@ -27,7 +27,9 @@ async def test_chat_route_returns_sse_with_protocol_header():
         "messages": [{"id": "u1", "role": "user", "parts": [{"type": "text", "text": "ping"}]}],
     }
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+    async with AsyncClient(
+        transport=transport, base_url="http://test", headers={"X-User-Email": "test@example.com"}
+    ) as ac:
         r = await ac.post("/chat", json=payload)
     assert r.status_code == 200
     assert r.headers["x-vercel-ai-ui-message-stream"] == "v1"

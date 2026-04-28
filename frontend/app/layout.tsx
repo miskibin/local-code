@@ -4,7 +4,9 @@ import Script from "next/script"
 import "./globals.css"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Toaster } from "@/components/ui/sonner"
+import { AuthProvider } from "@/lib/auth"
 import { cn } from "@/lib/utils"
+import { AuthGate } from "./_components/AuthGate"
 
 const fontMono = Geist_Mono({ subsets: ["latin"], variable: "--font-mono" })
 const fontSansUi = Inter({ subsets: ["latin"], variable: "--font-sans-ui" })
@@ -50,8 +52,10 @@ export default function RootLayout({
       </head>
       <body data-app="local-chat" suppressHydrationWarning>
         <ThemeProvider defaultTheme="system" enableSystem>
-          {children}
-          <Toaster position="top-right" richColors closeButton />
+          <AuthProvider>
+            <AuthGate>{children}</AuthGate>
+            <Toaster position="top-right" richColors closeButton />
+          </AuthProvider>
         </ThemeProvider>
       </body>
     </html>

@@ -25,7 +25,5 @@ def active_tools(
     flags: dict[str, bool],
 ) -> list[BaseTool]:
     result = [t for t in (local + mcp) if flags.get(t.name, True)]
-    logger.debug(
-        f"active_tools: {len(result)}/{len(local) + len(mcp)} after flag filter"
-    )
+    logger.debug(f"active_tools: {len(result)}/{len(local) + len(mcp)} after flag filter")
     return result

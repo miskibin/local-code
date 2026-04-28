@@ -8,7 +8,11 @@ async def test_health_returns_ok():
 
     transport = ASGITransport(app=app)
     async with (
-        AsyncClient(transport=transport, base_url="http://test") as ac,
+        AsyncClient(
+            transport=transport,
+            base_url="http://test",
+            headers={"X-User-Email": "test@example.com"},
+        ) as ac,
         app.router.lifespan_context(app),
     ):
         r = await ac.get("/health")

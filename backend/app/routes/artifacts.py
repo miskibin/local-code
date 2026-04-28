@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 from sqlmodel import select
 
 from app.artifact_store import create_artifact, refresh_artifact
+from app.auth import CurrentUser
 from app.config import get_settings
 from app.db import async_session
 from app.models import SavedArtifact
@@ -53,9 +54,9 @@ def _to_dto(r: SavedArtifact) -> ArtifactDTO:
 
 
 @router.get("/artifacts", response_model=list[ArtifactDTO])
-async def list_artifacts(pinned: bool | None = None):
+async def list_artifacts(user: CurrentUser, pinned: bool | None = None):
     async with async_session() as s:
-        stmt = select(SavedArtifact)
+        stmt = select(SavedArtifact).where(SavedArtifact.owner_id == user.id)
         if pinned is not None:
             stmt = stmt.where(SavedArtifact.pinned == pinned)
         rows = (await s.execute(stmt)).scalars().all()
@@ -72,11 +73,12 @@ async def get_artifact_route(aid: str):
 
 
 @router.post("/artifacts", response_model=ArtifactDTO)
-async def upsert_artifact(dto: ArtifactDTO):
+async def upsert_artifact(dto: ArtifactDTO, user: CurrentUser):
     async with async_session() as s:
         existing = await s.get(SavedArtifact, dto.id)
         if existing is None:
             await create_artifact(
+                owner_id=user.id,
                 kind=dto.kind,
                 title=dto.title,
                 payload=dto.payload,
@@ -150,6 +152,7 @@ def _classify(filename: str, mime: str) -> str:
 @router.post("/artifacts/upload", response_model=ArtifactDTO)
 async def upload_artifact(
     file: UploadFile,
+    user: CurrentUser,
     session_id: str | None = Form(default=None),
 ):
     name = file.filename or "upload"
@@ -200,6 +203,7 @@ async def upload_artifact(
         summary = f"text {size} bytes"
 
     row = await create_artifact(
+        owner_id=user.id,
         kind=kind,
         title=title,
         payload=payload,

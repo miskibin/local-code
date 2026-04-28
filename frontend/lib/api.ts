@@ -1,3 +1,4 @@
+import { authHeaders } from "./auth"
 import type {
   Artifact,
   MCPServer,
@@ -22,6 +23,7 @@ async function jsonFetch<T>(
     ...rest,
     headers: {
       ...(json !== undefined ? { "Content-Type": "application/json" } : {}),
+      ...authHeaders(),
       ...(rest.headers ?? {}),
     },
     body: json !== undefined ? JSON.stringify(json) : rest.body,
@@ -109,6 +111,7 @@ export const api = {
     const r = await fetch(`${BACKEND}/artifacts/upload`, {
       method: "POST",
       body: fd,
+      headers: authHeaders(),
     })
     if (!r.ok) {
       const detail = await r.text().catch(() => "")

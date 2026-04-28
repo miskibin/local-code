@@ -17,7 +17,11 @@ async def test_artifacts_crud():
         await s.commit()
     transport = ASGITransport(app=app)
     try:
-        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        async with AsyncClient(
+            transport=transport,
+            base_url="http://test",
+            headers={"X-User-Email": "test@example.com"},
+        ) as ac:
             payload = {
                 "id": "art-1",
                 "session_id": "sess-1",
@@ -64,7 +68,11 @@ async def test_refresh_route_re_executes_python_source():
         await s.commit()
     transport = ASGITransport(app=app)
     try:
-        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        async with AsyncClient(
+            transport=transport,
+            base_url="http://test",
+            headers={"X-User-Email": "test@example.com"},
+        ) as ac:
             payload = {
                 "id": "ref-1",
                 "kind": "table",
@@ -119,7 +127,11 @@ async def test_refresh_route_re_renders_matplotlib_image():
     )
     transport = ASGITransport(app=app)
     try:
-        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        async with AsyncClient(
+            transport=transport,
+            base_url="http://test",
+            headers={"X-User-Email": "test@example.com"},
+        ) as ac:
             await ac.post(
                 "/artifacts",
                 json={
@@ -159,7 +171,11 @@ async def test_get_artifact_route_returns_full_dto():
         await s.commit()
     transport = ASGITransport(app=app)
     try:
-        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        async with AsyncClient(
+            transport=transport,
+            base_url="http://test",
+            headers={"X-User-Email": "test@example.com"},
+        ) as ac:
             await ac.post(
                 "/artifacts",
                 json={

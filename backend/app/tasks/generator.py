@@ -274,6 +274,7 @@ async def generate_task_from_run(
     session_id: str,
     messages: list[Any],
     llm: BaseChatModel,
+    owner_id: str,
 ) -> TaskDTO:
     trace = _extract_run_trace(messages)
     artifacts = await _session_artifacts(session_id)
@@ -310,6 +311,6 @@ async def generate_task_from_run(
         variables=[TaskVariable(**v) for v in parsed.get("variables") or []],
         steps=[TaskStep(**s) for s in parsed_steps],
     )
-    row = await create_task(dto)
+    row = await create_task(dto, owner_id)
     logger.info(f"task generated id={row.id} steps={len(dto.steps)} vars={len(dto.variables)}")
     return to_dto(row)

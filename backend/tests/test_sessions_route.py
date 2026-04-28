@@ -17,7 +17,11 @@ async def test_sessions_crud():
         await s.commit()
     transport = ASGITransport(app=app)
     try:
-        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        async with AsyncClient(
+            transport=transport,
+            base_url="http://test",
+            headers={"X-User-Email": "test@example.com"},
+        ) as ac:
             r = await ac.post("/sessions", json={"id": "s1", "title": "first"})
             assert r.status_code == 200
 

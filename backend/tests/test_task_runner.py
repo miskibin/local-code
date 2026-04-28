@@ -7,7 +7,7 @@ from app.models import SavedArtifact, SavedTask
 from app.tasks.runner import run_task
 from app.tasks.schemas import TaskDTO, TaskStep, TaskVariable
 from app.tasks.storage import upsert_task
-from tests.conftest import parse_sse_events, reset_task_tables
+from tests.conftest import TEST_OWNER_ID, parse_sse_events, reset_task_tables
 
 
 @tool
@@ -27,7 +27,7 @@ async def _persist_task(*, steps: list[TaskStep], variables: list[TaskVariable])
         variables=variables,
         steps=steps,
     )
-    return await upsert_task(dto)
+    return await upsert_task(dto, TEST_OWNER_ID)
 
 
 @pytest.mark.asyncio
@@ -57,6 +57,7 @@ async def test_runner_executes_tool_step_with_substitution(monkeypatch, stub_sta
             {"who": "world"},
             state=stub_state,
             session_id="run-sess-1",
+            owner_id=TEST_OWNER_ID,
             llm=FakeListChatModel(responses=["unused"]),
         )
     )
@@ -100,6 +101,7 @@ async def test_runner_runs_prompt_step_via_llm(stub_state):
             {"topic": "indices"},
             state=stub_state,
             session_id="run-sess-prompt",
+            owner_id=TEST_OWNER_ID,
             llm=FakeListChatModel(responses=["Indices speed up reads."]),
         )
     )
@@ -157,6 +159,7 @@ async def test_runner_subagent_step_exposes_artifact_id_for_chaining(monkeypatch
             {},
             state=stub_state,
             session_id="run-chain",
+            owner_id=TEST_OWNER_ID,
             llm=FakeListChatModel(responses=[fake_response]),
         )
     )
@@ -204,6 +207,7 @@ async def test_runner_halts_on_missing_variable(monkeypatch, stub_state):
             {},
             state=stub_state,
             session_id="run-sess-fail",
+            owner_id=TEST_OWNER_ID,
             llm=FakeListChatModel(responses=["x"]),
         )
     )
@@ -241,6 +245,7 @@ async def test_runner_code_step_emits_python_exec_event_shape(monkeypatch, stub_
             {"top_n": 3},
             state=stub_state,
             session_id="run-sess-code",
+            owner_id=TEST_OWNER_ID,
             llm=FakeListChatModel(responses=["unused"]),
         )
     )
@@ -313,6 +318,7 @@ async def test_runner_subagent_inner_tool_carries_parent_link(monkeypatch, stub_
             {},
             state=stub_state,
             session_id="run-inner",
+            owner_id=TEST_OWNER_ID,
             llm=_ToolCallingLLM(responses=["unused"]),
         )
     )
@@ -382,6 +388,7 @@ async def test_runner_tool_step_exposes_artifact_id_for_chaining(monkeypatch, st
             {},
             state=stub_state,
             session_id="run-tool-chain",
+            owner_id=TEST_OWNER_ID,
             llm=FakeListChatModel(responses=["unused"]),
         )
     )
@@ -420,6 +427,7 @@ async def test_runner_appends_lc_messages_for_persistence(monkeypatch, stub_stat
             {"who": "world"},
             state=stub_state,
             session_id="run-lc-1",
+            owner_id=TEST_OWNER_ID,
             llm=FakeListChatModel(responses=["unused"]),
             lc_messages=lc,
         )
@@ -460,6 +468,7 @@ async def test_runner_lc_messages_marks_failed_step_as_error(monkeypatch, stub_s
             {},
             state=stub_state,
             session_id="run-lc-fail",
+            owner_id=TEST_OWNER_ID,
             llm=FakeListChatModel(responses=["unused"]),
             lc_messages=lc,
         )
@@ -512,6 +521,7 @@ async def test_runner_report_step_emits_text_delta_with_artifact_links(monkeypat
             {},
             state=stub_state,
             session_id="run-report-1",
+            owner_id=TEST_OWNER_ID,
             llm=FakeListChatModel(responses=["unused"]),
         )
     )
@@ -581,6 +591,7 @@ async def test_runner_report_persists_after_tool_messages(monkeypatch, stub_stat
             {},
             state=stub_state,
             session_id="run-report-persist",
+            owner_id=TEST_OWNER_ID,
             llm=FakeListChatModel(responses=["unused"]),
             lc_messages=lc,
         )

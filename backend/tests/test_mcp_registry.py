@@ -27,7 +27,9 @@ async def test_sync_from_db_loads_enabled_servers_and_isolates_failures():
 
     with (
         patch("app.mcp_registry.MultiServerMCPClient") as mock_cls,
-        patch("app.mcp_registry.load_mcp_tools", new=AsyncMock(return_value=[_FakeTool("good_t1")])),
+        patch(
+            "app.mcp_registry.load_mcp_tools", new=AsyncMock(return_value=[_FakeTool("good_t1")])
+        ),
     ):
         mock_client = MagicMock()
         mock_cls.return_value = mock_client

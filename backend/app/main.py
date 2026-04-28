@@ -20,6 +20,7 @@ from app.mcp_registry import MCPRegistry
 from app.models import MCPServerConfig
 from app.observability import setup_logging
 from app.routes.artifacts import router as artifacts_router
+from app.routes.auth import router as auth_router
 from app.routes.chat import router as chat_router
 from app.routes.feedback import router as feedback_router
 from app.routes.mcp import router as mcp_router
@@ -45,7 +46,11 @@ async def lifespan(app: FastAPI):
     async with async_session() as s:
         existing = await s.get(MCPServerConfig, "langchain-docs")
         if existing is None:
-            s.add(MCPServerConfig(name="langchain-docs", enabled=True, connection=_langchain_docs_connection))
+            s.add(
+                MCPServerConfig(
+                    name="langchain-docs", enabled=True, connection=_langchain_docs_connection
+                )
+            )
             await s.commit()
         elif existing.connection == _broken_stdio:
             existing.connection = _langchain_docs_connection
@@ -88,6 +93,7 @@ def create_app() -> FastAPI:
     async def health():
         return {"status": "ok"}
 
+    app.include_router(auth_router)
     app.include_router(chat_router)
     app.include_router(tools_router)
     app.include_router(mcp_router)

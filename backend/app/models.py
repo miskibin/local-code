@@ -7,8 +7,15 @@ from sqlmodel import Field, SQLModel
 from app.utils import now_utc
 
 
+class User(SQLModel, table=True):
+    id: str = Field(primary_key=True)
+    email: str = Field(unique=True, index=True)
+    created_at: datetime = Field(default_factory=now_utc)
+
+
 class ChatSession(SQLModel, table=True):
     id: str = Field(primary_key=True)
+    owner_id: str = Field(foreign_key="user.id", index=True)
     title: str = ""
     created_at: datetime = Field(default_factory=now_utc)
     is_pinned: bool = Field(default=False, index=True)
@@ -36,18 +43,27 @@ class MCPServerConfig(SQLModel, table=True):
     connection: dict[str, Any] = Field(sa_column=Column(JSON), default_factory=dict)
 
 
+class MCPServerUserFlag(SQLModel, table=True):
+    user_id: str = Field(primary_key=True, foreign_key="user.id")
+    name: str = Field(primary_key=True)
+    enabled: bool = True
+
+
 class ToolFlag(SQLModel, table=True):
+    user_id: str = Field(primary_key=True, foreign_key="user.id")
     name: str = Field(primary_key=True)
     enabled: bool = True
 
 
 class SkillFlag(SQLModel, table=True):
+    user_id: str = Field(primary_key=True, foreign_key="user.id")
     name: str = Field(primary_key=True)
     enabled: bool = True
 
 
 class SavedArtifact(SQLModel, table=True):
     id: str = Field(primary_key=True)
+    owner_id: str = Field(foreign_key="user.id", index=True)
     session_id: str | None = Field(default=None, index=True)
     kind: str
     title: str
@@ -64,6 +80,7 @@ class SavedArtifact(SQLModel, table=True):
 
 class SavedTask(SQLModel, table=True):
     id: str = Field(primary_key=True)
+    owner_id: str = Field(foreign_key="user.id", index=True)
     title: str
     description: str = ""
     source_session_id: str | None = None

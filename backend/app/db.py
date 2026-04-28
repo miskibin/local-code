@@ -1,11 +1,13 @@
+import asyncio as _asyncio
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from pathlib import Path
 
-from sqlalchemy import text
+from alembic.config import Config
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
-from sqlmodel import SQLModel
 
+from alembic import command
 from app import models  # noqa: F401  ensure metadata registered
 from app.config import get_settings
 
@@ -25,41 +27,16 @@ async def async_session() -> AsyncIterator[AsyncSession]:
         yield session
 
 
-_COLUMN_BACKFILLS = {
-    "chatsession": [
-        ("is_pinned", "BOOLEAN NOT NULL DEFAULT 0"),
-        ("pinned_at", "DATETIME"),
-    ],
-    "savedartifact": [
-        ("pinned", "BOOLEAN NOT NULL DEFAULT 0"),
-    ],
-    "savedtask": [
-        ("tags", "JSON NOT NULL DEFAULT '[]'"),
-        ("role", "VARCHAR"),
-        ("creator", "VARCHAR"),
-    ],
-}
-
-
-async def _backfill_columns(conn) -> None:
-    is_postgres = _db_url.startswith("postgresql")
-    for table, cols in _COLUMN_BACKFILLS.items():
-        if is_postgres:
-            result = await conn.execute(
-                text("SELECT column_name FROM information_schema.columns WHERE table_name = :t"),
-                {"t": table},
-            )
-            existing = {row[0] for row in result.all()}
-        else:
-            existing = {
-                row[1] for row in (await conn.execute(text(f"PRAGMA table_info({table})"))).all()
-            }
-        for name, ddl in cols:
-            if name not in existing:
-                await conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {ddl}"))
+def _alembic_config() -> Config:
+    backend_root = Path(__file__).resolve().parent.parent
+    cfg = Config(str(backend_root / "alembic.ini"))
+    cfg.set_main_option("script_location", str(backend_root / "alembic"))
+    cfg.set_main_option("sqlalchemy.url", _db_url)
+    return cfg
 
 
 async def init_db() -> None:
-    async with engine.begin() as conn:
-        await conn.run_sync(SQLModel.metadata.create_all)
-        await _backfill_columns(conn)
+    cfg = _alembic_config()
+    # alembic uses sync engines internally; run on a worker thread so we don't
+    # block the event loop and don't double-open the async engine's pool.
+    await _asyncio.to_thread(command.upgrade, cfg, "head")
