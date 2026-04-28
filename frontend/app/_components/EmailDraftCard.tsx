@@ -45,9 +45,13 @@ export function EmailDraftCard(props: EmailDraftCardProps) {
   const errored = props.status === "error"
 
   const onCopy = async () => {
-    await navigator.clipboard.writeText(buildPlainText(props))
-    setCopied(true)
-    setTimeout(() => setCopied(false), 1500)
+    try {
+      await navigator.clipboard.writeText(buildPlainText(props))
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } catch {
+      // clipboard unavailable (non-HTTPS or permissions denied)
+    }
   }
 
   const pill = errored
