@@ -16,7 +16,7 @@ __pycache__/
 coverage/
 htmlcov/
 build/
-
+.claude/
 # Node
 node_modules/
 .next/
@@ -25,7 +25,7 @@ node_modules/
 out/
 dist/
 *.log
-
+.claude/worktrees
 # DB
 *.db
 *.db-shm
