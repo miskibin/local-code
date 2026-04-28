@@ -1,22 +1,57 @@
 from deepagents import create_deep_agent
 from deepagents.backends.state import StateBackend
-from deepagents.middleware._tool_exclusion import _ToolExclusionMiddleware
 from deepagents.middleware.summarization import (
     SummarizationToolMiddleware,
     create_summarization_middleware,
 )
 from langchain_core.language_models import BaseChatModel
+from langchain_core.messages import AIMessage
 from langchain_core.tools import BaseTool
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_ollama import ChatOllama
+from langgraph.graph import END, START, StateGraph
+from langgraph.graph.message import MessagesState
 
 from app.middleware.skills_state import StateSkillsMiddleware
+from app.middleware.tool_exclusion import ToolExclusionMiddleware
 from app.skills_registry import SkillInfo
 from app.tools.sql_subagent_query import schema_blob
 
 _EXCLUDED_BUILTIN_TOOLS = frozenset(
     {"ls", "read_file", "write_file", "edit_file", "glob", "grep", "execute"}
 )
+
+
+def _build_disabled_general_purpose_runnable():
+    """Build a CompiledSubAgent that immediately returns a refusal message.
+
+    Replaces deepagents' auto-injected `general-purpose` subagent so:
+    1. The model can't actually do anything if it dispatches there — no
+       FilesystemMiddleware, no `ls`/`grep`/`read_file`/etc. injected.
+    2. There's no LLM call inside the subagent, so it can't go on a tangent.
+    Deepagents recognises specs with a `runnable` key as pre-compiled and
+    skips its own middleware-stack assembly entirely (subagents.py:485).
+    """
+
+    def _refuse(state):
+        return {
+            "messages": [
+                AIMessage(
+                    content=(
+                        "general-purpose is disabled in this harness. "
+                        "Use `sql-agent` for DB questions or call parent "
+                        "tools directly."
+                    )
+                )
+            ]
+        }
+
+    g = StateGraph(MessagesState)
+    g.add_node("refuse", _refuse)
+    g.add_edge(START, "refuse")
+    g.add_edge("refuse", END)
+    return g.compile()
+
 
 SYSTEM_PROMPT = (
     "When delegating with the `task` tool, ALWAYS provide both `subagent_type` "
@@ -79,27 +114,34 @@ def build_agent(
     # a small model can spiral into thousands of `ls` calls before the parent
     # ever sees a result.
     # deepagents auto-injects a `general-purpose` subagent unless one with that
-    # name is already in the list (graph.py:546). Override with a stub so the
-    # parent never delegates to it — sql-agent + direct tools cover our scope.
-    stub_general_purpose = {
+    # name is already in the list (graph.py:546). We replace it with a
+    # CompiledSubAgent (`runnable` key form) so deepagents skips its default
+    # middleware stack entirely (subagents.py:485) — no Filesystem tools, no
+    # LLM call, just a refusal. sql-agent + direct tools cover our scope.
+    disabled_general_purpose = {
         "name": "general-purpose",
-        "description": "Do not use. Call tools directly or delegate to sql-agent.",
-        "system_prompt": "Reply only: 'Use sql-agent or call parent tools directly.'",
-        "tools": [],
+        "description": (
+            "DISABLED. Do NOT call. Delegate DB/analysis to `sql-agent`; "
+            "for everything else call parent tools directly."
+        ),
+        "runnable": _build_disabled_general_purpose_runnable(),
     }
     # Subagents always run with the full exclusion (skills are top-level only).
     # write_todos is a top-level planning tool only — subagents must not create
     # their own plan cards (causes duplicate Plan blocks in the UI).
     subagent_excluded = _EXCLUDED_BUILTIN_TOOLS | {"write_todos"}
-    prepared_subagents = [stub_general_purpose] + [
-        {
+
+    def _with_subagent_exclusion(spec: dict) -> dict:
+        return {
             **spec,
             "middleware": [
                 *list(spec.get("middleware") or []),
-                _ToolExclusionMiddleware(excluded=subagent_excluded),
+                ToolExclusionMiddleware(excluded=subagent_excluded),
             ],
         }
-        for spec in (subagents or [])
+
+    prepared_subagents = [disabled_general_purpose] + [
+        _with_subagent_exclusion(spec) for spec in (subagents or [])
     ]
 
     # Top-level agent: when skills enabled, allow read_file so the model can
@@ -109,7 +151,7 @@ def build_agent(
     if enabled_skills:
         parent_excluded = parent_excluded - {"read_file"}
         parent_middleware.append(StateSkillsMiddleware(skills=enabled_skills))
-    parent_middleware.insert(0, _ToolExclusionMiddleware(excluded=parent_excluded))
+    parent_middleware.insert(0, ToolExclusionMiddleware(excluded=parent_excluded))
 
     # Add the manual `compact_conversation` tool. `create_deep_agent` already
     # injects a SummarizationMiddleware for auto-compaction; this exposes the

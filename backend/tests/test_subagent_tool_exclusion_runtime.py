@@ -16,12 +16,13 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-from deepagents.middleware._tool_exclusion import _ToolExclusionMiddleware
 from langchain_core.language_models.fake_chat_models import FakeListChatModel
 from langchain_core.messages import AIMessage, BaseMessage
 from langchain_core.outputs import ChatGeneration, ChatResult
 from langchain_core.tools import BaseTool, tool
 from pydantic import Field
+
+from app.middleware.tool_exclusion import ToolExclusionMiddleware
 
 
 @tool("safe_tool")
@@ -58,7 +59,7 @@ def _make_request_stub(tools: list[BaseTool]):
 
 def test_middleware_strips_excluded_tools_from_handler_view_sync():
     excluded = frozenset({"ls", "grep"})
-    mw = _ToolExclusionMiddleware(excluded=excluded)
+    mw = ToolExclusionMiddleware(excluded=excluded)
 
     req = _make_request_stub([_ls, _safe_tool])
     seen: list[list[str]] = []
@@ -79,7 +80,7 @@ def test_middleware_strips_excluded_tools_from_handler_view_sync():
 @pytest.mark.asyncio
 async def test_middleware_strips_excluded_tools_from_handler_view_async():
     excluded = frozenset({"ls", "grep"})
-    mw = _ToolExclusionMiddleware(excluded=excluded)
+    mw = ToolExclusionMiddleware(excluded=excluded)
 
     req = _make_request_stub([_ls, _safe_tool])
     seen: list[list[str]] = []
@@ -98,7 +99,7 @@ def test_middleware_passthrough_when_excluded_set_empty():
     """Empty exclusion set is a no-op — the original request must reach the
     handler with tools intact (covers the `if self._excluded` short-circuit
     so an accidental empty frozenset doesn't silently drop a real tool)."""
-    mw = _ToolExclusionMiddleware(excluded=frozenset())
+    mw = ToolExclusionMiddleware(excluded=frozenset())
     req = _make_request_stub([_ls, _safe_tool])
     seen: list[list[str]] = []
 
@@ -149,7 +150,7 @@ class _ScriptedToolCaller(FakeListChatModel):
 async def test_subagent_model_never_sees_excluded_builtins_at_runtime(monkeypatch):
     """Drive a real `build_agent` graph through a top-level dispatch into a
     subagent and assert: every model invocation that the per-subagent
-    `_ToolExclusionMiddleware` wraps presents the handler with a tools list
+    `ToolExclusionMiddleware` wraps presents the handler with a tools list
     that contains NONE of `_EXCLUDED_BUILTIN_TOOLS`.
 
     We observe the middleware's effect by subclassing it and recording the
@@ -167,7 +168,7 @@ async def test_subagent_model_never_sees_excluded_builtins_at_runtime(monkeypatc
     captured: list[tuple[int, list[str]]] = []
     instances: list[Any] = []
 
-    class _RecordingExclusion(_ToolExclusionMiddleware):
+    class _RecordingExclusion(ToolExclusionMiddleware):
         def __init__(self, *, excluded):
             super().__init__(excluded=excluded)
             instances.append(self)
@@ -190,7 +191,7 @@ async def test_subagent_model_never_sees_excluded_builtins_at_runtime(monkeypatc
 
             return await super().awrap_model_call(request, _record)
 
-    monkeypatch.setattr(main_agent_mod, "_ToolExclusionMiddleware", _RecordingExclusion)
+    monkeypatch.setattr(main_agent_mod, "ToolExclusionMiddleware", _RecordingExclusion)
 
     llm = _ScriptedToolCaller(responses=["unused"])
     llm.bound_tool_names = []
@@ -235,7 +236,7 @@ async def test_subagent_model_never_sees_excluded_builtins_at_runtime(monkeypatc
     )
 
     assert len(instances) >= 2, (
-        "expected at least 2 _ToolExclusionMiddleware instances "
+        "expected at least 2 ToolExclusionMiddleware instances "
         f"(one for parent, one per subagent); got {len(instances)}"
     )
     assert captured, (
@@ -261,6 +262,141 @@ async def test_subagent_model_never_sees_excluded_builtins_at_runtime(monkeypatc
         "expected awrap_model_call calls from >=2 distinct middleware instances "
         f"(parent + subagent); got {len(distinct_instance_ids)} from "
         f"captured={captured!r}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_general_purpose_dispatch_never_calls_a_model(monkeypatch):
+    """Regression: a previous bug let the model dispatch
+    `task(subagent_type="general-purpose", ...)` into a stub subagent that
+    deepagents wired up with the default middleware stack
+    (TodoList + Filesystem + ...), which then injected `ls`/`grep`/etc into
+    the subagent's model request. The fix replaces the stub with a
+    CompiledSubAgent (`runnable` key) that immediately returns a refusal
+    ToolMessage — no model bind, no Filesystem tools.
+
+    This pins the contract: dispatching to general-purpose must produce
+    zero model invocations *inside* the subagent. The bound-tool roster
+    therefore must remain identical to the parent's.
+    """
+    from langgraph.checkpoint.memory import InMemorySaver
+
+    from app.graphs.main_agent import build_agent
+
+    llm = _ScriptedToolCaller(responses=["unused"])
+    llm.bound_tool_names = []
+    llm.scripted_messages = [
+        # Parent turn 1: dispatch to general-purpose (the disabled stub)
+        AIMessage(
+            content="",
+            tool_calls=[
+                {
+                    "id": "task_call_1",
+                    "name": "task",
+                    "args": {
+                        "subagent_type": "general-purpose",
+                        "description": "do anything",
+                    },
+                }
+            ],
+        ),
+        # Parent turn 2: synthesize final reply after the refusal comes back
+        AIMessage(content="acknowledged refusal"),
+    ]
+
+    graph = build_agent(
+        llm=llm,
+        tools=[_safe_tool],
+        checkpointer=InMemorySaver(),
+    )
+
+    result = await graph.ainvoke(
+        {"messages": [("user", "go")]},
+        config={"configurable": {"thread_id": "gp-1"}},
+    )
+
+    # Exactly two LLM bindings occurred — both for the parent. None for the
+    # subagent (since it's a `runnable` graph that bypasses the LLM).
+    assert len(llm.bound_tool_names) == 2, (
+        "general-purpose dispatch should not invoke any LLM inside the "
+        f"subagent; got {len(llm.bound_tool_names)} model bind(s): "
+        f"{llm.bound_tool_names!r}"
+    )
+
+    # Refusal text must surface as the task tool's ToolMessage so the parent
+    # sees a clean signal, not an LLM-generated tangent.
+    from langchain_core.messages import ToolMessage
+
+    refusals = [
+        m for m in result["messages"]
+        if isinstance(m, ToolMessage) and "disabled" in (m.content or "").lower()
+    ]
+    assert refusals, (
+        "expected a refusal ToolMessage from the disabled general-purpose "
+        f"subagent; got messages={[type(m).__name__ for m in result['messages']]}"
+    )
+
+
+@pytest.mark.asyncio
+async def test_excluded_tool_call_is_refused_at_execution_time():
+    """Regression: filtering at ``bind_tools`` time only stops the model from
+    *seeing* excluded tools. ``ToolNode`` still has them registered, and small
+    models (gemma) routinely emit tool_calls for names they were never bound
+    to (recalled from training prior). Without ``wrap_tool_call``, those
+    hallucinated calls get *executed* — exactly the leak observed in
+    production where ``ls``/``grep`` ran despite our model-level exclusion.
+
+    Force a hallucinated ``ls`` call via scripted ``AIMessage.tool_calls`` and
+    assert the resulting ``ToolMessage`` is a refusal (status='error', name
+    'ls'), not a real ``ls`` execution.
+    """
+    from langchain_core.messages import ToolMessage
+    from langgraph.checkpoint.memory import InMemorySaver
+
+    from app.graphs.main_agent import build_agent
+
+    llm = _ScriptedToolCaller(responses=["unused"])
+    llm.bound_tool_names = []
+    llm.scripted_messages = [
+        AIMessage(
+            content="",
+            tool_calls=[
+                {
+                    "id": "ls_call_1",
+                    "name": "ls",
+                    "args": {"path": "/"},
+                }
+            ],
+        ),
+        AIMessage(content="acknowledged"),
+    ]
+
+    graph = build_agent(
+        llm=llm,
+        tools=[_safe_tool],
+        checkpointer=InMemorySaver(),
+    )
+
+    result = await graph.ainvoke(
+        {"messages": [("user", "trigger ls hallucination")]},
+        config={"configurable": {"thread_id": "lsh-1"}},
+    )
+
+    ls_msgs = [
+        m for m in result["messages"]
+        if isinstance(m, ToolMessage) and m.name == "ls"
+    ]
+    assert ls_msgs, (
+        "expected a ToolMessage for the hallucinated `ls` call; "
+        f"got messages={[type(m).__name__ for m in result['messages']]}"
+    )
+    refusal = ls_msgs[0]
+    assert refusal.status == "error", (
+        f"hallucinated `ls` should refuse with status='error', got "
+        f"status={refusal.status!r} content={refusal.content!r}"
+    )
+    assert "not available" in (refusal.content or "").lower(), (
+        f"refusal content should explain tool is unavailable; got {refusal.content!r}"
     )
 
 
