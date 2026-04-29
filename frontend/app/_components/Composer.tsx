@@ -15,6 +15,11 @@ import type { Artifact } from "@/lib/types"
 import type { UsageDataPart } from "./ChatView"
 import { ContextIndicator } from "./ContextIndicator"
 import { ModelPicker } from "./ModelPicker"
+import {
+  SlashCommandMenu,
+  parseSlashQuery,
+  type SlashCommand,
+} from "./SlashCommandMenu"
 
 type Props = {
   onSend: (text: string, attachments: Artifact[]) => void
@@ -39,6 +44,10 @@ export function Composer({
   const [pending, setPending] = useState<Artifact[]>([])
   const [uploading, setUploading] = useState(0)
   const [dragOver, setDragOver] = useState(false)
+  const [slashIndex, setSlashIndex] = useState(0)
+  const [slashMatches, setSlashMatches] = useState<SlashCommand[]>([])
+  const slashQuery = parseSlashQuery(text)
+  const slashOpen = slashQuery !== null && slashMatches.length > 0
   const taRef = useRef<HTMLTextAreaElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -82,7 +91,47 @@ export function Composer({
     setPending([])
   }
 
+  const insertSlashCommand = (cmd: SlashCommand) => {
+    setText(`/${cmd.name} `)
+    setSlashIndex(0)
+    requestAnimationFrame(() => taRef.current?.focus())
+  }
+
   const onKey = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (slashOpen) {
+      if (e.key === "ArrowDown") {
+        e.preventDefault()
+        setSlashIndex((i) => (i + 1) % slashMatches.length)
+        return
+      }
+      if (e.key === "ArrowUp") {
+        e.preventDefault()
+        setSlashIndex(
+          (i) => (i - 1 + slashMatches.length) % slashMatches.length
+        )
+        return
+      }
+      if (e.key === "Tab") {
+        e.preventDefault()
+        const c = slashMatches[slashIndex]
+        if (c) insertSlashCommand(c)
+        return
+      }
+      if (e.key === "Escape") {
+        e.preventDefault()
+        setSlashIndex(0)
+        setSlashMatches([])
+        return
+      }
+      if (e.key === "Enter" && !e.shiftKey) {
+        const c = slashMatches[slashIndex]
+        if (c && text.trim() === `/${slashQuery ?? ""}`) {
+          e.preventDefault()
+          insertSlashCommand(c)
+          return
+        }
+      }
+    }
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault()
       submit()
@@ -110,7 +159,16 @@ export function Composer({
     uploading === 0
 
   return (
-    <div className="mx-auto w-full max-w-4xl px-8 pt-1 pb-4">
+    <div className="relative mx-auto w-full max-w-4xl px-8 pt-1 pb-4">
+      {slashQuery !== null && (
+        <SlashCommandMenu
+          query={slashQuery}
+          selectedIndex={slashIndex}
+          onHover={setSlashIndex}
+          onSelect={insertSlashCommand}
+          onMatchesChange={setSlashMatches}
+        />
+      )}
       <div
         className="rounded-3xl px-3.5 pt-2.5 pb-2 transition"
         style={{

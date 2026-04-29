@@ -65,6 +65,7 @@ async def stream_chat(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits w
     model_id: str | None = None,
     checkpointer=None,
     langfuse_handler: object = None,
+    configurable_extras: dict | None = None,
 ) -> AsyncIterator[str]:
     msg_id = f"msg_{uuid4().hex}"
     logger.info(f"stream start thread={thread_id} msg_id={msg_id} input_msgs={len(lc_messages)}")
@@ -188,7 +189,10 @@ async def stream_chat(  # noqa: PLR0912, PLR0915 -- protocol assembler; splits w
         Command(resume=resume_value) if resume_value is not None else {"messages": lc_messages}
     )
     try:
-        astream_config: dict = {"configurable": {"thread_id": thread_id, "owner_id": owner_id}}
+        configurable: dict = {"thread_id": thread_id, "owner_id": owner_id}
+        if configurable_extras:
+            configurable.update(configurable_extras)
+        astream_config: dict = {"configurable": configurable}
         if langfuse_handler is not None:
             astream_config["callbacks"] = [langfuse_handler]
             astream_config["metadata"] = {
