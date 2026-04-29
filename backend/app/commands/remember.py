@@ -5,6 +5,12 @@ from app.db import async_session
 from app.models import UserInstructions
 from app.utils import now_utc
 
+MAX_LINES = 50
+
+
+def _count_lines(content: str) -> int:
+    return sum(1 for line in content.split("\n") if line.strip())
+
 
 @dataclass
 class RememberCommand:
@@ -20,6 +26,14 @@ class RememberCommand:
             )
         async with async_session() as s:
             row = await s.get(UserInstructions, ctx.user.id)
+            existing_count = _count_lines(row.content) if row else 0
+            if existing_count >= MAX_LINES:
+                return StaticResult(
+                    text=(
+                        f"You already have {existing_count} remembered notes "
+                        f"(limit: {MAX_LINES}). Edit them in Settings → Instructions to make room."
+                    )
+                )
             if row is None:
                 row = UserInstructions(
                     user_id=ctx.user.id, content=f"- {line}", updated_at=now_utc()
@@ -30,7 +44,7 @@ class RememberCommand:
                 row.content = f"{base}\n- {line}" if base else f"- {line}"
                 row.updated_at = now_utc()
             await s.commit()
-        return StaticResult(text=f"Zapamiętane: {line}")
+        return StaticResult(text=f"Remembered: {line}")
 
 
 command = RememberCommand()

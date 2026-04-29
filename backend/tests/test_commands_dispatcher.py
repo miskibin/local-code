@@ -9,7 +9,7 @@ def test_parse_slash_no_arg():
     assert parse_slash("/feedback") == ("feedback", "")
 
 
-def test_parse_slash_multi_word_arg_collapses_whitespace():
+def test_parse_slash_multi_word_arg_preserves_internal_whitespace():
     assert parse_slash("/feedback   spaces   inside") == ("feedback", "spaces   inside")
 
 

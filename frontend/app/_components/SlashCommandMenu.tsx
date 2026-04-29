@@ -13,17 +13,20 @@ let _cache: Promise<SlashCommand[]> | null = null
 
 export function loadCommands(): Promise<SlashCommand[]> {
   if (!_cache) {
-    _cache = api.listCommands().catch(() => [])
+    _cache = api.listCommands().catch(() => {
+      _cache = null
+      return []
+    })
   }
   return _cache
 }
 
 export function parseSlashQuery(text: string): string | null {
   if (!text.startsWith("/")) return null
-  const firstLine = text.split("\n")[0]
-  const sp = firstLine.indexOf(" ")
-  if (sp >= 0) return null
-  return firstLine.slice(1)
+  const nl = text.indexOf("\n")
+  if (nl >= 0) return null
+  if (text.indexOf(" ") >= 0) return null
+  return text.slice(1)
 }
 
 type Props = {

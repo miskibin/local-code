@@ -22,7 +22,7 @@ async def test_remember_appends_to_user_instructions():
 
     result = await remember_cmd.handle(arg="always reply in Polish", ctx=ctx)
     assert isinstance(result, StaticResult)
-    assert "always reply in Polish" in result.text
+    assert result.text == "Remembered: always reply in Polish"
 
     async with async_session() as s:
         ui = await s.get(UserInstructions, "usr_remember")
@@ -53,3 +53,32 @@ async def test_remember_empty_arg_is_help():
     async with async_session() as s:
         ui = await s.get(UserInstructions, "usr_empty")
     assert ui is None
+
+
+@pytest.mark.asyncio
+async def test_remember_enforces_max_lines():
+    from app.commands.remember import MAX_LINES
+
+    await reset_task_tables(UserInstructions, User)
+    async with async_session() as s:
+        s.add(User(id="usr_cap", email="c@example.com", created_at=now_utc()))
+        s.add(
+            UserInstructions(
+                user_id="usr_cap",
+                content="\n".join(f"- note {i}" for i in range(MAX_LINES)),
+                updated_at=now_utc(),
+            )
+        )
+        await s.commit()
+
+    user = SimpleNamespace(id="usr_cap", email="c@example.com")
+    ctx = CommandContext(request=None, user=user, session_id="sess_x")  # type: ignore[arg-type]
+
+    result = await remember_cmd.handle(arg="one more note", ctx=ctx)
+    assert isinstance(result, StaticResult)
+    assert "limit" in result.text.lower()
+
+    async with async_session() as s:
+        ui = await s.get(UserInstructions, "usr_cap")
+    assert ui is not None
+    assert "one more note" not in ui.content
