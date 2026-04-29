@@ -185,6 +185,12 @@ export const api = {
       method: "PUT",
       json: { content },
     }),
+
+  // Slash commands
+  listCommands: () =>
+    jsonFetch<
+      { name: string; description: string; arg_hint: string }[]
+    >("/commands"),
 }
 
 export const BACKEND_URL = BACKEND

@@ -8,6 +8,13 @@ from sqlmodel import select
 
 from app import tool_registry
 from app.auth import CurrentUser
+from app.commands import (
+    CommandContext,
+    StaticResult,
+    SubagentResult,
+    parse_slash,
+)
+from app.commands.stream_static import stream_static_text
 from app.config import get_settings
 from app.db import async_session
 from app.graphs.main_agent import (
@@ -16,9 +23,10 @@ from app.graphs.main_agent import (
 from app.graphs.main_agent import (
     default_subagents,
 )
+from app.integrations.feedback_context import FeedbackRequestCtx, set_feedback_ctx
 from app.llm import context_max_tokens, resolve_llm
 from app.models import MCPServerUserFlag, SkillFlag, ToolFlag, UserInstructions
-from app.schemas.chat import ChatRequest
+from app.schemas.chat import ChatRequest, TextPart
 from app.skills_registry import discover_skills, filter_enabled
 from app.streaming import stream_chat
 from app.tasks.runner import persist_run_messages, persist_task_run_checkpoint, run_task
@@ -132,6 +140,32 @@ async def chat(  # noqa: PLR0915 -- request handler; branches on task_run/resume
             media_type="text/event-stream",
             headers=_STREAM_HEADERS,
         )
+    extra_subagent: dict | None = None
+    if req.resume is None and req.task_run is None and req.messages:
+        last = req.messages[-1]
+        last_text = "".join(p.text for p in last.parts if isinstance(p, TextPart))
+        parsed = parse_slash(last_text) if last.role == "user" else None
+        if parsed is not None:
+            name, arg = parsed
+            cmd = (state.commands or {}).get(name)
+            cmd_ctx = CommandContext(request=request, user=user, session_id=req.id)
+            if cmd is None:
+                return StreamingResponse(
+                    stream_static_text(f"Unknown command: `/{name}`", model_id=req.model),
+                    media_type="text/event-stream",
+                    headers=_STREAM_HEADERS,
+                )
+            result = await cmd.handle(arg=arg, ctx=cmd_ctx)
+            if isinstance(result, StaticResult):
+                return StreamingResponse(
+                    stream_static_text(result.text, model_id=req.model),
+                    media_type="text/event-stream",
+                    headers=_STREAM_HEADERS,
+                )
+            if isinstance(result, SubagentResult):
+                last.parts = [TextPart(type="text", text=result.user_message)]
+                extra_subagent = result.subagent
+
     tool_flags = await _load_tool_flags(user.id)
     mcp_user_flags = await _load_mcp_user_flags(user.id)
     enabled_skills = await _enabled_skills(user.id)
@@ -143,6 +177,13 @@ async def chat(  # noqa: PLR0915 -- request handler; branches on task_run/resume
     lc_messages = (
         [] if req.resume is not None else await req.to_lc_messages(last_only=not req.reset)
     )
+    user_agent = request.headers.get("user-agent", "")
+    request_id = request.headers.get("x-request-id")
+    configurable_extras = {
+        "reporter_email": user.email,
+        "app_version": getattr(state, "app_version", ""),
+        "git_sha": getattr(state, "git_sha", ""),
+    }
     if req.resume is not None:
         # tool_call_id is informational — LangGraph resumes by config/thread,
         # not by tool_call_id — but we log it so a stuck thread can be traced
@@ -153,14 +194,19 @@ async def chat(  # noqa: PLR0915 -- request handler; branches on task_run/resume
         )
 
     async def _chat_stream():
+        set_feedback_ctx(
+            FeedbackRequestCtx(
+                user_agent=user_agent,
+                request_id=request_id,
+                langfuse_handler=langfuse_handler,
+            )
+        )
         # Pin MCP tools for the duration of the stream so a concurrent
         # `/mcp` hot-reload cannot close sessions the agent is mid-call on.
         async with AsyncExitStack() as stack:
             registry = getattr(state, "mcp_registry", None)
             if registry is not None and hasattr(registry, "pin_for_stream"):
-                mcp_pinned = await stack.enter_async_context(
-                    registry.pin_for_stream()
-                )
+                mcp_pinned = await stack.enter_async_context(registry.pin_for_stream())
                 tools_by_server = registry.tools_by_server
             elif registry is not None:
                 mcp_pinned = list(getattr(registry, "tools", []))
@@ -179,8 +225,11 @@ async def chat(  # noqa: PLR0915 -- request handler; branches on task_run/resume
                 f"names={[t.name for t in tools]})"
             )
             tools_by_name = {t.name: t for t in tools}
+            subagent_specs = list(default_subagents())
+            if extra_subagent is not None:
+                subagent_specs.append(extra_subagent)
             subagents = []
-            for spec in default_subagents():
+            for spec in subagent_specs:
                 resolved = dict(spec)
                 if "tools" in resolved:
                     resolved["tools"] = [
@@ -209,6 +258,7 @@ async def chat(  # noqa: PLR0915 -- request handler; branches on task_run/resume
                 model_id=req.model,
                 checkpointer=state.checkpointer,
                 langfuse_handler=langfuse_handler,
+                configurable_extras=configurable_extras,
             ):
                 yield evt
 

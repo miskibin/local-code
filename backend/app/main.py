@@ -1,8 +1,13 @@
+import importlib.metadata
 import os
+import subprocess
+import traceback
 from contextlib import asynccontextmanager
+from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from langfuse import get_client
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from loguru import logger
@@ -15,6 +20,7 @@ if _settings_for_env.langfuse_secret_key:
     os.environ.setdefault("LANGFUSE_SECRET_KEY", _settings_for_env.langfuse_secret_key)
     os.environ.setdefault("LANGFUSE_PUBLIC_KEY", _settings_for_env.langfuse_public_key)
     os.environ.setdefault("LANGFUSE_BASE_URL", _settings_for_env.langfuse_base_url)
+from app.commands import discover_commands  # noqa: E402
 from app.db import async_session, init_db  # noqa: E402
 from app.mcp_registry import MCPRegistry  # noqa: E402
 from app.models import MCPServerConfig  # noqa: E402
@@ -22,6 +28,7 @@ from app.observability import setup_logging  # noqa: E402
 from app.routes.artifacts import router as artifacts_router  # noqa: E402
 from app.routes.auth import router as auth_router  # noqa: E402
 from app.routes.chat import router as chat_router  # noqa: E402
+from app.routes.commands import router as commands_router  # noqa: E402
 from app.routes.feedback import router as feedback_router  # noqa: E402
 from app.routes.mcp import router as mcp_router  # noqa: E402
 from app.routes.sessions import router as sessions_router  # noqa: E402
@@ -30,6 +37,28 @@ from app.routes.tasks import router as tasks_router  # noqa: E402
 from app.routes.tools import router as tools_router  # noqa: E402
 from app.routes.user_instructions import router as user_instructions_router  # noqa: E402
 from app.tools.sql_subagent_query import schema_blob  # noqa: E402
+
+
+def _resolve_app_version() -> str:
+    try:
+        return importlib.metadata.version("backend")
+    except importlib.metadata.PackageNotFoundError:
+        return "0.0.0+unknown"
+
+
+def _resolve_git_sha() -> str:
+    try:
+        repo_root = Path(__file__).resolve().parents[2]
+        out = subprocess.check_output(
+            ["git", "rev-parse", "--short", "HEAD"],
+            cwd=repo_root,
+            stderr=subprocess.DEVNULL,
+            text=True,
+            timeout=2,
+        ).strip()
+    except (subprocess.SubprocessError, FileNotFoundError, OSError):
+        return "unknown"
+    return out or "unknown"
 
 
 @asynccontextmanager
@@ -65,6 +94,13 @@ async def lifespan(app: FastAPI):
         app.state.llm_cache = {}
         app.state.checkpointer = saver
         app.state.mcp_registry = MCPRegistry()
+        app.state.commands = discover_commands()
+        app.state.app_version = _resolve_app_version()
+        app.state.git_sha = _resolve_git_sha()
+        logger.info(
+            f"app_version={app.state.app_version} git_sha={app.state.git_sha} "
+            f"commands={sorted(app.state.commands)}"
+        )
         async with async_session() as s:
             cfgs = list((await s.execute(select(MCPServerConfig))).scalars().all())
         await app.state.mcp_registry.sync_from_db(cfgs)
@@ -118,6 +154,7 @@ def create_app() -> FastAPI:
     app.include_router(skills_router)
     app.include_router(feedback_router)
     app.include_router(user_instructions_router)
+    app.include_router(commands_router)
     return app
 
 

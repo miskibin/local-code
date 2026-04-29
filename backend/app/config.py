@@ -31,6 +31,10 @@ class Settings(BaseSettings):
     langfuse_public_key: str = ""
     langfuse_base_url: str = "https://cloud.langfuse.com"
 
+    gitlab_url: str = ""
+    gitlab_token: str = ""
+    gitlab_project_id: str = ""
+
     admin_emails: list[str] = []
 
     @field_validator("admin_emails", "cors_origins", mode="before")
