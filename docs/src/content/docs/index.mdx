@@ -1,0 +1,45 @@
+---
+title: Local Code
+description: Internal architecture & contributor docs for the local Gemma agentic harness.
+template: splash
+hero:
+  tagline: A FastAPI + LangGraph agent harness with a Next.js 16 streaming UI. These docs explain how it fits together — for humans and agents.
+  image:
+    file: ../../assets/logo.svg
+  actions:
+    - text: Architecture map
+      link: /architecture/
+      icon: right-arrow
+      variant: primary
+    - text: Add a tool
+      link: /guides/add-a-tool/
+      icon: external
+      variant: secondary
+---
+
+import { Card, CardGrid } from "@astrojs/starlight/components";
+
+<CardGrid stagger>
+  <Card title="Core" icon="rocket">
+    `app.main` lifespan, agent build per turn, shared `app.state`. See
+    [Core](/modules/core/).
+  </Card>
+  <Card title="Commands" icon="seti:powershell">
+    Slash commands, dispatcher, registry. See [Commands](/modules/commands/).
+  </Card>
+  <Card title="Tools" icon="puzzle">
+    Auto-discovered LangChain tools in `backend/app/tools/`. See
+    [Tools](/modules/tools/).
+  </Card>
+  <Card title="MCPs" icon="setting">
+    Hot-reloadable MCP server registry. See [MCPs](/modules/mcps/).
+  </Card>
+  <Card title="Streaming" icon="laptop">
+    Vercel AI SDK 6 UI message stream + subagent nesting. See
+    [Streaming](/modules/streaming/).
+  </Card>
+  <Card title="Frontend" icon="seti:react">
+    Next.js 16 App Router, `useChat`, tool render registry. See
+    [Frontend](/modules/frontend/).
+  </Card>
+</CardGrid>

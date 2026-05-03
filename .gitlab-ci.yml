@@ -1,0 +1,34 @@
+# GitLab CI — builds the Starlight docs in ./docs and publishes them to
+# GitLab Pages. The job is the only thing in this pipeline; CI for the
+# backend / frontend lives elsewhere.
+
+stages:
+  - deploy
+
+pages:
+  stage: deploy
+  image: node:22-alpine
+  cache:
+    key:
+      files:
+        - docs/package-lock.json
+    paths:
+      - docs/node_modules/
+  before_script:
+    - cd docs
+    - npm ci
+  script:
+    # CI_PAGES_URL example: https://group.gitlab.io/local-code
+    # We need site=https://group.gitlab.io and base=/local-code.
+    - export DOCS_SITE="$(echo "$CI_PAGES_URL" | sed -E 's#(https?://[^/]+).*#\1#')"
+    - export DOCS_BASE="$(echo "$CI_PAGES_URL" | sed -E 's#https?://[^/]+##')"
+    - 'echo "Building with site=$DOCS_SITE base=$DOCS_BASE"'
+    - npm run build
+  pages: true
+  artifacts:
+    paths:
+      - docs/public
+  publish: docs/public
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_COMMIT_BRANCH =~ /^claude\//
