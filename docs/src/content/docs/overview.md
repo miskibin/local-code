@@ -3,46 +3,36 @@ title: Overview
 description: What this app is and how its pieces relate.
 ---
 
-**Local Code** is an agentic chat harness:
+A local agentic chat harness:
 
-- **Backend** — FastAPI + LangGraph + `deepagents` running against a local
-  Ollama (default `gemma4:e4b`). Python 3.14, dependencies managed by `uv`.
-- **Frontend** — Next.js 16 (App Router, Turbopack) + React 19 + Tailwind v4
-  + shadcn/ui. Streams from the backend via Vercel AI SDK 6 (`useChat`).
-- **Storage** — two SQLite databases: `app.db` (SQLModel — sessions,
-  messages, MCP configs, tool flags, saved artifacts) and `checkpoints.db`
-  (LangGraph `AsyncSqliteSaver` for thread state).
-
-## High-level shape
+- **Backend** — FastAPI + LangGraph + `deepagents` over local Ollama
+  (default `gemma4:e4b`). Python 3.14, `uv`.
+- **Frontend** — Next.js 16 + React 19 + Tailwind v4 + shadcn/ui. Streams
+  via Vercel AI SDK 6.
+- **Storage** — `app.db` (SQLModel: sessions, messages, MCP configs, tool
+  flags, artifacts) and `checkpoints.db` (LangGraph thread state).
 
 ```mermaid
 flowchart LR
-    User[Browser] -- SSE --> Frontend[Next.js useChat]
-    Frontend -- POST /chat --> Backend[FastAPI]
-    Backend --> Agent["build_agent_for_turn()"]
-    Agent --> LLM[Ollama / Gemma]
-    Agent --> Tools[(Local tools)]
-    Agent --> MCP[(MCP servers)]
-    Backend --> AppDB[(app.db)]
-    Backend --> CheckpointDB[(checkpoints.db)]
+    User[Browser] -- SSE --> FE[Next.js useChat]
+    FE -- POST /chat --> BE[FastAPI]
+    BE --> Agent["build_agent_for_turn()"]
+    Agent --> LLM[Ollama]
+    Agent --> Tools[(local + MCP tools)]
+    BE --> AppDB[(app.db)]
+    BE --> CK[(checkpoints.db)]
 ```
 
-## Key invariants
+## Three things to remember
 
-- **Agent is rebuilt per turn.** `ToolFlag` and `MCPServerConfig` change
-  between turns, so `build_agent_for_turn` reads the live registry on every
-  `/chat`. Only the LLM cache, checkpointer, MCP registry and command
-  registry live on `app.state`.
-- **Trusted-client deployment.** No per-route auth/ownership checks in the
-  app; `X-User-Email` is sufficient identity. Don't add gating, CSRF, or
-  rate limits unless the task says so.
-- **Streaming protocol is fixed.** Backend emits the Vercel AI SDK 6 UI
-  message stream; the response carries the
-  `x-vercel-ai-ui-message-stream: v1` header.
+1. **Agent is rebuilt every turn.** Tool flags and MCP configs are
+   mutable from the UI; we re-read them per request.
+2. **Trusted-client deployment.** No per-route auth; `X-User-Email` is
+   sufficient identity.
+3. **Stream protocol is fixed.** AI SDK 6 UI message stream with header
+   `x-vercel-ai-ui-message-stream: v1`.
 
-## Where to start
-
-- **Curious how a request flows?** → [How a turn works](/request-lifecycle/)
-- **Adding a tool?** → [Add a tool](/guides/add-a-tool/)
-- **Adding a slash command?** → [Add a slash command](/guides/add-a-command/)
-- **Wiring a new MCP server?** → [Register an MCP server](/guides/add-an-mcp/)
+Start with [Architecture](/architecture/) or jump to a how-to:
+[add a tool](/guides/add-a-tool/),
+[add a command](/guides/add-a-command/),
+[add an MCP](/guides/add-an-mcp/).

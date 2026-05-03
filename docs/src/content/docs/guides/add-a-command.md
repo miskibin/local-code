@@ -1,13 +1,7 @@
 ---
 title: Add a slash command
-description: Wire up a new /command that the user can invoke in chat.
+description: One file in backend/app/commands/.
 ---
-
-Slash commands are anything triggered by a leading `/` in a user message:
-`/feedback`, `/remember`, etc. Adding one is a single file in
-`backend/app/commands/`.
-
-## 1. Implement the `Command` protocol
 
 ```python
 # backend/app/commands/echo.py
@@ -23,47 +17,20 @@ class EchoCommand:
         return StaticResult(text=arg or "(nothing to echo)")
 
 
-echo = EchoCommand()        # the registry only sees module attributes
+echo = EchoCommand()   # registry only sees module-scope instances
 ```
 
-`discover_commands()` skips classes and only registers **instances** that
-satisfy the `Command` protocol — so make sure you instantiate it at module
-scope.
+Restart. The user can now type `/echo something`.
 
-## 2. Pick a result type
+## Result types
 
-| Result type        | Use it when                                                            |
-| ------------------ | ---------------------------------------------------------------------- |
-| `StaticResult`     | You already have the assistant's reply as plain text.                  |
-| `SubagentResult`   | You want to delegate to a subagent with a curated toolset.             |
+- `StaticResult(text=...)` — assistant text, streamed as-is.
+- `SubagentResult(subagent={...}, user_message=..., tool_names=[...])` —
+  delegate to a subagent with a curated tool list. Tool names are
+  resolved against the live registry per turn.
 
-`SubagentResult` shape:
+## Don't
 
-```python
-SubagentResult(
-    subagent={"name": "echo-agent", "description": "...", "prompt": "..."},
-    user_message="user-facing rewrite of the request",
-    tool_names=["sql_query", "web_fetch"],   # resolved against the live registry
-)
-```
-
-## 3. Restart the backend
-
-On boot you'll see:
-
-```
-discovered N slash commands: [..., 'echo']
-```
-
-The command is now callable as `/echo something`.
-
-## Naming
-
-`name` is what the user types after the slash and what shows up in the
-slash-command picker. Keep it short, lowercase, no whitespace.
-
-## Pitfalls
-
-- Don't import `dispatcher`, `registry`, or `base` as your command name —
-  the registry skips those module names.
-- Don't catch user-input parsing errors inside `handle`; let them surface.
+- Don't name the file `base.py` / `dispatcher.py` / `registry.py` — the
+  registry skips those.
+- Don't catch arg-parsing errors inside `handle`; let them surface.

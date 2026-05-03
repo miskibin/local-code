@@ -1,67 +1,35 @@
 ---
 title: Local development
-description: Commands and quality gates for working in this repo.
+description: Commands and gates.
 ---
 
-## Backend
-
-From `backend/`:
+## Backend (`cd backend`)
 
 ```bash
-uv add <pkg>                                    # never edit pyproject.toml, never pin
-uv run uvicorn app.main:app --reload            # dev server
-uv run pytest                                   # all tests
-uv run pytest tests/test_x.py::name             # single
-uv run ruff check                               # lint
-uv run ruff format                              # format
+uv add <pkg>                              # never edit pyproject.toml, never pin
+uv run uvicorn app.main:app --reload      # dev
+uv run pytest                             # tests (asyncio_mode = auto)
+uv run ruff check / format                # lint
 ```
 
-`pytest.ini` sets `asyncio_mode = auto`.
-
-## Frontend
-
-From `frontend/`:
+## Frontend (`cd frontend`)
 
 ```bash
-npm run dev          # Next 16 + Turbopack
-npm run build
-npm run typecheck
-npm run lint
-npm test             # vitest, jsdom
-npx vitest run tests/Sidebar.test.tsx   # single
+npm run dev                               # Next 16 + Turbopack
+npm run build / typecheck / lint
+npm test                                  # vitest, jsdom
+npx shadcn@latest add <name>              # adds to components/ui/
 ```
-
-`shadcn` components are added with `npx shadcn@latest add <name>` from
-`frontend/`; output lands in `components/ui/`.
 
 ## Quality gates
 
-Hooks run automatically on every Edit/Write:
+Hooks fire on every Edit/Write:
 
-- `*.py` → `ruff check --fix` then `ruff format`
-- `*.ts`/`*.tsx` → `prettier --write` then `eslint --fix`
-- `Stop` hook → `ruff check .` over backend as a session-end sanity pass
+- `*.py` → `ruff check --fix` + `ruff format`
+- `*.ts`/`*.tsx` → `prettier --write` + `eslint --fix`
+- `Stop` → `ruff check .` over backend
 
-After non-trivial changes:
+After non-trivial work: ask the **code-reviewer** agent. Weekly:
+**dup-finder**.
 
-> Have code-reviewer audit the changes since last commit
-
-Weekly hygiene (or before refactors):
-
-> Use dup-finder to scan for duplication and dead code
-
-## House rules (read these before changing anything)
-
-- **Other agents work here too.** Code or files you didn't touch may be
-  in-progress work by another agent. Don't refactor or delete unfamiliar
-  code as cleanup — leave it.
-- **Small, precise changes.** No drive-by renames or cleanup. "Fix bug X"
-  means fix bug X.
-- **No unrequested fallbacks.** Let failures fail. No try/except
-  swallowing, default values, retry loops, or graceful degradation unless
-  asked.
-- **Comments explain *why*, not *what*.** Default = no comment.
-- **Reuse before adding.** Look for existing logic first; duplicated logic
-  across files is a bug to fix.
-- **Trusted-client deployment.** Don't add auth gating, ownership filters,
-  CSRF, or rate limits.
+See [Conventions](/reference/conventions/) for the working rules.

@@ -1,76 +1,28 @@
 ---
 title: Commands
-description: Slash commands — discovery, dispatch, and result types.
+description: Slash commands.
 ---
 
-A **command** is anything the user invokes with a leading `/` in chat
-(`/feedback`, `/remember`, ...). The framework lives in
-`backend/app/commands/`.
-
-## Files
-
-| File             | Role                                                                  |
-| ---------------- | --------------------------------------------------------------------- |
-| `base.py`        | `Command` protocol, `CommandContext`, `StaticResult`, `SubagentResult`. |
-| `registry.py`    | `discover_commands()` — auto-imports modules, finds `Command` objects.  |
-| `dispatcher.py`  | Parses `/name args` from a user turn and routes it.                   |
-| `feedback.py`, `remember.py`, `stream_static.py` | Built-in commands.       |
-
-## The `Command` protocol
-
-```python
-@runtime_checkable
-class Command(Protocol):
-    name: str
-    description: str
-    arg_hint: str
-
-    async def handle(self, *, arg: str, ctx: CommandContext) -> CommandResult: ...
-```
-
-A command returns one of:
-
-- `StaticResult(text=...)` — a literal assistant message; streamed verbatim.
-- `SubagentResult(subagent=..., user_message=..., tool_names=[...])` —
-  routes the turn through a subagent with a curated toolset.
-
-## Discovery
+A **command** is anything starting with `/` in chat. Drop a Python file
+in `backend/app/commands/`; the registry auto-imports it.
 
 ```mermaid
 flowchart LR
-    A[discover_commands] --> B{iter_modules in app.commands}
-    B --> C[skip base / dispatcher / registry]
-    C --> D[importlib.import_module]
-    D --> E[inspect module members]
-    E --> F{isinstance Command?}
-    F -- yes --> G[register by name]
-    F -- no --> H[skip]
-    G --> I[returns dict[name, Command]]
+    User["/echo hi"] --> Disp[dispatcher]
+    Disp --> Cmd["Command.handle(arg, ctx)"]
+    Cmd --> Static[StaticResult — literal text]
+    Cmd --> Sub[SubagentResult — curated subagent + tools]
+    Static --> Stream[SSE]
+    Sub --> Stream
 ```
 
-`discover_commands()` runs once during lifespan and the result lives at
-`app.state.commands`. Add a new file in `app/commands/` exporting a module
-attribute that satisfies the `Command` protocol — it shows up next
-restart.
+Two result types:
 
-## Dispatch path
+- `StaticResult` — assistant text, streamed verbatim.
+- `SubagentResult` — delegate to a subagent with a curated tool list.
 
-```mermaid
-sequenceDiagram
-    participant FE as Frontend
-    participant CHAT as /chat
-    participant DISP as dispatcher.dispatch
-    participant CMD as Command.handle
-    FE->>CHAT: POST /chat ("/remember pizza is good")
-    CHAT->>DISP: parse leading slash
-    DISP->>CMD: handle(arg="pizza is good", ctx)
-    CMD-->>DISP: StaticResult or SubagentResult
-    alt StaticResult
-      DISP-->>CHAT: stream literal text
-    else SubagentResult
-      DISP-->>CHAT: build subagent, run via deepagents
-    end
-    CHAT-->>FE: SSE
-```
+`discover_commands()` runs once at lifespan and stores the dict on
+`app.state.commands`. Files named `base.py`, `dispatcher.py`,
+`registry.py` are skipped.
 
-See [Add a slash command](/guides/add-a-command/) for the recipe.
+→ [Add a slash command](/guides/add-a-command/)
